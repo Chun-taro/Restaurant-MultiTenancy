@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RestoSaaS — Super Admin Multi-Tenancy Platform</title>
+  <meta name="description" content="Multi-tenant restaurant SaaS platform administration panel for tenant provisioning, subscriptions, plans, billing, and system isolation.">
+  
+  <!-- Remix Icons CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  
+  <!-- Custom Design System Styles -->
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-icon">
+          <i class="ri-store-3-fill"></i>
+        </div>
+        <div class="brand-info">
+          <div class="brand-name">
+            RestoSaaS <span class="brand-badge">CORE</span>
+          </div>
+          <div class="brand-subtitle">Super Admin Console</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Platform Intelligence</div>
+        <a class="nav-item active" data-nav="dashboard">
+          <i class="ri-dashboard-3-line"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-nav="tenants">
+          <i class="ri-restaurant-2-line"></i>
+          <span>Restaurants / Tenants</span>
+          <span class="nav-badge active-badge" id="sidebar-tenants-count">8</span>
+        </a>
+
+        <div class="nav-section-title">Monetization & Billing</div>
+        <a class="nav-item" data-nav="plans">
+          <i class="ri-vip-diamond-line"></i>
+          <span>Subscription Plans</span>
+        </a>
+        <a class="nav-item" data-nav="billing">
+          <i class="ri-bank-card-line"></i>
+          <span>Billing & Invoices</span>
+        </a>
+
+        <div class="nav-section-title">Governance & System</div>
+        <a class="nav-item" data-nav="users">
+          <i class="ri-shield-user-line"></i>
+          <span>Identity & Access</span>
+        </a>
+        <a class="nav-item" data-nav="audit">
+          <i class="ri-history-line"></i>
+          <span>Audit Logs</span>
+        </a>
+        <a class="nav-item" data-nav="settings">
+          <i class="ri-settings-4-line"></i>
+          <span>System Settings</span>
+        </a>
+      </nav>
+
+      <!-- Sidebar Footer Superadmin Profile -->
+      <div class="sidebar-footer">
+        <div class="admin-mini-profile">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Super Admin" class="admin-avatar">
+          <div class="admin-meta">
+            <div class="admin-name">Alexandre Vance</div>
+            <div class="admin-role">Super Admin</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="page-title-group">
+            <h1 id="page-header-title">Executive Overview</h1>
+            <p id="page-header-subtitle">Platform-wide multi-tenant intelligence and revenue metrics</p>
+          </div>
+        </div>
+
+        <!-- Global Search -->
+        <div class="topbar-search">
+          <i class="ri-search-2-line"></i>
+          <input type="text" id="topbar-global-search" placeholder="Quick search tenants, owners, or slugs...">
+        </div>
+
+        <div class="topbar-right">
+          <!-- System Status -->
+          <div class="system-status-pill">
+            <span class="pulse-dot"></span>
+            <span>Multi-Tenant Engine Online</span>
+          </div>
+
+          <!-- Currency badge -->
+          <div style="background:rgba(255,255,255,0.04); border:1px solid var(--border-subtle); padding:6px 12px; border-radius:var(--radius-pill); font-size:12px; font-weight:700; color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
+            <i class="ri-money-dollar-circle-line" style="color:var(--emerald);"></i>
+            <span>PHP (₱)</span>
+          </div>
+
+          <!-- Provision Shortcut -->
+          <button class="btn btn-primary btn-sm" onclick="TenantsView.openProvisionModal()">
+            <i class="ri-add-line"></i> Provision Tenant
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content Area -->
+      <main class="content-area" id="main-content-view">
+        <!-- Views dynamically rendered here -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Slide-out Tenant Dossier Drawer -->
+  <div class="drawer-overlay" id="tenant-drawer-overlay">
+    <div class="drawer-container">
+      <div class="drawer-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <i class="ri-store-3-line" style="font-size:20px; color:var(--primary-light);"></i>
+          <h3 id="drawer-restaurant-name" style="color:#fff; font-size:17px; font-weight:700;">Tenant Dossier</h3>
+        </div>
+        <button id="drawer-close-btn" class="modal-close">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+      <div class="drawer-body" id="drawer-content-body">
+        <!-- Loaded dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 1: Provision New Restaurant Wizard -->
+  <div class="modal-overlay" id="provision-modal">
+    <div class="modal-container" style="max-width: 720px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title"><i class="ri-rocket-line" style="color:var(--primary-light);"></i> Provision New Restaurant Tenant</h3>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">Initializes isolated tenant database record, owner identity, and storefront subdomain</p>
+        </div>
+        <button class="modal-close"><i class="ri-close-line"></i></button>
+      </div>
+
+      <form onsubmit="TenantsView.submitProvisionForm(event)">
+        <div class="modal-body" style="max-height: 70vh;">
+          <!-- Section 1: Restaurant Identity -->
+          <h4 style="color:#fff; font-size:14px; margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:20px; border-radius:50%; background:var(--primary); display:inline-flex; align-items:center; justify-content:center; font-size:11px;">1</span>
+            Restaurant Profile & Domain
+          </h4>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:18px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Restaurant Brand Name *</label>
+              <input type="text" id="prov-rest-name" name="restaurant_name" class="form-control" placeholder="e.g. Barrio Fiesta Bistro" required>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Subdomain Slug *</label>
+              <input type="text" id="prov-subdomain" name="subdomain" class="form-control" placeholder="e.g. barrio-fiesta" required>
+              <div class="form-hint">
+                Storefront: <code style="color:var(--primary-light); font-family:var(--font-mono); font-size:11px;">https://<span id="prov-slug-preview">your-restaurant</span>.restosaas.ph</code>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px; margin-bottom:18px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Cuisine Type</label>
+              <input type="text" name="cuisine_type" class="form-control" placeholder="e.g. Filipino, Italian, Grill">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">City / Region</label>
+              <input type="text" name="city" class="form-control" placeholder="e.g. Taguig City, Makati">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Primary Brand Color</label>
+              <input type="color" name="primary_color" class="form-control" value="#6366F1" style="height:42px; padding:2px;">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:24px;">
+            <label class="form-label">Custom Domain (Optional)</label>
+            <input type="text" name="custom_domain" class="form-control" placeholder="e.g. barriofiesta.ph">
+            <div class="form-hint">Requires DNS CNAME delegation in Phase 2</div>
+          </div>
+
+          <!-- Section 2: Owner Identity -->
+          <h4 style="color:#fff; font-size:14px; margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:20px; border-radius:50%; background:var(--emerald); display:inline-flex; align-items:center; justify-content:center; font-size:11px;">2</span>
+            Restaurant Owner & Credentials
+          </h4>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:18px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Owner Full Name *</label>
+              <input type="text" name="owner_name" class="form-control" placeholder="e.g. Roberto Gonzales" required>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Owner Email Address *</label>
+              <input type="email" name="owner_email" class="form-control" placeholder="roberto@restaurant.ph" required>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:24px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Temporary Password</label>
+              <input type="password" name="owner_password" class="form-control" value="Welcome2026!">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Contact Phone</label>
+              <input type="text" name="owner_phone" class="form-control" placeholder="+63 917 123 4567">
+            </div>
+          </div>
+
+          <!-- Section 3: Subscription & Billing Plan -->
+          <h4 style="color:#fff; font-size:14px; margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+            <span style="width:20px; height:20px; border-radius:50%; background:var(--amber); display:inline-flex; align-items:center; justify-content:center; font-size:11px;">3</span>
+            Subscription Tier & Billing Cycle
+          </h4>
+
+          <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:16px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Select Plan Tier</label>
+              <select name="plan_id" class="form-control form-select">
+                <option value="1">Starter Cafe (₱1,499/mo)</option>
+                <option value="2" selected>Growth Bistro (₱2,999/mo)</option>
+                <option value="3">Pro Restaurant (₱5,499/mo)</option>
+                <option value="4">Enterprise Franchise (₱12,999/mo)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Billing Cycle</label>
+              <select name="billing_cycle" class="form-control form-select">
+                <option value="monthly" selected>Monthly</option>
+                <option value="yearly">Yearly (Annual)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Initial Status</label>
+              <select name="initial_status" class="form-control form-select">
+                <option value="active" selected>Active</option>
+                <option value="trialing">14-Day Trial</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" name="address" value="Metro Manila">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="ri-rocket-line"></i> Complete Provisioning
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Plan Creator / Editor -->
+  <div class="modal-overlay" id="plan-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title" id="plan-modal-title">Subscription Plan Editor</h3>
+        <button class="modal-close"><i class="ri-close-line"></i></button>
+      </div>
+
+      <form id="plan-form" onsubmit="PlansView.submitPlanForm(event)">
+        <input type="hidden" name="plan_id" value="">
+        <div class="modal-body">
+          <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:16px; margin-bottom:16px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Plan Name *</label>
+              <input type="text" name="name" class="form-control" required placeholder="e.g. Growth Bistro">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Internal Code *</label>
+              <input type="text" name="code" class="form-control" required placeholder="e.g. growth">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="2" placeholder="Brief overview of target customer and features"></textarea>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Price Monthly (₱) *</label>
+              <input type="number" step="1" name="price_monthly" class="form-control" required placeholder="2999">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Price Yearly (₱)</label>
+              <input type="number" step="1" name="price_yearly" class="form-control" placeholder="29990">
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:14px; margin-bottom:18px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Max Menu Items</label>
+              <input type="number" name="max_products" class="form-control" value="100">
+              <div class="form-hint">-1 for unlimited</div>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Max Staff</label>
+              <input type="number" name="max_staff" class="form-control" value="5">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Platform Fee (%)</label>
+              <input type="number" step="0.1" name="transaction_fee_percent" class="form-control" value="2.0">
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:10px; background:rgba(255,255,255,0.02); padding:16px; border-radius:var(--radius-md); border:1px solid var(--border-subtle);">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#fff; cursor:pointer;">
+              <input type="checkbox" name="has_qr_ordering"> Enable QR Table Ordering
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#fff; cursor:pointer;">
+              <input type="checkbox" name="has_online_payment"> Enable Integrated Online Gateway (Maya/Cards)
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#fff; cursor:pointer;">
+              <input type="checkbox" name="has_custom_domain"> Enable Custom Domain Mapping (.ph/.com)
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#fff; cursor:pointer;">
+              <input type="checkbox" name="has_advanced_analytics"> Enable Advanced Analytics & Sales Export
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#fff; cursor:pointer;">
+              <input type="checkbox" name="has_inventory"> Enable Raw Ingredient Inventory
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--amber); cursor:pointer;">
+              <input type="checkbox" name="is_popular"> Highlight as "Most Popular"
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Plan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Super Admin Creator -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal-container" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Super Administrator</h3>
+        <button class="modal-close"><i class="ri-close-line"></i></button>
+      </div>
+
+      <form onsubmit="UsersView.submitUserForm(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" name="name" class="form-control" required placeholder="e.g. Marc Valenzuela">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address *</label>
+            <input type="email" name="email" class="form-control" required placeholder="admin@restosaas.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Role Access</label>
+            <select name="role" class="form-control form-select">
+              <option value="superadmin">Super Administrator (Full Platform Root)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Initial Password *</label>
+            <input type="password" name="password" class="form-control" required value="SuperAdmin2026!">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contact Phone</label>
+            <input type="text" name="phone" class="form-control" placeholder="+63 917 000 0000">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules in Dependency Order -->
+  <script src="/js/api.js"></script>
+  <script src="/js/components/toast.js"></script>
+  <script src="/js/components/modal.js"></script>
+  <script src="/js/components/charts.js"></script>
+  <script src="/js/views/dashboard.js"></script>
+  <script src="/js/views/tenants.js"></script>
+  <script src="/js/views/plans.js"></script>
+  <script src="/js/views/billing.js"></script>
+  <script src="/js/views/users.js"></script>
+  <script src="/js/views/audit.js"></script>
+  <script src="/js/views/settings.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

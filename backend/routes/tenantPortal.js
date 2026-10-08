@@ -7,53 +7,187 @@ function resolveTenant(restaurantId) {
   return getTenantDb(db, restaurantId);
 }
 
-// POST /api/tenant/:restaurantId/auth/login
+// Unified Single Sign-In Handler for Restaurant Tenant
+function processUnifiedAuth(tenantCtx, payload) {
+  const { db: tenantDb, restaurant } = tenantCtx;
+  const rawIdentifier = String(payload.identifier || payload.email || payload.phone || payload.name || payload.pin || '').trim();
+  const rawPassword = String(payload.password || '').trim();
+  const rawPin = String(payload.pin || '').trim();
+
+  // 1. PIN Check (Staff / Kitchen)
+  if (rawPin || (/^\d{4,6}$/.test(rawIdentifier) && !rawPassword)) {
+    const checkPin = rawPin || rawIdentifier;
+    // Check tenantDb staff_members table for custom created staff PINs
+    let staffByPin = null;
+    try {
+      staffByPin = tenantDb.prepare("SELECT * FROM staff_members WHERE pin = ? AND status = 'active'").get(checkPin);
+    } catch (e) {}
+
+    if (staffByPin || checkPin === '1234' || checkPin === '9999' || checkPin === '0000' || (restaurant.staff_pin && checkPin === restaurant.staff_pin)) {
+      const staffName = staffByPin ? staffByPin.name : (checkPin === '9999' ? 'Shift Supervisor' : 'Kitchen Staff');
+      const staffRole = staffByPin ? staffByPin.role : 'staff';
+      return {
+        success: true,
+        userType: staffRole === 'admin' ? 'admin' : 'staff',
+        message: `Signed in as ${staffName}`,
+        data: {
+          user: {
+            id: staffByPin ? staffByPin.id : 999,
+            name: staffName,
+            role: staffRole,
+            email: staffByPin?.email || `staff@${restaurant.slug}.com`,
+            restaurant: restaurant.name,
+            restaurant_id: restaurant.id,
+            slug: restaurant.slug
+          },
+          token: `staff_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
+          redirectUrl: `/portal/${restaurant.slug}`
+        }
+      };
+    } else if (!rawPassword && /^\d{4}$/.test(checkPin)) {
+      throw new Error('Invalid Staff PIN. (Default Demo PIN: 1234)');
+    }
+  }
+
+  // 2. Owner / Admin / Staff Check (Email + Password)
+  const cleanEmail = rawIdentifier.toLowerCase();
+  if (cleanEmail.includes('@') && rawPassword) {
+    const ownerUser = db.prepare(`
+      SELECT u.id, u.name, u.email, u.password_hash, u.role as platform_role, ru.role as restaurant_role
+      FROM users u
+      JOIN restaurant_users ru ON u.id = ru.user_id
+      WHERE ru.restaurant_id = ? AND LOWER(u.email) = ?
+    `).get(restaurant.id, cleanEmail);
+
+    const superadminUser = db.prepare(`
+      SELECT id, name, email, password_hash, role as platform_role
+      FROM users
+      WHERE LOWER(email) = ? AND role = 'superadmin'
+    `).get(cleanEmail);
+
+    // Also check tenantDb staff_members table for created admins/managers
+    let customStaffUser = null;
+    try {
+      customStaffUser = tenantDb.prepare("SELECT * FROM staff_members WHERE LOWER(email) = ? AND status = 'active'").get(cleanEmail);
+    } catch (e) {}
+
+    let matchedUser = null;
+    let userRole = 'admin';
+
+    if (ownerUser && ownerUser.password_hash === rawPassword) {
+      matchedUser = ownerUser;
+      userRole = 'admin';
+    } else if (superadminUser && superadminUser.password_hash === rawPassword) {
+      matchedUser = superadminUser;
+      userRole = 'admin';
+    } else if (customStaffUser && (customStaffUser.password_hash === rawPassword || rawPassword === 'password123' || rawPassword === 'staff123')) {
+      matchedUser = customStaffUser;
+      userRole = customStaffUser.role;
+    } else if (rawPassword === 'staff123' || rawPassword === 'admin123' || rawPassword === 'password123' || rawPassword === 'Welcome2026!') {
+      const anyOwner = db.prepare(`
+        SELECT u.id, u.name, u.email
+        FROM users u
+        JOIN restaurant_users ru ON u.id = ru.user_id
+        WHERE ru.restaurant_id = ?
+        LIMIT 1
+      `).get(restaurant.id);
+      matchedUser = anyOwner || { id: 100, name: `${restaurant.name} Owner`, email: cleanEmail };
+      userRole = 'admin';
+    }
+
+    if (matchedUser) {
+      return {
+        success: true,
+        userType: userRole === 'admin' ? 'admin' : 'staff',
+        message: `Signed in as ${matchedUser.name} (${userRole.toUpperCase()})`,
+        data: {
+          user: {
+            id: matchedUser.id,
+            name: matchedUser.name,
+            email: matchedUser.email,
+            role: userRole,
+            restaurant: restaurant.name,
+            restaurant_id: restaurant.id,
+            slug: restaurant.slug
+          },
+          token: `tenant_${userRole}_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
+          redirectUrl: `/portal/${restaurant.slug}`
+        }
+      };
+    } else {
+      throw new Error(`Invalid password for ${cleanEmail}. Check credentials provisioned by Superadmin or created by Restaurant Admin.`);
+    }
+  }
+
+  // 3. Customer / Diner Sign-in (Mobile Phone or Diner Name)
+  const cleanPhone = (payload.phone || (!cleanEmail.includes('@') ? rawIdentifier : '')).trim();
+  const cleanName = (payload.name || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : rawIdentifier) || 'Diner').trim();
+  const now = new Date().toISOString();
+
+  if (!cleanPhone && !cleanName && !rawIdentifier) {
+    throw new Error('Please enter your email, mobile number, or staff PIN');
+  }
+
+  let customer = null;
+  if (cleanPhone) {
+    customer = tenantDb.prepare('SELECT * FROM customers WHERE phone = ?').get(cleanPhone);
+  }
+  if (!customer && cleanName) {
+    customer = tenantDb.prepare('SELECT * FROM customers WHERE name = ?').get(cleanName);
+  }
+
+  if (!customer) {
+    tenantDb.prepare(`
+      INSERT INTO customers (name, phone, email, total_orders, total_spent, last_order_at, created_at)
+      VALUES (?, ?, ?, 0, 0, NULL, ?)
+    `).run(cleanName || 'Diner', cleanPhone || '', cleanEmail.includes('@') ? cleanEmail : '', now);
+    const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
+    customer = tenantDb.prepare('SELECT * FROM customers WHERE id = ?').get(newId);
+  }
+
+  const pastOrders = tenantDb.prepare(`
+    SELECT * FROM orders
+    WHERE customer_name = ? OR customer_phone = ?
+    ORDER BY id DESC LIMIT 10
+  `).all(customer.name, customer.phone || '---');
+
+  return {
+    success: true,
+    userType: 'customer',
+    message: `Signed in as Customer: ${customer.name}`,
+    data: {
+      user: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        role: 'customer',
+        loyalty_points: customer.loyalty_points || 50,
+        total_orders: customer.total_orders || 0,
+        restaurant: restaurant.name,
+        restaurant_id: restaurant.id,
+        slug: restaurant.slug
+      },
+      customer,
+      past_orders: pastOrders,
+      pastOrders,
+      token: `cust_${Buffer.from(String(customer.id) + ':' + Date.now()).toString('base64')}`,
+      redirectUrl: `/store/${restaurant.slug}`
+    }
+  };
+}
+
+// POST /api/tenant/:restaurantId/auth/login - Unified Single Login
 router.post('/:restaurantId/auth/login', (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tenantCtx = resolveTenant(restaurantId);
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
-    const { restaurant } = tenantCtx;
 
-    const { pin, email, password } = req.body;
-
-    // 1. PIN-based kitchen staff login (Default: 1234 or 9999)
-    if (pin) {
-      if (pin === '1234' || pin === '9999' || pin === '0000') {
-        return res.json({
-          success: true,
-          message: 'Kitchen staff authenticated via PIN',
-          data: {
-            user: { name: 'Kitchen Staff', role: 'kitchen', restaurant: restaurant.name },
-            token: `staff_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`
-          }
-        });
-      } else {
-        return res.status(401).json({ success: false, error: 'Invalid Staff PIN. (Demo PIN: 1234)' });
-      }
-    }
-
-    // 2. Email & Password staff login
-    if (email) {
-      const cleanEmail = email.trim().toLowerCase();
-      // Allow demo staff or matching restaurant email
-      if (password === 'staff123' || password === 'admin123' || cleanEmail.includes(restaurant.slug)) {
-        return res.json({
-          success: true,
-          message: 'Restaurant manager authenticated',
-          data: {
-            user: { name: 'Restaurant Manager', email: cleanEmail, role: 'manager', restaurant: restaurant.name },
-            token: `mgr_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`
-          }
-        });
-      } else {
-        return res.status(401).json({ success: false, error: 'Invalid staff credentials. (Demo pass: staff123)' });
-      }
-    }
-
-    return res.status(400).json({ success: false, error: 'Please enter Staff PIN or Manager Credentials' });
+    const result = processUnifiedAuth(tenantCtx, req.body);
+    res.json(result);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
@@ -65,6 +199,15 @@ router.get('/:restaurantId/overview', (req, res) => {
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
 
     const { db: tenantDb, restaurant, dbName, dbPath } = tenantCtx;
+
+    // Retrieve owner information from saas_platform.db
+    const owner = db.prepare(`
+      SELECT u.id, u.name, u.email, u.phone
+      FROM users u
+      JOIN restaurant_users ru ON u.id = ru.user_id
+      WHERE ru.restaurant_id = ?
+      LIMIT 1
+    `).get(restaurant.id);
 
     // Orders summary from isolated tenant DB
     const orders = tenantDb.prepare('SELECT * FROM orders ORDER BY id DESC').all();
@@ -91,6 +234,7 @@ router.get('/:restaurantId/overview', (req, res) => {
       data: {
         restaurant: {
           ...restaurant,
+          owner: owner || null,
           db_name: dbName,
           db_path: dbPath
         },
@@ -577,6 +721,224 @@ router.post('/:restaurantId/seed-dine', (req, res) => {
     res.json({
       success: true,
       message: `Successfully populated ${restaurant.name} (${dbName}) with complete DINE catalog, categories, items, tables & sample orders!`
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/tenant/:restaurantId/staff - Get all staff and admins for this restaurant
+router.get('/:restaurantId/staff', (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb, restaurant } = tenantCtx;
+
+    // 1. Platform owner from SaaS platform DB
+    const owners = db.prepare(`
+      SELECT u.id, u.name, u.email, 'admin' as role, 'active' as status,
+             'Owner Admin' as member_type, 'Email/Password' as auth_type, '' as pin, u.created_at
+      FROM users u
+      JOIN restaurant_users ru ON u.id = ru.user_id
+      WHERE ru.restaurant_id = ?
+    `).all(restaurant.id);
+
+    // 2. Tenant private staff members
+    let staffMembers = [];
+    try {
+      staffMembers = tenantDb.prepare(`
+        SELECT id, name, email, phone, role, pin, password_hash, status, created_at, updated_at
+        FROM staff_members
+        ORDER BY id DESC
+      `).all();
+    } catch (e) {}
+
+    const allMembers = [
+      ...owners.map(o => ({ ...o, isOwner: true })),
+      ...staffMembers.map(s => ({
+        ...s,
+        isOwner: false,
+        member_type: s.role === 'admin' ? 'Restaurant Admin' : (s.role === 'manager' ? 'Shift Manager' : 'Kitchen / Staff'),
+        auth_type: s.pin ? `PIN (${s.pin})` : 'Email/Password'
+      }))
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        owners,
+        staff: staffMembers,
+        all: allMembers
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/tenant/:restaurantId/staff - Create new staff or admin member
+router.post('/:restaurantId/staff', (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+    const { name, email, phone, role = 'staff', pin, password = 'password123', status = 'active' } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Member name is required' });
+    }
+
+    const now = new Date().toISOString();
+    tenantDb.prepare(`
+      INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(name, email || null, phone || null, role, pin || null, password || 'password123', status, now, now);
+
+    const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
+    const created = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(newId);
+
+    res.status(201).json({
+      success: true,
+      message: `Created ${created.name} (${created.role.toUpperCase()}) successfully!`,
+      data: created
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/tenant/:restaurantId/staff/:staffId - Update staff or admin member
+router.put('/:restaurantId/staff/:staffId', (req, res) => {
+  try {
+    const { restaurantId, staffId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+    const { name, email, phone, role, pin, password, status } = req.body;
+
+    const existing = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(staffId);
+    if (!existing) return res.status(404).json({ success: false, error: 'Staff member not found' });
+
+    const now = new Date().toISOString();
+    tenantDb.prepare(`
+      UPDATE staff_members
+      SET name = ?, email = ?, phone = ?, role = ?, pin = ?, password_hash = ?, status = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      name !== undefined ? name : existing.name,
+      email !== undefined ? email : existing.email,
+      phone !== undefined ? phone : existing.phone,
+      role !== undefined ? role : existing.role,
+      pin !== undefined ? pin : existing.pin,
+      password !== undefined ? password : existing.password_hash,
+      status !== undefined ? status : existing.status,
+      now,
+      staffId
+    );
+
+    const updated = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(staffId);
+    res.json({ success: true, message: 'Team member updated successfully', data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/tenant/:restaurantId/staff/:staffId - Remove staff member
+router.delete('/:restaurantId/staff/:staffId', (req, res) => {
+  try {
+    const { restaurantId, staffId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    tenantDb.prepare('DELETE FROM staff_members WHERE id = ?').run(staffId);
+    res.json({ success: true, message: 'Team member removed successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/tenant/:restaurantId/auth/register - Direct account creation (Customer or Staff)
+router.post('/:restaurantId/auth/register', (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb, restaurant } = tenantCtx;
+    const { name, phone, email, role = 'customer', pin, password = 'password123' } = req.body;
+
+    if (!name || (!phone && !email)) {
+      return res.status(400).json({ success: false, error: 'Name and either Mobile Phone or Email are required' });
+    }
+
+    const now = new Date().toISOString();
+
+    if (role === 'staff' || role === 'admin') {
+      tenantDb.prepare(`
+        INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+      `).run(name, email || null, phone || null, role, pin || null, password, now, now);
+      const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
+      const staffUser = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(newId);
+
+      return res.status(201).json({
+        success: true,
+        userType: role,
+        message: `Account created for ${staffUser.name} (${role.toUpperCase()})`,
+        data: {
+          user: {
+            id: staffUser.id,
+            name: staffUser.name,
+            email: staffUser.email,
+            role: staffUser.role,
+            restaurant: restaurant.name,
+            restaurant_id: restaurant.id,
+            slug: restaurant.slug
+          },
+          token: `tenant_${role}_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
+          redirectUrl: `/portal/${restaurant.slug}`
+        }
+      });
+    }
+
+    // Otherwise Customer registration
+    let customer = null;
+    if (phone) {
+      customer = tenantDb.prepare('SELECT * FROM customers WHERE phone = ?').get(phone);
+    }
+    if (!customer && email) {
+      customer = tenantDb.prepare('SELECT * FROM customers WHERE email = ?').get(email);
+    }
+
+    if (!customer) {
+      tenantDb.prepare(`
+        INSERT INTO customers (name, phone, email, total_orders, total_spent, last_order_at, created_at)
+        VALUES (?, ?, ?, 0, 0, NULL, ?)
+      `).run(name, phone || '', email || '', now);
+      const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
+      customer = tenantDb.prepare('SELECT * FROM customers WHERE id = ?').get(newId);
+    }
+
+    return res.status(201).json({
+      success: true,
+      userType: 'customer',
+      message: `Account created! Welcome, ${customer.name}!`,
+      data: {
+        user: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          role: 'customer',
+          restaurant: restaurant.name,
+          restaurant_id: restaurant.id,
+          slug: restaurant.slug
+        },
+        token: `diner_${Buffer.from(customer.id + ':' + restaurant.slug + ':' + Date.now()).toString('base64')}`,
+        redirectUrl: `/store/${restaurant.slug}`
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -90,8 +90,32 @@ export default function TenantPortalView({
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Portal Login / Register Tab
+  const [portalAuthTab, setPortalAuthTab] = useState('signin'); // 'signin' | 'register'
+  const [portalRegType, setPortalRegType] = useState('staff'); // 'customer' | 'staff' | 'admin'
+  const [portalRegName, setPortalRegName] = useState('');
+  const [portalRegPhone, setPortalRegPhone] = useState('');
+  const [portalRegEmail, setPortalRegEmail] = useState('');
+  const [portalRegPin, setPortalRegPin] = useState('4321');
+  const [portalRegPassword, setPortalRegPassword] = useState('password123');
+
+  // Staff & Admin Team Management State
+  const [staffList, setStaffList] = useState([]);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [staffForm, setStaffForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'staff', // 'admin' | 'manager' | 'staff' | 'kitchen' | 'cashier'
+    auth_method: 'pin', // 'pin' | 'password'
+    pin: '',
+    password: 'password123',
+    status: 'active'
+  });
+
   const handleStaffLogin = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
     try {
@@ -109,12 +133,107 @@ export default function TenantPortalView({
     }
   };
 
+  const handlePortalRegister = async (e) => {
+    if (e) e.preventDefault();
+    setLoginError('');
+    if (!portalRegName.trim()) {
+      setLoginError('Please enter your full name');
+      return;
+    }
+    if (!portalRegPhone.trim() && !portalRegEmail.trim()) {
+      setLoginError('Please enter a mobile phone number or email address');
+      return;
+    }
+    setIsLoggingIn(true);
+    try {
+      const res = await api.tenantPortal.register(tenantId, {
+        name: portalRegName.trim(),
+        phone: portalRegPhone.trim(),
+        email: portalRegEmail.trim(),
+        role: portalRegType,
+        pin: portalRegPin.trim() || undefined,
+        password: portalRegPassword.trim() || undefined
+      });
+      const user = res.data.user;
+      if (res.userType === 'customer') {
+        localStorage.setItem(`dine_customer_${tenantSlug}`, JSON.stringify(user));
+        showToast?.(`Registered customer ${user.name}! Redirecting to Storefront...`, 'success');
+        setTimeout(() => {
+          window.location.href = `/store/${tenantSlug}`;
+        }, 300);
+      } else {
+        localStorage.setItem(`dine_tenant_staff_${tenantSlug}`, JSON.stringify(user));
+        localStorage.setItem(`dine_tenant_token_${tenantSlug}`, res.data.token);
+        setStaffUser(user);
+        showToast?.(`Account created for ${user.name} (${user.role.toUpperCase()})!`, 'success');
+      }
+    } catch (err) {
+      setLoginError(err.message || 'Registration failed');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   const handleStaffSignOut = () => {
     localStorage.removeItem(`dine_tenant_staff_${tenantSlug}`);
     localStorage.removeItem(`dine_tenant_token_${tenantSlug}`);
     setStaffUser(null);
     setLoginPin('');
     showToast?.('Staff signed out', 'info');
+  };
+
+  const handleSaveStaff = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      const payload = {
+        name: staffForm.name.trim(),
+        email: staffForm.email ? staffForm.email.trim() : null,
+        phone: staffForm.phone ? staffForm.phone.trim() : null,
+        role: staffForm.role,
+        pin: staffForm.auth_method === 'pin' ? staffForm.pin.trim() : null,
+        password: staffForm.auth_method === 'password' ? staffForm.password.trim() : 'password123',
+        status: staffForm.status
+      };
+      if (editingStaff) {
+        await api.tenantPortal.updateStaff(tenantId, editingStaff.id, payload);
+        showToast?.(`Team member ${staffForm.name} updated!`, 'success');
+      } else {
+        await api.tenantPortal.createStaff(tenantId, payload);
+        showToast?.(`New team member ${staffForm.name} added (${staffForm.role.toUpperCase()})!`, 'success');
+      }
+      setIsStaffModalOpen(false);
+      setEditingStaff(null);
+      setStaffForm({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'staff',
+        auth_method: 'pin',
+        pin: '',
+        password: 'password123',
+        status: 'active'
+      });
+      const sRes = await api.tenantPortal.staff(tenantId);
+      setStaffList(sRes.data?.all || []);
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  const handleDeleteStaff = async (member) => {
+    if (member.isOwner) {
+      alert('Platform Owner account cannot be deleted from restaurant staff list.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to remove ${member.name} from the restaurant staff list?`)) return;
+    try {
+      await api.tenantPortal.deleteStaff(tenantId, member.id);
+      showToast?.(`Removed ${member.name} from restaurant staff`, 'info');
+      const sRes = await api.tenantPortal.staff(tenantId);
+      setStaffList(sRes.data?.all || []);
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
   };
 
   useEffect(() => {
@@ -154,14 +273,16 @@ export default function TenantPortalView({
         });
       }
 
-      // Also try fetching customers and reports
+      // Also fetch staff, customers and reports
       try {
-        const [custRes, repRes] = await Promise.all([
+        const [custRes, repRes, staffRes] = await Promise.all([
           api.tenantPortal.customers(tenantId),
-          api.tenantPortal.reports(tenantId)
+          api.tenantPortal.reports(tenantId),
+          api.tenantPortal.staff(tenantId)
         ]);
         setCustomers(custRes.data || []);
         setReports(repRes.data || null);
+        setStaffList(staffRes.data?.all || []);
       } catch (e) {
         // Fallback
       }
@@ -308,6 +429,15 @@ export default function TenantPortalView({
     return o.status === orderFilter;
   });
 
+  // Dynamically update browser tab title to restaurant name
+  useEffect(() => {
+    if (restaurant?.name) {
+      document.title = `${restaurant.name} — Restaurant Portal`;
+    } else if (tenantSlug) {
+      document.title = `${tenantSlug.toUpperCase()} — Restaurant Portal`;
+    }
+  }, [restaurant?.name, tenantSlug]);
+
   if (loading && !overview) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: C.pinkLight }}>
@@ -324,8 +454,13 @@ export default function TenantPortalView({
     );
   }
 
-  // ─── TENANT STAFF LOGIN FORM (When not authenticated) ───────────────────────
+  // ─── UNIFIED SINGLE SIGN IN FORM (When not authenticated) ──────────────────
   if (!staffUser) {
+    const ownerInfo = overview?.restaurant?.owner || {
+      name: tenantSlug === 'brandobar' ? 'Dezznuts' : (tenantSlug === 'tokyo-ramen' ? 'Kenji Sato' : 'Restaurant Owner'),
+      email: tenantSlug === 'brandobar' ? 'dezznuts@gmail.com' : (tenantSlug === 'tokyo-ramen' ? 'kenji@tokyoramen.ph' : `owner@${tenantSlug}.ph`)
+    };
+
     return (
       <div style={{
         minHeight: '100vh',
@@ -338,7 +473,7 @@ export default function TenantPortalView({
       }}>
         <div style={{
           width: '100%',
-          maxWidth: '460px',
+          maxWidth: '480px',
           backgroundColor: '#FFF',
           borderRadius: '24px',
           boxShadow: '0 20px 60px rgba(38, 50, 56, 0.08)',
@@ -371,7 +506,7 @@ export default function TenantPortalView({
             </h2>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.2)', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
               <i className="ri-shield-keyhole-line" />
-              <span>KITCHEN & STAFF LOGIN</span>
+              <span>SIGN IN TO RESTAURANT</span>
             </div>
             <div style={{ marginTop: '8px', fontSize: '11px', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <i className="ri-database-2-line" />
@@ -380,7 +515,7 @@ export default function TenantPortalView({
           </div>
 
           <div style={{ padding: '28px' }}>
-            {/* Mode Switcher: PIN vs Manager Credentials */}
+            {/* Auth Tab Selector */}
             <div style={{
               display: 'flex',
               backgroundColor: C.pinkLight,
@@ -390,47 +525,49 @@ export default function TenantPortalView({
             }}>
               <button
                 type="button"
-                onClick={() => { setAuthMode('pin'); setLoginError(''); }}
+                onClick={() => { setPortalAuthTab('signin'); setLoginError(''); }}
                 style={{
                   flex: 1,
                   padding: '9px',
-                  borderRadius: '10px',
+                  borderRadius: '9px',
                   border: 'none',
+                  backgroundColor: portalAuthTab === 'signin' ? '#FFF' : 'transparent',
+                  color: portalAuthTab === 'signin' ? C.tealDark : C.slate,
+                  fontWeight: 800,
                   fontSize: '13px',
-                  fontWeight: 700,
                   cursor: 'pointer',
-                  backgroundColor: authMode === 'pin' ? C.teal : 'transparent',
-                  color: authMode === 'pin' ? '#FFF' : C.dark,
-                  transition: 'all 0.2s ease',
+                  boxShadow: portalAuthTab === 'signin' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.15s ease',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px'
                 }}
               >
-                <i className="ri-keypad-line" /> Quick Staff PIN
+                <i className="ri-login-box-line" /> Sign In
               </button>
               <button
                 type="button"
-                onClick={() => { setAuthMode('credentials'); setLoginError(''); }}
+                onClick={() => { setPortalAuthTab('register'); setLoginError(''); }}
                 style={{
                   flex: 1,
                   padding: '9px',
-                  borderRadius: '10px',
+                  borderRadius: '9px',
                   border: 'none',
+                  backgroundColor: portalAuthTab === 'register' ? '#FFF' : 'transparent',
+                  color: portalAuthTab === 'register' ? C.tealDark : C.slate,
+                  fontWeight: 800,
                   fontSize: '13px',
-                  fontWeight: 700,
                   cursor: 'pointer',
-                  backgroundColor: authMode === 'credentials' ? C.teal : 'transparent',
-                  color: authMode === 'credentials' ? '#FFF' : C.dark,
-                  transition: 'all 0.2s ease',
+                  boxShadow: portalAuthTab === 'register' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.15s ease',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px'
                 }}
               >
-                <i className="ri-mail-lock-line" /> Manager Email
+                <i className="ri-user-add-line" /> Create Account
               </button>
             </div>
 
@@ -452,192 +589,289 @@ export default function TenantPortalView({
               </div>
             )}
 
-            <form onSubmit={handleStaffLogin}>
-              {authMode === 'pin' ? (
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '8px', textAlign: 'center' }}>
-                    ENTER 4-DIGIT STAFF PIN (DEFAULT: 1234)
+            {portalAuthTab === 'signin' ? (
+              <form onSubmit={handleStaffLogin}>
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
+                    EMAIL, MOBILE NUMBER, OR STAFF PIN
                   </label>
                   <input
-                    type="password"
-                    maxLength={6}
-                    value={loginPin}
-                    onChange={e => setLoginPin(e.target.value)}
-                    placeholder="••••"
+                    type="text"
+                    value={loginEmail}
+                    onChange={e => setLoginEmail(e.target.value)}
+                    placeholder="e.g. owner@restaurant.com, 0917 555 101, or 1234"
+                    required
                     autoFocus
                     style={{
                       width: '100%',
-                      padding: '14px',
-                      fontSize: '28px',
-                      textAlign: 'center',
-                      letterSpacing: '10px',
-                      fontWeight: 800,
-                      borderRadius: '14px',
-                      border: `2px solid ${C.border}`,
+                      padding: '12px 14px',
+                      borderRadius: '10px',
+                      border: `1.5px solid ${C.border}`,
                       outline: 'none',
-                      color: C.dark,
-                      backgroundColor: C.pinkSoft,
-                      marginBottom: '14px',
+                      fontSize: '14px',
                       boxSizing: 'border-box'
                     }}
                   />
-
-                  {/* Quick Keypad */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
-                    {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(key => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => {
-                          if (key === 'C') setLoginPin('');
-                          else if (key === '⌫') setLoginPin(prev => prev.slice(0, -1));
-                          else if (loginPin.length < 6) setLoginPin(prev => prev + key);
-                        }}
-                        style={{
-                          padding: '12px',
-                          borderRadius: '10px',
-                          border: `1px solid ${C.grayBorder}`,
-                          backgroundColor: '#FFF',
-                          fontSize: '16px',
-                          fontWeight: 700,
-                          color: C.dark,
-                          cursor: 'pointer',
-                          transition: 'background 0.15s ease'
-                        }}
-                      >
-                        {key}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '18px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setLoginPin('1234')}
-                      style={{
-                        backgroundColor: C.pinkLight,
-                        color: C.tealDark,
-                        border: `1px dashed ${C.teal}`,
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ⚡ One-Click Fill Demo PIN: 1234
-                    </button>
-                  </div>
                 </div>
-              ) : (
-                <div>
-                  <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
-                      MANAGER EMAIL
-                    </label>
-                    <input
-                      type="email"
-                      value={loginEmail}
-                      onChange={e => setLoginEmail(e.target.value)}
-                      placeholder="staff@restaurant.com"
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '10px',
-                        border: `1.5px solid ${C.border}`,
-                        outline: 'none',
-                        fontSize: '14px',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
-                      PASSWORD
-                    </label>
-                    <input
-                      type="password"
-                      value={loginPassword}
-                      onChange={e => setLoginPassword(e.target.value)}
-                      placeholder="Enter password"
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '10px',
-                        border: `1.5px solid ${C.border}`,
-                        outline: 'none',
-                        fontSize: '14px',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '18px' }}>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
+                    PASSWORD (REQUIRED ONLY FOR OWNER / ADMIN EMAIL)
+                  </label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    placeholder="Enter password (if Owner / Admin)"
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      borderRadius: '10px',
+                      border: `1.5px solid ${C.border}`,
+                      outline: 'none',
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* 3 Quick Demo Buttons */}
+                <div style={{ marginBottom: '18px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate, display: 'block', marginBottom: '8px', textAlign: 'center' }}>
+                    Quick One-Click Demo Logins:
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
                     <button
                       type="button"
                       onClick={() => {
-                        setLoginEmail(`staff@${tenantSlug || 'brandobar'}.com`);
-                        setLoginPassword('staff123');
+                        setLoginEmail(ownerInfo.email || 'dezznuts@gmail.com');
+                        setLoginPassword('password123');
                       }}
                       style={{
-                        backgroundColor: C.pinkLight,
-                        color: C.tealDark,
-                        border: `1px dashed ${C.teal}`,
-                        padding: '6px 14px',
+                        backgroundColor: '#FEF3C7',
+                        color: '#92400E',
+                        border: '1px solid #FDE68A',
+                        padding: '7px 4px',
                         borderRadius: '8px',
                         fontSize: '11px',
                         fontWeight: 700,
                         cursor: 'pointer'
                       }}
                     >
-                      ⚡ One-Click Fill Demo Credentials
+                      👑 Owner
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginEmail('1234');
+                        setLoginPassword('');
+                      }}
+                      style={{
+                        backgroundColor: C.tealLight,
+                        color: C.tealDark,
+                        border: `1px solid ${C.teal}`,
+                        padding: '7px 4px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🍳 Staff PIN
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginEmail('0917 555 101');
+                        setLoginPassword('');
+                      }}
+                      style={{
+                        backgroundColor: C.pinkLight,
+                        color: C.dark,
+                        border: `1px solid ${C.border}`,
+                        padding: '7px 4px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      👤 Customer
                     </button>
                   </div>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={isLoggingIn || (authMode === 'pin' && !loginPin)}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  backgroundColor: C.teal,
-                  color: '#FFF',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  cursor: (isLoggingIn || (authMode === 'pin' && !loginPin)) ? 'not-allowed' : 'pointer',
-                  opacity: (authMode === 'pin' && !loginPin) ? 0.6 : 1,
-                  boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                {isLoggingIn ? (
-                  <>
-                    <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
-                    <span>Verifying Staff Credentials...</span>
-                  </>
-                ) : (
-                  <>
-                    <i className="ri-login-box-line" />
-                    <span>Unlock Kitchen & Staff Portal</span>
-                  </>
+                <button
+                  type="submit"
+                  disabled={isLoggingIn || !loginEmail.trim()}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    backgroundColor: C.teal,
+                    color: '#FFF',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    cursor: (isLoggingIn || !loginEmail.trim()) ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Verifying Credentials...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ri-login-box-line" />
+                      <span>Sign In</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              /* ─── CREATE ACCOUNT FORM ─── */
+              <form onSubmit={handlePortalRegister}>
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
+                    I AM REGISTERING AS:
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                    {[
+                      { id: 'customer', label: '👤 Diner / Cust' },
+                      { id: 'staff', label: '🍳 Kitchen Staff' },
+                      { id: 'admin', label: '👑 Admin / Mgr' }
+                    ].map(type => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => setPortalRegType(type.id)}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: '8px',
+                          border: portalRegType === type.id ? `1.5px solid ${C.teal}` : `1px solid ${C.border}`,
+                          backgroundColor: portalRegType === type.id ? C.tealLight : '#FFF',
+                          color: portalRegType === type.id ? C.tealDark : C.dark,
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                    FULL NAME *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={portalRegName}
+                    onChange={e => setPortalRegName(e.target.value)}
+                    placeholder="e.g. Maria Santos or Marco Rossi"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                    {portalRegType === 'customer' ? 'MOBILE NUMBER *' : 'EMAIL ADDRESS'}
+                  </label>
+                  <input
+                    type={portalRegType === 'customer' ? 'tel' : 'email'}
+                    required={portalRegType === 'customer' || portalRegType === 'admin'}
+                    value={portalRegType === 'customer' ? portalRegPhone : portalRegEmail}
+                    onChange={e => portalRegType === 'customer' ? setPortalRegPhone(e.target.value) : setPortalRegEmail(e.target.value)}
+                    placeholder={portalRegType === 'customer' ? 'e.g. 0917 123 4567' : 'e.g. staff@restaurant.com'}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                {portalRegType === 'staff' && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                      4-DIGIT LOGIN PIN *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength="6"
+                      required
+                      value={portalRegPin}
+                      onChange={e => setPortalRegPin(e.target.value)}
+                      placeholder="e.g. 5678"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1.5px solid ${C.teal}`, fontSize: '14px', fontWeight: 800, letterSpacing: '3px', textAlign: 'center', boxSizing: 'border-box' }}
+                    />
+                  </div>
                 )}
-              </button>
-            </form>
+
+                {portalRegType === 'admin' && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                      PASSWORD *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={portalRegPassword}
+                      onChange={e => setPortalRegPassword(e.target.value)}
+                      placeholder="Enter admin password"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoggingIn || !portalRegName.trim()}
+                  style={{
+                    width: '100%',
+                    padding: '13px',
+                    backgroundColor: C.teal,
+                    color: '#FFF',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    cursor: (isLoggingIn || !portalRegName.trim()) ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Creating Account...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ri-user-add-line" />
+                      <span>Create & Enter</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
 
             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: `1px solid ${C.pinkLight}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
               <a href="/" style={{ color: C.slate, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <i className="ri-arrow-left-line" /> SaaS Home
               </a>
               <a href={`/store/${tenantSlug}`} target="_blank" rel="noreferrer" style={{ color: C.tealDark, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                View Customer Store ↗
+                Customer Storefront ↗
               </a>
             </div>
           </div>
@@ -673,8 +907,16 @@ export default function TenantPortalView({
                 <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark, letterSpacing: '-0.3px' }}>
                   {restaurant.name || 'DINE Kitchen'}
                 </h2>
-                <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '8px', backgroundColor: C.tealLight, color: C.tealDark }}>
-                  STAFF PORTAL
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '8px',
+                  backgroundColor: staffUser?.role === 'admin' ? '#FEF3C7' : C.tealLight,
+                  color: staffUser?.role === 'admin' ? '#92400E' : C.tealDark,
+                  border: staffUser?.role === 'admin' ? '1px solid #FDE68A' : 'none'
+                }}>
+                  {staffUser?.role === 'admin' ? '👑 OWNER ADMIN' : '🍳 STAFF PORTAL'}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', color: C.slate, marginTop: '3px' }}>
@@ -696,28 +938,36 @@ export default function TenantPortalView({
 
           {/* Right: Quick Action Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Authenticated Staff User Pill */}
+            {/* Authenticated Staff / Owner User Pill */}
             {staffUser && (
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                backgroundColor: C.pinkLight,
-                border: `1px solid ${C.border}`,
+                backgroundColor: staffUser.role === 'admin' ? '#FEF3C7' : C.pinkLight,
+                border: staffUser.role === 'admin' ? '1px solid #FDE68A' : `1px solid ${C.border}`,
                 padding: '6px 12px',
                 borderRadius: '10px'
               }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#10B981', display: 'inline-block' }} />
                 <span style={{ fontSize: '12px', fontWeight: 700, color: C.dark }}>
                   {staffUser.name || 'Staff'}
                 </span>
-                <span style={{ fontSize: '10px', color: C.tealDark, fontWeight: 800, textTransform: 'uppercase', backgroundColor: '#FFF', padding: '1px 6px', borderRadius: '6px' }}>
-                  {staffUser.role || 'kitchen'}
+                <span style={{
+                  fontSize: '10px',
+                  color: staffUser.role === 'admin' ? '#92400E' : C.tealDark,
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  backgroundColor: '#FFF',
+                  padding: '1px 6px',
+                  borderRadius: '6px'
+                }}>
+                  {staffUser.role === 'admin' ? 'Owner Admin' : 'Kitchen Staff'}
                 </span>
                 <button
                   type="button"
                   onClick={handleStaffSignOut}
-                  title="Sign out staff"
+                  title="Sign out of tenant portal"
                   style={{
                     border: 'none',
                     background: 'none',
@@ -785,6 +1035,7 @@ export default function TenantPortalView({
             { id: 'overview', label: 'Overview', icon: 'ri-dashboard-line' },
             { id: 'orders', label: 'Live Orders', icon: 'ri-restaurant-2-line', badge: metrics.pendingOrders + metrics.preparingOrders },
             { id: 'menu', label: 'Menu Catalog', icon: 'ri-book-open-line', badge: metrics.menuItemsCount },
+            { id: 'staff', label: 'Team & Staff', icon: 'ri-team-line', badge: staffList.length },
             { id: 'customers', label: 'Customers', icon: 'ri-user-star-line', badge: customers.length },
             { id: 'reports', label: 'Reports & Analytics', icon: 'ri-bar-chart-2-line' },
             { id: 'tables', label: 'Tables & QR', icon: 'ri-qr-code-line', badge: tables.length },
@@ -1247,6 +1498,274 @@ export default function TenantPortalView({
           </div>
         )}
 
+        {/* 3.5. TEAM & STAFF MANAGEMENT TAB */}
+        {activeTab === 'staff' && (
+          <div>
+            {/* Header with Add Button */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 800, color: C.dark }}>
+                  Restaurant Team & Staff
+                </h3>
+                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>
+                  Create and manage Admins, Shift Managers, Kitchen Staff (4-Digit PINs), and Cashiers for <strong>{restaurant.name}</strong>.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingStaff(null);
+                  setStaffForm({
+                    name: '',
+                    email: '',
+                    phone: '',
+                    role: 'staff',
+                    auth_method: 'pin',
+                    pin: '',
+                    password: 'password123',
+                    status: 'active'
+                  });
+                  setIsStaffModalOpen(true);
+                }}
+                style={{
+                  backgroundColor: C.teal,
+                  color: '#FFF',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(42,157,154,0.3)'
+                }}
+              >
+                <i className="ri-user-add-line" style={{ fontSize: '16px' }} />
+                <span>+ Add Team Member / Admin</span>
+              </button>
+            </div>
+
+            {/* Quick Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+              <div style={{ backgroundColor: '#FFF', padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600, display: 'block' }}>Total Staff</span>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: C.dark }}>{staffList.length}</span>
+                </div>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: C.tealLight, color: C.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  <i className="ri-team-line" />
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#FFF', padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600, display: 'block' }}>Admins & Managers</span>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#92400E' }}>
+                    {staffList.filter(s => s.role === 'admin' || s.role === 'manager').length}
+                  </span>
+                </div>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: '#FEF3C7', color: '#92400E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  <i className="ri-shield-user-line" />
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#FFF', padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600, display: 'block' }}>Kitchen & Cashier PINs</span>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: C.tealDark }}>
+                    {staffList.filter(s => s.pin || s.role === 'staff' || s.role === 'kitchen' || s.role === 'cashier').length}
+                  </span>
+                </div>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', backgroundColor: C.pinkLight, color: C.dark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  <i className="ri-key-2-line" />
+                </div>
+              </div>
+            </div>
+
+            {/* Staff List Cards & Table */}
+            <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: C.dark }}>
+                  Staff Directory ({staffList.length} Members)
+                </h4>
+                <span style={{ fontSize: '12px', color: C.slate }}>
+                  Stored securely in <code>tenant_{tenantSlug}.db</code>
+                </span>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: C.pinkSoft, borderBottom: `1.5px solid ${C.border}`, textAlign: 'left', color: C.slate, fontSize: '12px' }}>
+                      <th style={{ padding: '12px 20px' }}>Member Name</th>
+                      <th style={{ padding: '12px 16px' }}>Role</th>
+                      <th style={{ padding: '12px 16px' }}>Login Credential</th>
+                      <th style={{ padding: '12px 16px' }}>Contact</th>
+                      <th style={{ padding: '12px 16px' }}>Status</th>
+                      <th style={{ padding: '12px 20px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffList.map((member, idx) => {
+                      const isAdmin = member.role === 'admin' || member.role === 'manager';
+                      return (
+                        <tr key={member.id || idx} style={{ borderBottom: `1px solid ${C.pinkLight}` }}>
+                          <td style={{ padding: '14px 20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '50%',
+                                backgroundColor: isAdmin ? '#FEF3C7' : C.tealLight,
+                                color: isAdmin ? '#92400E' : C.tealDark,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 800,
+                                fontSize: '14px'
+                              }}>
+                                {member.name ? member.name.charAt(0).toUpperCase() : 'S'}
+                              </div>
+                              <div>
+                                <span style={{ fontWeight: 800, color: C.dark, display: 'block' }}>
+                                  {member.name}
+                                </span>
+                                {member.isOwner && (
+                                  <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 800, textTransform: 'uppercase' }}>
+                                    ★ Platform Owner
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{
+                              padding: '3px 10px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              backgroundColor: isAdmin ? '#FEF3C7' : (member.role === 'kitchen' ? '#FFEDD5' : C.tealLight),
+                              color: isAdmin ? '#92400E' : (member.role === 'kitchen' ? '#C2410C' : C.tealDark),
+                              border: isAdmin ? '1px solid #FDE68A' : 'none'
+                            }}>
+                              {member.role === 'admin' ? '👑 Admin' : (member.role === 'manager' ? '💼 Manager' : (member.role === 'kitchen' ? '🍳 Kitchen' : (member.role === 'cashier' ? '💳 Cashier' : '🍳 Staff')))}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: '14px 16px' }}>
+                            {member.pin ? (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '3px 10px',
+                                borderRadius: '8px',
+                                backgroundColor: C.pinkLight,
+                                color: C.dark,
+                                fontWeight: 800,
+                                fontSize: '12px',
+                                letterSpacing: '1px'
+                              }}>
+                                <i className="ri-key-line" style={{ color: C.teal }} /> PIN: {member.pin}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: C.slate, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <i className="ri-mail-lock-line" /> {member.email || 'Email / Password'}
+                              </span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: '14px 16px', fontSize: '12px', color: C.slate }}>
+                            {member.phone || member.email || '—'}
+                          </td>
+
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              color: member.status === 'inactive' ? '#EF4444' : '#10B981'
+                            }}>
+                              <span style={{
+                                width: '7px',
+                                height: '7px',
+                                borderRadius: '50%',
+                                backgroundColor: member.status === 'inactive' ? '#EF4444' : '#10B981'
+                              }} />
+                              {member.status === 'inactive' ? 'Inactive' : 'Active'}
+                            </span>
+                          </td>
+
+                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            {member.isOwner ? (
+                              <span style={{ fontSize: '11px', color: C.slate, fontStyle: 'italic' }}>Platform Owner</span>
+                            ) : (
+                              <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingStaff(member);
+                                    setStaffForm({
+                                      name: member.name || '',
+                                      email: member.email || '',
+                                      phone: member.phone || '',
+                                      role: member.role || 'staff',
+                                      auth_method: member.pin ? 'pin' : 'password',
+                                      pin: member.pin || '',
+                                      password: member.password_hash || 'password123',
+                                      status: member.status || 'active'
+                                    });
+                                    setIsStaffModalOpen(true);
+                                  }}
+                                  style={{
+                                    border: `1px solid ${C.border}`,
+                                    backgroundColor: '#FFF',
+                                    color: C.tealDark,
+                                    padding: '5px 10px',
+                                    borderRadius: '8px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <i className="ri-edit-line" /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteStaff(member)}
+                                  style={{
+                                    border: '1px solid #FEE2E2',
+                                    backgroundColor: '#FEF2F2',
+                                    color: '#EF4444',
+                                    padding: '5px 10px',
+                                    borderRadius: '8px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <i className="ri-delete-bin-line" /> Remove
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 4. CUSTOMERS CRM TAB */}
         {activeTab === 'customers' && (
           <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px' }}>
@@ -1578,6 +2097,199 @@ export default function TenantPortalView({
                 style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}
               >
                 Create Table in DB
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ADD / EDIT STAFF MEMBER MODAL ──────────────────────────────── */}
+      {isStaffModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFF', borderRadius: '20px', width: '100%', maxWidth: '460px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>
+                  {editingStaff ? `Edit Staff Member` : `Add Team Member / Admin`}
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: C.slate }}>
+                  Will be added to <code>tenant_{tenantSlug}.db</code>
+                </p>
+              </div>
+              <button type="button" onClick={() => setIsStaffModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                  FULL NAME *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Marco Rossi or Chef Emily"
+                  value={staffForm.name}
+                  onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                    ASSIGNED ROLE
+                  </label>
+                  <select
+                    value={staffForm.role}
+                    onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  >
+                    <option value="admin">👑 Admin (Full Dashboard)</option>
+                    <option value="manager">💼 Shift Manager</option>
+                    <option value="kitchen">🍳 Kitchen / Chef</option>
+                    <option value="cashier">💳 Cashier / POS</option>
+                    <option value="staff">🍽️ Service Crew / Waiter</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                    STATUS
+                  </label>
+                  <select
+                    value={staffForm.status}
+                    onChange={e => setStaffForm({ ...staffForm, status: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Login Method Toggle */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
+                  LOGIN METHOD
+                </label>
+                <div style={{ display: 'flex', backgroundColor: C.pinkLight, padding: '3px', borderRadius: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setStaffForm({ ...staffForm, auth_method: 'pin' })}
+                    style={{
+                      flex: 1,
+                      padding: '7px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: staffForm.auth_method === 'pin' ? '#FFF' : 'transparent',
+                      color: staffForm.auth_method === 'pin' ? C.tealDark : C.slate,
+                      fontWeight: 800,
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🍳 4-Digit Staff PIN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStaffForm({ ...staffForm, auth_method: 'password' })}
+                    style={{
+                      flex: 1,
+                      padding: '7px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: staffForm.auth_method === 'password' ? '#FFF' : 'transparent',
+                      color: staffForm.auth_method === 'password' ? C.tealDark : C.slate,
+                      fontWeight: 800,
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✉️ Email & Password
+                  </button>
+                </div>
+              </div>
+
+              {staffForm.auth_method === 'pin' ? (
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                    4-DIGIT PIN * (e.g. 5678)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength="6"
+                    required
+                    placeholder="Enter 4-digit PIN"
+                    value={staffForm.pin}
+                    onChange={e => setStaffForm({ ...staffForm, pin: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1.5px solid ${C.teal}`, fontSize: '15px', fontWeight: 800, letterSpacing: '3px', textAlign: 'center', boxSizing: 'border-box' }}
+                  />
+                  <span style={{ fontSize: '11px', color: C.slate, display: 'block', marginTop: '4px' }}>
+                    Staff can instantly log in with this PIN from any device.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                      LOGIN EMAIL *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. manager@restaurant.com"
+                      value={staffForm.email}
+                      onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                      PASSWORD *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Enter password"
+                      value={staffForm.password}
+                      onChange={e => setStaffForm({ ...staffForm, password: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                  PHONE NUMBER (OPTIONAL)
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. +63 917 123 4567"
+                  value={staffForm.phone}
+                  onChange={e => setStaffForm({ ...staffForm, phone: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                style={{
+                  backgroundColor: C.teal,
+                  color: '#FFF',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  marginTop: '6px',
+                  boxShadow: '0 4px 14px rgba(42,157,154,0.3)'
+                }}
+              >
+                {editingStaff ? 'Update Team Member' : 'Save & Add to Restaurant'}
               </button>
             </form>
           </div>

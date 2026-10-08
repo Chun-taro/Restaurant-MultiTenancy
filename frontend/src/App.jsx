@@ -133,6 +133,13 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Set Super Admin title when in super admin or landing mode
+  useEffect(() => {
+    if (appMode === 'admin' || appMode === 'landing' || appMode === 'login') {
+      document.title = 'RestoSaaS — Super Admin Multi-Tenancy Console (MERN Stack)';
+    }
+  }, [appMode]);
+
   const navigateTo = (path) => {
     window.history.pushState({}, '', path);
     const target = resolveRouteFromUrl();

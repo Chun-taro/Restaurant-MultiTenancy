@@ -63,7 +63,7 @@ export default function CustomerStorefrontView({
   const [paymentMethod, setPaymentMethod] = useState('GCash'); // 'GCash' | 'Maya' | 'Cash on Dine'
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  // Customer Account & Authentication State
+  // Unified Single Sign-In & Registration State
   const [customerUser, setCustomerUser] = useState(() => {
     try {
       const saved = localStorage.getItem(`dine_customer_${slug}`);
@@ -73,8 +73,12 @@ export default function CustomerStorefrontView({
     }
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authPhone, setAuthPhone] = useState('0917 555 101');
-  const [authName, setAuthName] = useState('Alex Santos');
+  const [authModalTab, setAuthModalTab] = useState('signin'); // 'signin' | 'register'
+  const [authIdentifier, setAuthIdentifier] = useState('0917 555 101');
+  const [authPassword, setAuthPassword] = useState('');
+  const [regName, setRegName] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
 
@@ -86,27 +90,81 @@ export default function CustomerStorefrontView({
     }
   }, [customerUser]);
 
-  const handleCustomerLogin = async (e) => {
+  const handleRegisterAccount = async (e) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    if (!regName.trim()) {
+      setAuthError('Please enter your full name');
+      return;
+    }
+    if (!regPhone.trim() && !regEmail.trim()) {
+      setAuthError('Please enter your mobile phone number or email address');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await api.storefront.register(slug, {
+        name: regName.trim(),
+        phone: regPhone.trim(),
+        email: regEmail.trim(),
+        role: 'customer'
+      });
+      const data = res.data;
+      const cust = data.user || data.customer;
+      setCustomerUser(cust);
+      localStorage.setItem(`dine_customer_${slug}`, JSON.stringify(cust));
+      if (cust.name) setCustomerName(cust.name);
+      if (cust.phone) setCustomerPhone(cust.phone);
+      showToast?.(`Account created! Welcome to ${restaurant?.name || 'our restaurant'}, ${cust.name}! 🎉`, 'success');
+      setIsAuthModalOpen(false);
+      setRegName('');
+      setRegPhone('');
+      setRegEmail('');
+    } catch (err) {
+      setAuthError(err.message || 'Account registration failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleUnifiedLogin = async (e) => {
     if (e) e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
     try {
       const res = await api.storefront.customerLogin(slug, {
-        phone: authPhone,
-        name: authName
+        identifier: authIdentifier,
+        password: authPassword
       });
-      const cust = res.data.customer;
+
+      const data = res.data;
+      const userType = res.userType || data.user?.role;
+
+      // 1. If Admin / Owner or Staff logged in -> Redirect to Tenant Portal!
+      if (userType === 'admin' || userType === 'staff' || data.user?.role === 'admin' || data.user?.role === 'staff' || data.user?.role === 'owner') {
+        localStorage.setItem(`dine_tenant_staff_${slug}`, JSON.stringify(data.user));
+        localStorage.setItem(`dine_tenant_token_${slug}`, data.token);
+        showToast?.(`Signed in as ${data.user.name} (${(userType || 'STAFF').toUpperCase()})! Redirecting to Portal...`, 'success');
+        setIsAuthModalOpen(false);
+        setTimeout(() => {
+          window.location.href = `/portal/${slug}`;
+        }, 300);
+        return;
+      }
+
+      // 2. Customer logged in -> Update customer profile & auto-fill checkout
+      const cust = data.customer || data.user;
       setCustomerUser(cust);
       localStorage.setItem(`dine_customer_${slug}`, JSON.stringify(cust));
       if (cust.name) setCustomerName(cust.name);
       if (cust.phone) setCustomerPhone(cust.phone);
-      if (res.data.past_orders?.length > 0) {
-        setOrderHistory(res.data.past_orders);
+      if (data.past_orders?.length > 0) {
+        setOrderHistory(data.past_orders);
       }
       showToast?.(`Welcome back, ${cust.name}!`, 'success');
       setIsAuthModalOpen(false);
     } catch (err) {
-      setAuthError(err.message || 'Authentication failed');
+      setAuthError(err.message || 'Sign in failed');
     } finally {
       setAuthLoading(false);
     }
@@ -115,7 +173,7 @@ export default function CustomerStorefrontView({
   const handleCustomerLogout = () => {
     localStorage.removeItem(`dine_customer_${slug}`);
     setCustomerUser(null);
-    showToast?.('Signed out of diner account', 'info');
+    showToast?.('Signed out', 'info');
   };
 
   // Active Live Order Tracking
@@ -161,6 +219,15 @@ export default function CustomerStorefrontView({
 
   const restaurant = data?.restaurant;
   const categories = data?.categories || [];
+
+  // Update browser tab title dynamically with restaurant name
+  useEffect(() => {
+    if (restaurant?.name) {
+      document.title = `${restaurant.name} — Online Menu & Ordering`;
+    } else if (slug) {
+      document.title = `${slug.toUpperCase()} — Online Menu & Ordering`;
+    }
+  }, [restaurant?.name, slug]);
 
   // Flatten items for filtering
   const allItems = categories.flatMap(c => (c.items || []).map(it => ({ ...it, categoryName: c.name })));
@@ -475,7 +542,7 @@ export default function CustomerStorefrontView({
               </button>
             )}
 
-            {/* Customer / Diner Account Button */}
+            {/* Customer / Account Button */}
             {customerUser ? (
               <button
                 type="button"
@@ -493,7 +560,7 @@ export default function CustomerStorefrontView({
                   alignItems: 'center',
                   gap: '8px'
                 }}
-                title="View diner profile & loyalty stamps"
+                title="View profile & loyalty stamps"
               >
                 <i className="ri-user-smile-line" style={{ color: DINE_THEME.teal, fontSize: '15px' }} />
                 <span>{customerUser.name}</span>
@@ -528,7 +595,7 @@ export default function CustomerStorefrontView({
                 }}
               >
                 <i className="ri-user-3-line" style={{ color: DINE_THEME.teal }} />
-                <span>Diner Sign In</span>
+                <span>Sign In</span>
               </button>
             )}
 
@@ -1845,29 +1912,61 @@ export default function CustomerStorefrontView({
                   </div>
                 </div>
               ) : (
-                /* ─── CUSTOMER SIGN IN / REGISTER FORM ─── */
-                <form onSubmit={handleCustomerLogin}>
-                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <div style={{
-                      width: '54px',
-                      height: '54px',
-                      borderRadius: '50%',
-                      backgroundColor: DINE_THEME.pinkLight,
-                      color: DINE_THEME.teal,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 12px',
-                      fontSize: '24px'
-                    }}>
-                      <i className="ri-user-star-line" />
-                    </div>
-                    <h4 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 800, color: DINE_THEME.dark }}>
-                      Sign In to {restaurant?.name || 'Restaurant'}
-                    </h4>
-                    <p style={{ margin: 0, fontSize: '12px', color: DINE_THEME.slate, lineHeight: 1.5 }}>
-                      Sign in with your mobile number to unlock loyalty stamps, view past orders, and speed up checkout.
-                    </p>
+                <div>
+                  {/* Auth Modal Tab Selector */}
+                  <div style={{
+                    display: 'flex',
+                    backgroundColor: DINE_THEME.pinkLight,
+                    padding: '4px',
+                    borderRadius: '12px',
+                    marginBottom: '20px'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => { setAuthModalTab('signin'); setAuthError(''); }}
+                      style={{
+                        flex: 1,
+                        padding: '9px',
+                        borderRadius: '9px',
+                        border: 'none',
+                        backgroundColor: authModalTab === 'signin' ? '#FFF' : 'transparent',
+                        color: authModalTab === 'signin' ? DINE_THEME.tealDark : DINE_THEME.slate,
+                        fontWeight: 800,
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        boxShadow: authModalTab === 'signin' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <i className="ri-login-box-line" /> Sign In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAuthModalTab('register'); setAuthError(''); }}
+                      style={{
+                        flex: 1,
+                        padding: '9px',
+                        borderRadius: '9px',
+                        border: 'none',
+                        backgroundColor: authModalTab === 'register' ? '#FFF' : 'transparent',
+                        color: authModalTab === 'register' ? DINE_THEME.tealDark : DINE_THEME.slate,
+                        fontWeight: 800,
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        boxShadow: authModalTab === 'register' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <i className="ri-user-add-line" /> Create Account
+                    </button>
                   </div>
 
                   {authError && (
@@ -1888,106 +1987,324 @@ export default function CustomerStorefrontView({
                     </div>
                   )}
 
-                  <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
-                      MOBILE NUMBER
-                    </label>
-                    <input
-                      type="tel"
-                      value={authPhone}
-                      onChange={e => setAuthPhone(e.target.value)}
-                      placeholder="e.g. 0917 555 101"
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px',
+                  {authModalTab === 'signin' ? (
+                    /* ─── UNIFIED SINGLE SIGN IN FORM ─── */
+                    <form onSubmit={handleUnifiedLogin}>
+                      <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                        <h4 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 800, color: DINE_THEME.dark }}>
+                          Sign In to {restaurant?.name || 'Restaurant'}
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '12px', color: DINE_THEME.slate, lineHeight: 1.5 }}>
+                          Single login for Customers, Staff, and Owners.
+                        </p>
+                      </div>
+
+                      <div style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          EMAIL, MOBILE NUMBER, OR STAFF PIN
+                        </label>
+                        <input
+                          type="text"
+                          value={authIdentifier}
+                          onChange={e => setAuthIdentifier(e.target.value)}
+                          placeholder="e.g. 0917 555 101 or owner@restaurant.com or 1234"
+                          required
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: `1.5px solid ${DINE_THEME.border}`,
+                            outline: 'none',
+                            fontSize: '14px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          PASSWORD (REQUIRED ONLY FOR OWNER / ADMIN)
+                        </label>
+                        <input
+                          type="password"
+                          value={authPassword}
+                          onChange={e => setAuthPassword(e.target.value)}
+                          placeholder="Enter password (if logging in as Owner/Admin)"
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: `1.5px solid ${DINE_THEME.border}`,
+                            outline: 'none',
+                            fontSize: '14px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+
+                      {/* 3 Quick Demo Buttons */}
+                      <div style={{ marginBottom: '18px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: DINE_THEME.slate, display: 'block', marginBottom: '8px', textAlign: 'center' }}>
+                          Quick One-Click Demo Logins:
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthIdentifier(slug === 'brandobar' ? 'dezznuts@gmail.com' : (slug === 'tokyo-ramen' ? 'kenji@tokyoramen.ph' : 'arthur@gmail.com'));
+                              setAuthPassword('password123');
+                            }}
+                            style={{
+                              backgroundColor: '#FEF3C7',
+                              color: '#92400E',
+                              border: '1px solid #FDE68A',
+                              padding: '7px 4px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            👑 Owner
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthIdentifier('1234');
+                              setAuthPassword('');
+                            }}
+                            style={{
+                              backgroundColor: DINE_THEME.tealLight,
+                              color: DINE_THEME.tealDark,
+                              border: `1px solid ${DINE_THEME.teal}`,
+                              padding: '7px 4px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🍳 Staff PIN
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthIdentifier('0917 555 101');
+                              setAuthPassword('');
+                            }}
+                            style={{
+                              backgroundColor: DINE_THEME.pinkLight,
+                              color: DINE_THEME.dark,
+                              border: `1px solid ${DINE_THEME.border}`,
+                              padding: '7px 4px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            👤 Customer
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={authLoading || !authIdentifier.trim()}
+                        style={{
+                          width: '100%',
+                          padding: '14px',
+                          backgroundColor: DINE_THEME.teal,
+                          color: '#FFF',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          fontWeight: 800,
+                          cursor: (authLoading || !authIdentifier.trim()) ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        {authLoading ? (
+                          <>
+                            <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
+                            <span>Verifying Account...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="ri-login-box-line" />
+                            <span>Sign In</span>
+                          </>
+                        )}
+                      </button>
+
+                      <div style={{ marginTop: '16px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '12px' }}>
+                        <button
+                          type="button"
+                          onClick={() => { setAuthModalTab('register'); setAuthError(''); }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: DINE_THEME.tealDark,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          New Diner? Create Account ➔
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    /* ─── CREATE ACCOUNT FORM ─── */
+                    <form onSubmit={handleRegisterAccount}>
+                      <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                        <h4 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 800, color: DINE_THEME.dark }}>
+                          Create Your Diner Account
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '12px', color: DINE_THEME.slate, lineHeight: 1.5 }}>
+                          Save your favorite orders, collect loyalty stamps & fast checkout!
+                        </p>
+                      </div>
+
+                      <div style={{
+                        backgroundColor: '#FEF3C7',
+                        border: '1px solid #FDE68A',
                         borderRadius: '10px',
-                        border: `1.5px solid ${DINE_THEME.border}`,
-                        outline: 'none',
-                        fontSize: '14px',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
+                        padding: '10px 14px',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '12px',
+                        color: '#92400E',
+                        fontWeight: 700
+                      }}>
+                        <i className="ri-gift-line" style={{ fontSize: '16px' }} />
+                        <span>🎁 Welcome Bonus: 50 Starter Loyalty Points upon joining!</span>
+                      </div>
 
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
-                      YOUR NAME (OR NICKNAME)
-                    </label>
-                    <input
-                      type="text"
-                      value={authName}
-                      onChange={e => setAuthName(e.target.value)}
-                      placeholder="e.g. Alex Santos"
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '10px',
-                        border: `1.5px solid ${DINE_THEME.border}`,
-                        outline: 'none',
-                        fontSize: '14px',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
+                      <div style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          FULL NAME *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={regName}
+                          onChange={e => setRegName(e.target.value)}
+                          placeholder="e.g. Maria Santos"
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: `1.5px solid ${DINE_THEME.border}`,
+                            outline: 'none',
+                            fontSize: '14px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthPhone('0917 555 101');
-                        setAuthName('Alex Santos');
-                      }}
-                      style={{
-                        backgroundColor: DINE_THEME.pinkLight,
-                        color: DINE_THEME.tealDark,
-                        border: `1px dashed ${DINE_THEME.teal}`,
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ⚡ Quick Fill Demo Diner (Alex Santos)
-                    </button>
-                  </div>
+                      <div style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          MOBILE NUMBER *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={regPhone}
+                          onChange={e => setRegPhone(e.target.value)}
+                          placeholder="e.g. 0917 123 4567"
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: `1.5px solid ${DINE_THEME.border}`,
+                            outline: 'none',
+                            fontSize: '14px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
 
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      backgroundColor: DINE_THEME.teal,
-                      color: '#FFF',
-                      border: 'none',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      fontWeight: 800,
-                      cursor: authLoading ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    {authLoading ? (
-                      <>
-                        <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
-                        <span>Signing In to Restaurant DB...</span>
-                      </>
-                    ) : (
-                      <>
-                        <i className="ri-user-received-2-line" />
-                        <span>Sign In / Enter Store</span>
-                      </>
-                    )}
-                  </button>
+                      <div style={{ marginBottom: '18px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          EMAIL ADDRESS (OPTIONAL)
+                        </label>
+                        <input
+                          type="email"
+                          value={regEmail}
+                          onChange={e => setRegEmail(e.target.value)}
+                          placeholder="e.g. maria@gmail.com"
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: `1.5px solid ${DINE_THEME.border}`,
+                            outline: 'none',
+                            fontSize: '14px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
 
-                  <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                      <button
+                        type="submit"
+                        disabled={authLoading || !regName.trim() || !regPhone.trim()}
+                        style={{
+                          width: '100%',
+                          padding: '14px',
+                          backgroundColor: DINE_THEME.teal,
+                          color: '#FFF',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          fontWeight: 800,
+                          cursor: (authLoading || !regName.trim() || !regPhone.trim()) ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        {authLoading ? (
+                          <>
+                            <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
+                            <span>Creating Account...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="ri-check-line" />
+                            <span>Create Account & Start Ordering</span>
+                          </>
+                        )}
+                      </button>
+
+                      <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '12px' }}>
+                        <button
+                          type="button"
+                          onClick={() => { setAuthModalTab('signin'); setAuthError(''); }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: DINE_THEME.tealDark,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Already have an account? Sign In ➔
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  <div style={{ marginTop: '14px', textAlign: 'center' }}>
                     <button
                       type="button"
                       onClick={() => setIsAuthModalOpen(false)}
@@ -2003,7 +2320,7 @@ export default function CustomerStorefrontView({
                       Continue as Guest Diner
                     </button>
                   </div>
-                </form>
+                </div>
               )}
             </div>
           </div>

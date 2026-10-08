@@ -123,6 +123,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     }),
+    register: (restaurantId, data) => request(`/api/tenant/${restaurantId}/auth/register`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    staff: (restaurantId) => request(`/api/tenant/${restaurantId}/staff`),
+    createStaff: (restaurantId, data) => request(`/api/tenant/${restaurantId}/staff`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    updateStaff: (restaurantId, id, data) => request(`/api/tenant/${restaurantId}/staff/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }),
+    deleteStaff: (restaurantId, id) => request(`/api/tenant/${restaurantId}/staff/${id}`, {
+      method: 'DELETE'
+    }),
     updateSettings: (restaurantId, data) => request(`/api/tenant/${restaurantId}/settings`, {
       method: 'PUT',
       body: JSON.stringify(data)
@@ -131,6 +147,10 @@ export const api = {
   storefront: {
     get: (slug) => request(`/api/storefront/${slug}`),
     customerLogin: (slug, data) => request(`/api/storefront/${slug}/auth/customer-login`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    register: (slug, data) => request(`/api/storefront/${slug}/auth/register`, {
       method: 'POST',
       body: JSON.stringify(data)
     }),

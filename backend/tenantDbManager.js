@@ -90,12 +90,39 @@ function initTenantSchema(tenantDb) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS staff_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      role TEXT NOT NULL DEFAULT 'staff',
+      pin TEXT,
+      password_hash TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS tenant_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
+
+  // Ensure starter staff exist
+  try {
+    const staffCount = tenantDb.prepare('SELECT COUNT(*) as count FROM staff_members').get()?.count || 0;
+    if (staffCount === 0) {
+      const now = new Date().toISOString();
+      tenantDb.prepare(`
+        INSERT INTO staff_members (name, email, role, pin, password_hash, status, created_at, updated_at)
+        VALUES ('Kitchen Staff', 'kitchen@restaurant.com', 'staff', '1234', NULL, 'active', ?, ?)
+      `).run(now, now);
+    }
+  } catch (e) {
+    // Silently ignore if table just created
+  }
 }
 
 /**

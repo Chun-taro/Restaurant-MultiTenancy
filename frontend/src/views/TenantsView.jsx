@@ -174,7 +174,7 @@ export default function TenantsView({
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <span>{t.cuisine_type || 'Dining'} · {t.city}</span>
                       <span style={{ color: '#10B981', background: 'rgba(16,185,129,0.1)', padding: '1px 5px', borderRadius: '3px', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
-                        <i className="ri-database-2-line"></i> {t.db_name || `tenant_${t.slug}.db`}
+                        <i className="ri-shield-check-line"></i> {t.slug}
                       </span>
                     </div>
                   </div>
@@ -285,7 +285,7 @@ export default function TenantsView({
                         {t.subdomain}.localhost:5173
                       </a>
                       <span style={{ fontSize: '10px', color: '#10B981', background: 'rgba(16,185,129,0.1)', padding: '1px 5px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>
-                        <i className="ri-database-2-line"></i> {t.db_name || `tenant_${t.slug}.db`}
+                        <i className="ri-shield-check-line"></i> {t.slug}
                       </span>
                     </td>
                     <td>

@@ -3,6 +3,16 @@ dist/
 build/
 .cache/
 .env
-.env.local
+.env.*
+!.env.example
 .vite/
 *.log
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/*.db
+data/tenants/
+backend/data/*.db
+backend/data/tenants/
+

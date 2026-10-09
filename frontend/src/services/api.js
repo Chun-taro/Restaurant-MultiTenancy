@@ -13,7 +13,10 @@ async function request(url, options = {}) {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`);
+    const error = new Error(data.error || `HTTP ${res.status}`);
+    error.data = data;
+    error.status = res.status;
+    throw error;
   }
   return data;
 }
@@ -62,6 +65,9 @@ export const api = {
       return request(`/api/users${q ? `?${q}` : ''}`);
     },
     create: (data) => request('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id, data) => request(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    updateProfile: (data) => request('/api/users/profile', { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id) => request(`/api/users/${id}`, { method: 'DELETE' }),
     toggleStatus: (id, status) => request(`/api/users/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status })
@@ -138,6 +144,11 @@ export const api = {
     }),
     deleteStaff: (restaurantId, id) => request(`/api/tenant/${restaurantId}/staff/${id}`, {
       method: 'DELETE'
+    }),
+    subscription: (restaurantId) => request(`/api/tenant/${restaurantId}/subscription`),
+    changeSubscriptionPlan: (restaurantId, data) => request(`/api/tenant/${restaurantId}/subscription/change-plan`, {
+      method: 'POST',
+      body: JSON.stringify(data)
     }),
     updateSettings: (restaurantId, data) => request(`/api/tenant/${restaurantId}/settings`, {
       method: 'PUT',

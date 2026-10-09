@@ -1,6 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function Sidebar({ currentRoute, onNavigate, onGoToLanding, onSignOut, tenantCount = 0, onOpenTenantPortal, onOpenStorefront }) {
+export default function Sidebar({
+  currentRoute,
+  onNavigate,
+  onGoToLanding,
+  onSignOut,
+  tenantCount = 0,
+  tenants = []
+}) {
+  const [selectedTenantSlug, setSelectedTenantSlug] = useState('');
+
+  useEffect(() => {
+    if (tenants && tenants.length > 0) {
+      // Keep existing selection if valid, else pick first tenant
+      const exists = tenants.some(t => t.slug === selectedTenantSlug);
+      if (!exists) {
+        setSelectedTenantSlug(tenants[0].slug);
+      }
+    }
+  }, [tenants, selectedTenantSlug]);
+
   const navItems = [
     { section: 'Platform Intelligence' },
     { id: 'dashboard', label: 'Dashboard', icon: 'ri-dashboard-3-line' },
@@ -56,34 +75,79 @@ export default function Sidebar({ currentRoute, onNavigate, onGoToLanding, onSig
           );
         })}
 
-        {/* Separated External Links for Testing in New Tabs */}
-        <div style={{ marginTop: '20px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div className="nav-section-title" style={{ padding: '0 12px', marginBottom: '4px' }}>
-            Live Tenant Environments (New Tabs)
+        {/* Dynamic Tenant Live Launcher */}
+        {tenants && tenants.length > 0 && (
+          <div style={{
+            marginTop: '20px',
+            paddingTop: '14px',
+            borderTop: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div className="nav-section-title" style={{ padding: '0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Live Environments</span>
+              <span style={{ fontSize: '10px', color: 'var(--primary-light)', fontWeight: 600 }}>{tenants.length} Active</span>
+            </div>
+
+            <div style={{ padding: '0 4px' }}>
+              <select
+                className="form-control form-select"
+                style={{
+                  fontSize: '11.5px',
+                  padding: '6px 8px',
+                  background: 'rgba(255,255,255,0.04)',
+                  borderColor: 'var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#fff',
+                  width: '100%',
+                  marginBottom: '8px'
+                }}
+                value={selectedTenantSlug}
+                onChange={(e) => setSelectedTenantSlug(e.target.value)}
+              >
+                {tenants.map(t => (
+                  <option key={t.id || t.slug} value={t.slug} style={{ background: '#111827', color: '#fff' }}>
+                    {t.name} ({t.slug})
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <a
+                  href={`/store/${selectedTenantSlug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-xs"
+                  style={{
+                    fontSize: '11px',
+                    padding: '6px 6px',
+                    justifyContent: 'center',
+                    textDecoration: 'none'
+                  }}
+                  title={`Open Customer Storefront for ${selectedTenantSlug}`}
+                >
+                  <i className="ri-store-2-line" style={{ color: 'var(--primary-light)' }}></i> Store ↗
+                </a>
+                <a
+                  href={`/portal/${selectedTenantSlug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-xs"
+                  style={{
+                    fontSize: '11px',
+                    padding: '6px 6px',
+                    justifyContent: 'center',
+                    textDecoration: 'none'
+                  }}
+                  title={`Open Tenant Portal for ${selectedTenantSlug}`}
+                >
+                  <i className="ri-dashboard-2-line" style={{ color: '#10B981' }}></i> Portal ↗
+                </a>
+              </div>
+            </div>
           </div>
-          <a
-            href="/store/brandobar"
-            target="_blank"
-            rel="noreferrer"
-            className="nav-item"
-            style={{ fontSize: '12px', padding: '6px 12px', color: 'var(--text-secondary)' }}
-            title="Opens Customer Ordering Storefront in a separate tab"
-          >
-            <i className="ri-external-link-line" style={{ color: 'var(--primary-light)' }}></i>
-            <span>Customer Storefront ↗</span>
-          </a>
-          <a
-            href="/portal/brandobar"
-            target="_blank"
-            rel="noreferrer"
-            className="nav-item"
-            style={{ fontSize: '12px', padding: '6px 12px', color: 'var(--text-secondary)' }}
-            title="Opens Restaurant Kitchen Portal in a separate tab"
-          >
-            <i className="ri-external-link-line" style={{ color: '#10B981' }}></i>
-            <span>Tenant Portal ↗</span>
-          </a>
-        </div>
+        )}
       </nav>
 
       <div className="sidebar-footer">

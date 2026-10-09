@@ -71,6 +71,28 @@ export default function Drawer({ isOpen, onClose, tenant, onStatusChange, onPlan
             </button>
           </div>
 
+          {/* Suspension Alert if Suspended */}
+          {tenant.status === 'suspended' && (
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              marginBottom: '18px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px'
+            }}>
+              <i className="ri-error-warning-fill" style={{ color: '#EF4444', fontSize: '18px', marginTop: '1px' }} />
+              <div>
+                <strong style={{ color: '#FCA5A5', fontSize: '13px', display: 'block' }}>Storefront Suspended</strong>
+                <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  Reason: {tenant.suspended_reason || 'Administrative review or past due billing'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Business Info Card */}
           <div className="card" style={{ marginBottom: '20px' }}>
             <h4 style={{ color: '#fff', fontSize: '14px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -99,19 +121,19 @@ export default function Drawer({ isOpen, onClose, tenant, onStatusChange, onPlan
             </div>
           </div>
 
-          {/* Isolated Database & Multi-Tenant Routing Card */}
+          {/* Isolated Tenant Database & Multi-Tenant Routing Card */}
           <div className="card" style={{ marginBottom: '20px', borderLeft: '3px solid #10B981' }}>
             <h4 style={{ color: '#fff', fontSize: '14px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <i className="ri-database-2-line" style={{ color: '#10B981' }}></i> Isolated Database & URLs
+              <i className="ri-database-2-line" style={{ color: '#10B981' }}></i> Dedicated SQLite Database
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px' }}>
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>
-                  Isolated SQLite Database
+                  Isolated Database File
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
                   <code style={{ fontFamily: 'var(--font-mono)', color: '#34D399', background: 'rgba(16, 185, 129, 0.1)', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                    {tenant.db_path || `data/tenants/tenant_${tenant.slug}.db`}
+                    tenant_{tenant.slug}.db
                   </code>
                   <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#10B981', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                     ISOLATED

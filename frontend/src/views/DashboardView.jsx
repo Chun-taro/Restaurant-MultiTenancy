@@ -20,10 +20,10 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
   }));
 
   const colorMap = {
-    starter: '#3B82F6',
-    growth: '#6366F1',
+    starter: '#0EA5E9',
+    growth: '#FF5A1F',
     pro: '#10B981',
-    enterprise: '#8B5CF6'
+    enterprise: '#F59E0B'
   };
 
   return (
@@ -31,7 +31,7 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
       {/* Top KPI Stat Cards */}
       <div className="kpi-grid">
         {/* KPI 1 */}
-        <div className="kpi-card" style={{ '--card-accent': '#6366F1', '--kpi-icon-bg': 'rgba(99, 102, 241, 0.12)', '--kpi-icon-color': '#818CF8' }}>
+        <div className="kpi-card" style={{ '--card-accent': '#FF5A1F', '--kpi-icon-bg': 'rgba(255, 90, 31, 0.12)', '--kpi-icon-color': '#FF8552' }}>
           <div className="kpi-top">
             <span className="kpi-label">Monthly Recurring Revenue</span>
             <div className="kpi-icon"><i className="ri-money-dollar-circle-line"></i></div>
@@ -72,7 +72,7 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
         </div>
 
         {/* KPI 4 */}
-        <div className="kpi-card" style={{ '--card-accent': '#8B5CF6', '--kpi-icon-bg': 'rgba(139, 92, 246, 0.12)', '--kpi-icon-color': '#A78BFA' }}>
+        <div className="kpi-card" style={{ '--card-accent': '#0EA5E9', '--kpi-icon-bg': 'rgba(14, 165, 233, 0.12)', '--kpi-icon-color': '#38BDF8' }}>
           <div className="kpi-top">
             <span className="kpi-label">Platform Identities</span>
             <div className="kpi-icon"><i className="ri-user-shared-line"></i></div>
@@ -85,10 +85,10 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
         </div>
       </div>
 
-      {/* MERN Architecture Banner */}
+      {/* Enterprise Architecture Banner */}
       <div style={{
-        background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%)',
-        border: '1px solid rgba(99, 102, 241, 0.25)',
+        background: 'linear-gradient(90deg, rgba(255, 90, 31, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%)',
+        border: '1px solid rgba(255, 90, 31, 0.25)',
         borderRadius: 'var(--radius-lg)',
         padding: '18px 24px',
         marginBottom: '28px',
@@ -114,9 +114,9 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
             <i className="ri-database-2-fill"></i>
           </div>
           <div>
-            <h4 style={{ color: '#fff', fontSize: '15px', fontWeight: 700 }}>MERN Stack Multi-Tenancy Core Active</h4>
+            <h4 style={{ color: '#fff', fontSize: '15px', fontWeight: 700 }}>Multi-Tenant Enterprise Engine Active</h4>
             <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>
-              Connected to MongoDB with Mongoose Models · Express 5 API · React 19 SPA · Node.js 24 runtime
+              Full Tenant Isolation · Automated Subdomain Routing · Instant Table QR & Ordering Rails Active
             </p>
           </div>
         </div>

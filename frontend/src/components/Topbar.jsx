@@ -7,10 +7,19 @@ const routeTitles = {
   billing: { title: 'Billing & Invoices', subtitle: 'Subscription receivables, payment records, and financial status' },
   users: { title: 'Identity & Access', subtitle: 'Superadmin credentials, tenant owners, and role authorization' },
   audit: { title: 'Security & Audit Trail', subtitle: 'Real-time administrative operations and audit logs' },
-  settings: { title: 'System Settings', subtitle: 'Platform configurations, payments mode, and maintenance' }
+  settings: { title: 'System Settings', subtitle: 'Platform configurations, superadmin credentials, and maintenance' }
 };
 
-export default function Topbar({ currentRoute, searchQuery, onSearchChange, onOpenProvision, onGoToLanding, onSignOut }) {
+export default function Topbar({
+  currentRoute,
+  searchQuery,
+  onSearchChange,
+  onOpenProvision,
+  onGoToLanding,
+  onSignOut,
+  adminUser,
+  onOpenProfile
+}) {
   const meta = routeTitles[currentRoute] || { title: 'Super Admin', subtitle: '' };
 
   return (
@@ -33,10 +42,49 @@ export default function Topbar({ currentRoute, searchQuery, onSearchChange, onOp
       </div>
 
       <div className="topbar-right">
-        <div className="system-status-pill">
-          <span className="pulse-dot"></span>
-          <span>SQLite Engine Online</span>
-        </div>
+        {/* Superadmin Profile Badge */}
+        {adminUser && (
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '9px',
+              padding: '4px 12px 4px 6px',
+              borderRadius: '24px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              cursor: 'pointer',
+              color: '#FFF',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 90, 31, 0.12)';
+              e.currentTarget.style.borderColor = 'rgba(255, 90, 31, 0.3)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            }}
+            title="Customize Superadmin Profile & Credentials"
+          >
+            <img
+              src={adminUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${adminUser.name}`}
+              alt=""
+              style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', background: '#1E293B', border: '1px solid var(--primary-light)' }}
+            />
+            <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#FFF' }}>
+                {adminUser.name}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--primary-light)', fontWeight: 600 }}>
+                SUPERADMIN
+              </div>
+            </div>
+            <i className="ri-settings-4-line" style={{ fontSize: '13px', color: 'var(--text-muted)', marginLeft: '2px' }} />
+          </button>
+        )}
 
         <button
           className="btn btn-secondary btn-sm"

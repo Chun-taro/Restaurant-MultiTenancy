@@ -1,21 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
-// DINE Color Tokens & Theme Constants
-const DINE_THEME = {
-  pink: '#F6DCE7',
-  pinkLight: '#FBEAF0',
-  pinkSoft: '#FFF5F8',
-  teal: '#2A9D9A',
-  tealDark: '#176B68',
-  tealLight: '#E6F7F6',
-  dark: '#263238',
-  slate: '#64748B',
-  border: '#F0D4E0',
-  white: '#FFFFFF',
-  gold: '#F59E0B'
-};
-
 const SUGAR_LEVELS = ['0%', '25%', '50%', '75%', '100%'];
 
 const ADDON_OPTIONS = [
@@ -36,8 +21,30 @@ export default function CustomerStorefrontView({
 }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic Storefront Theme Tokens based on restaurant customized branding
+  const primaryBrand = data?.restaurant?.primary_color || '#2A9D9A';
+  const secondaryBrand = data?.restaurant?.secondary_color || '#1E293B';
+
+  const DINE_THEME = {
+    pink: '#F1F5F9',        // Clean slate-100 neutral (replaces pastel pink)
+    pinkLight: '#F1F5F9',   // Clean slate-100 neutral (replaces pastel pink)
+    pinkSoft: '#F8FAFC',    // Modern slate-50 page background (replaces pastel pink)
+    bgSoft: '#F8FAFC',
+    bgMuted: '#F1F5F9',
+    teal: primaryBrand,
+    tealDark: primaryBrand,
+    tealLight: `${primaryBrand}18`,
+    tealGlow: `${primaryBrand}33`,
+    dark: secondaryBrand,
+    slate: '#64748B',
+    border: '#E2E8F0',
+    borderDark: '#CBD5E1',
+    white: '#FFFFFF',
+    gold: '#F59E0B'
+  };
+
   const [activeCategory, setActiveCategory] = useState('All');
-  const [activeSection, setActiveSection] = useState('all'); // 'all' | 'food' | 'drinks'
   const [searchQuery, setSearchQuery] = useState('');
 
   // Dining Mode & Arrival Time
@@ -74,11 +81,14 @@ export default function CustomerStorefrontView({
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState('signin'); // 'signin' | 'register'
-  const [authIdentifier, setAuthIdentifier] = useState('0917 555 101');
+  const [authIdentifier, setAuthIdentifier] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
 
@@ -101,12 +111,17 @@ export default function CustomerStorefrontView({
       setAuthError('Please enter your mobile phone number or email address');
       return;
     }
+    if (!regPassword.trim()) {
+      setAuthError('Please create an account password');
+      return;
+    }
     setAuthLoading(true);
     try {
       const res = await api.storefront.register(slug, {
         name: regName.trim(),
         phone: regPhone.trim(),
         email: regEmail.trim(),
+        password: regPassword.trim(),
         role: 'customer'
       });
       const data = res.data;
@@ -120,6 +135,7 @@ export default function CustomerStorefrontView({
       setRegName('');
       setRegPhone('');
       setRegEmail('');
+      setRegPassword('password123');
     } catch (err) {
       setAuthError(err.message || 'Account registration failed');
     } finally {
@@ -180,18 +196,29 @@ export default function CustomerStorefrontView({
   const [activeOrder, setActiveOrder] = useState(null);
   const [orderHistory, setOrderHistory] = useState([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [suspendedData, setSuspendedData] = useState(null);
 
   // Load Storefront Data from Tenant's Isolated DB
   const loadStorefront = async () => {
     try {
       setLoading(true);
+      setSuspendedData(null);
       const res = await api.storefront.get(slug);
       setData(res.data);
       if (res.data.tables?.length > 0 && !initialTable) {
         setSelectedTable(res.data.tables[0].table_number);
       }
     } catch (err) {
-      showToast?.(err.message, 'error');
+      if (err.data?.suspended || err.status === 403) {
+        setSuspendedData(err.data || {
+          suspended: true,
+          error: err.message,
+          reason: 'This restaurant storefront is currently suspended.',
+          restaurant: { name: slug }
+        });
+      } else {
+        showToast?.(err.message, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -232,11 +259,8 @@ export default function CustomerStorefrontView({
   // Flatten items for filtering
   const allItems = categories.flatMap(c => (c.items || []).map(it => ({ ...it, categoryName: c.name })));
 
-  // Filter items by section, category, and search query
+  // Filter items by category and search query
   const filteredItems = allItems.filter(item => {
-    const isDrink = ['Coffee', 'Matcha', 'Hojicha', 'Milk Series', 'Soda Pop'].includes(item.categoryName);
-    if (activeSection === 'food' && isDrink) return false;
-    if (activeSection === 'drinks' && !isDrink) return false;
     if (activeCategory !== 'All' && item.categoryName !== activeCategory) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -390,6 +414,133 @@ export default function CustomerStorefrontView({
     { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your meal!' }
   ];
 
+  if (suspendedData) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#0F1116',
+        color: '#FFF',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif"
+      }}>
+        <div style={{
+          maxWidth: '520px',
+          width: '100%',
+          backgroundColor: '#181B22',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '20px',
+          padding: '40px 32px',
+          textAlign: 'center',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+        }}>
+          <div style={{
+            width: '72px',
+            height: '72px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            color: '#EF4444',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '36px',
+            margin: '0 auto 20px'
+          }}>
+            <i className="ri-error-warning-fill" />
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 12px',
+            borderRadius: '20px',
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#F87171',
+            fontSize: '11px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            marginBottom: '14px'
+          }}>
+            <i className="ri-lock-line" />
+            <span>Storefront Suspended</span>
+          </div>
+
+          <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 10px 0', color: '#FFF' }}>
+            {suspendedData.restaurant?.name || slug}
+          </h2>
+
+          <p style={{ fontSize: '14px', color: '#94A3B8', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+            This restaurant's digital storefront and online ordering system are currently unavailable.
+          </p>
+
+          <div style={{
+            backgroundColor: 'rgba(15, 17, 22, 0.7)',
+            border: '1px solid #282D37',
+            borderRadius: '12px',
+            padding: '14px 16px',
+            textAlign: 'left',
+            marginBottom: '24px'
+          }}>
+            <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>
+              Notice from Platform Administration:
+            </div>
+            <div style={{ fontSize: '13px', color: '#E2E8F0', fontWeight: 600 }}>
+              {suspendedData.reason || suspendedData.restaurant?.suspended_reason || 'Administrative hold / Past due billing review'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <a
+              href={`/portal/${slug}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                backgroundColor: '#FF5A1F',
+                color: '#FFF',
+                fontWeight: 700,
+                fontSize: '13px',
+                textDecoration: 'none'
+              }}
+            >
+              <i className="ri-dashboard-line" />
+              <span>Open Restaurant Tenant Portal</span>
+            </a>
+
+            <a
+              href="/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '12px',
+                backgroundColor: 'transparent',
+                border: '1px solid #282D37',
+                color: '#94A3B8',
+                fontWeight: 600,
+                fontSize: '13px',
+                textDecoration: 'none'
+              }}
+            >
+              <i className="ri-arrow-left-line" />
+              <span>Back to RestoSaaS Home</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: DINE_THEME.pinkLight }}>
@@ -397,10 +548,10 @@ export default function CustomerStorefrontView({
           <img
             src="/dine/IMG_0162.jpeg"
             alt="DINE"
-            style={{ width: '88px', height: '88px', borderRadius: '50%', objectFit: 'cover', border: `3px solid ${DINE_THEME.teal}`, boxShadow: '0 8px 24px rgba(42,157,154,0.25)', marginBottom: '16px', animation: 'spin 4s linear infinite' }}
+            style={{ width: '88px', height: '88px', borderRadius: '50%', objectFit: 'cover', border: `3px solid ${DINE_THEME.teal}`, boxShadow: `0 8px 24px ${DINE_THEME.tealGlow}`, marginBottom: '16px', animation: 'spin 4s linear infinite' }}
           />
           <h3 style={{ margin: '0 0 6px 0', color: DINE_THEME.dark, fontWeight: 700, fontSize: '20px' }}>Loading {restaurant?.name || 'DINE Storefront'}...</h3>
-          <p style={{ margin: 0, color: DINE_THEME.slate, fontSize: '13px' }}>Connecting to isolated tenant database ({`tenant_${slug}.db`})...</p>
+          <p style={{ margin: 0, color: DINE_THEME.slate, fontSize: '13px' }}>Loading digital menu and restaurant ordering...</p>
         </div>
       </div>
     );
@@ -429,7 +580,7 @@ export default function CustomerStorefrontView({
               <img
                 src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
                 alt={restaurant?.name || 'DINE'}
-                style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: '0 4px 12px rgba(42,157,154,0.18)' }}
+                style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
               />
               <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid #FFF' }} />
             </div>
@@ -446,10 +597,6 @@ export default function CustomerStorefrontView({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: DINE_THEME.slate, marginTop: '2px' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <i className="ri-map-pin-line" style={{ color: DINE_THEME.teal }} /> {restaurant?.city || 'Bonifacio Global City'}
-                </span>
-                <span>•</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <i className="ri-database-2-line" style={{ color: DINE_THEME.teal }} /> {`tenant_${slug}.db`}
                 </span>
               </div>
             </div>
@@ -542,39 +689,55 @@ export default function CustomerStorefrontView({
               </button>
             )}
 
-            {/* Customer / Account Button */}
+            {/* Customer / Account Button & Visible Log Out Button */}
             {customerUser ? (
-              <button
-                type="button"
-                onClick={() => setIsAuthModalOpen(true)}
-                style={{
-                  backgroundColor: DINE_THEME.pinkLight,
-                  color: DINE_THEME.dark,
-                  border: `1px solid ${DINE_THEME.border}`,
-                  padding: '7px 14px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-                title="View profile & loyalty stamps"
-              >
-                <i className="ri-user-smile-line" style={{ color: DINE_THEME.teal, fontSize: '15px' }} />
-                <span>{customerUser.name}</span>
-                <span style={{
-                  fontSize: '10px',
-                  backgroundColor: DINE_THEME.teal,
-                  color: '#FFF',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  fontWeight: 800
-                }}>
-                  ⭐ {customerUser.loyalty_points || 0} pts
-                </span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  style={{
+                    backgroundColor: DINE_THEME.pinkLight,
+                    color: DINE_THEME.dark,
+                    border: `1px solid ${DINE_THEME.border}`,
+                    padding: '7px 14px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="View your customer profile and orders"
+                >
+                  <i className="ri-user-smile-line" style={{ color: DINE_THEME.teal, fontSize: '16px' }} />
+                  <span>{customerUser.name}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCustomerLogout}
+                  style={{
+                    backgroundColor: '#FEF2F2',
+                    color: '#DC2626',
+                    border: '1px solid #FECACA',
+                    padding: '7px 12px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.1)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Sign out of your customer account"
+                >
+                  <i className="ri-logout-box-r-line" style={{ fontSize: '14px' }} />
+                  <span>Log Out</span>
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
@@ -615,7 +778,7 @@ export default function CustomerStorefrontView({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 14px rgba(42,157,154,0.3)',
+                boxShadow: `0 4px 14px ${DINE_THEME.tealGlow}`,
                 transition: 'transform 0.15s ease'
               }}
             >
@@ -640,52 +803,96 @@ export default function CustomerStorefrontView({
 
       {/* ─── HERO & ARRIVAL TIME ANNOUNCEMENT ────────────────────────────── */}
       <div style={{
-        background: `linear-gradient(135deg, ${DINE_THEME.pink} 0%, #FFFFFF 100%)`,
+        position: 'relative',
+        background: restaurant?.banner_url
+          ? `linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.75)), url(${restaurant.banner_url}) center/cover no-repeat`
+          : `linear-gradient(135deg, ${DINE_THEME.pink} 0%, #FFFFFF 100%)`,
         borderBottom: `1px solid ${DINE_THEME.border}`,
-        padding: '24px 20px 20px'
+        padding: restaurant?.banner_url ? '40px 20px 32px' : '24px 20px 20px',
+        color: restaurant?.banner_url ? '#FFFFFF' : DINE_THEME.dark,
+        transition: 'all 0.3s ease'
       }}>
         <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
             <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFF', padding: '4px 12px', borderRadius: '20px', border: `1px solid ${DINE_THEME.border}`, fontSize: '11px', fontWeight: 700, color: DINE_THEME.tealDark, marginBottom: '8px' }}>
-                <i className="ri-sparkling-fill" style={{ color: DINE_THEME.teal }} />
-                <span>AUTHENTIC DINE WEB ORDERING</span>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: restaurant?.banner_url ? 'rgba(255,255,255,0.2)' : '#FFF',
+                backdropFilter: restaurant?.banner_url ? 'blur(8px)' : 'none',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                border: restaurant?.banner_url ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${DINE_THEME.border}`,
+                fontSize: '11px',
+                fontWeight: 800,
+                color: restaurant?.banner_url ? '#FFF' : (restaurant?.primary_color || DINE_THEME.tealDark),
+                marginBottom: '8px'
+              }}>
+                <i className="ri-sparkling-fill" style={{ color: restaurant?.banner_url ? '#FCD34D' : (restaurant?.primary_color || DINE_THEME.teal) }} />
+                <span>{restaurant?.cuisine_type ? `${restaurant.cuisine_type.toUpperCase()} • DIGITAL STOREFRONT` : 'AUTHENTIC RESTAURANT STOREFRONT'}</span>
               </div>
-              <h2 style={{ margin: '0 0 6px 0', fontSize: '26px', fontWeight: 800, color: DINE_THEME.dark, letterSpacing: '-0.5px' }}>
-                Crave It? Tap, Customize & Dine.
+              <h2 style={{
+                margin: '0 0 6px 0',
+                fontSize: '28px',
+                fontWeight: 800,
+                color: restaurant?.banner_url ? '#FFFFFF' : DINE_THEME.dark,
+                letterSpacing: '-0.5px',
+                textShadow: restaurant?.banner_url ? '0 2px 10px rgba(0,0,0,0.5)' : 'none'
+              }}>
+                {restaurant?.name ? `Welcome to ${restaurant.name}` : 'Crave It? Tap, Customize & Dine.'}
               </h2>
-              <p style={{ margin: 0, fontSize: '14px', color: DINE_THEME.slate, maxWidth: '580px' }}>
-                Handcrafted Rice Meals, Pasta, Fresh Noodles, Specialty Coffee & Matcha brewed fresh. Direct isolated database dispatch.
+              <p style={{
+                margin: 0,
+                fontSize: '14px',
+                color: restaurant?.banner_url ? 'rgba(255,255,255,0.9)' : DINE_THEME.slate,
+                maxWidth: '580px',
+                lineHeight: 1.5,
+                textShadow: restaurant?.banner_url ? '0 1px 4px rgba(0,0,0,0.4)' : 'none'
+              }}>
+                {restaurant?.cuisine_type
+                  ? `Freshly prepared ${restaurant.cuisine_type.toLowerCase()} specialties made to order. Direct kitchen dispatch.`
+                  : 'Handcrafted meals, drinks & specialty items brewed fresh to order.'}
               </p>
             </div>
 
             {/* Arrival Time Selector Pills */}
-            <div style={{ backgroundColor: '#FFF', padding: '12px 16px', borderRadius: '16px', border: `1px solid ${DINE_THEME.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.03)' }}>
+            <div style={{
+              backgroundColor: '#FFF',
+              padding: '12px 16px',
+              borderRadius: '16px',
+              border: `1px solid ${DINE_THEME.border}`,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+              color: DINE_THEME.dark
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: DINE_THEME.dark, marginBottom: '8px' }}>
-                <i className="ri-time-line" style={{ color: DINE_THEME.teal }} />
+                <i className="ri-time-line" style={{ color: restaurant?.primary_color || DINE_THEME.teal }} />
                 <span>Estimated Arrival / Dine-In Time:</span>
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {ARRIVAL_TIMES.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setSelectedArrival(t)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      border: selectedArrival === t ? `1px solid ${DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
-                      backgroundColor: selectedArrival === t ? DINE_THEME.tealLight : '#FFF',
-                      color: selectedArrival === t ? DINE_THEME.tealDark : DINE_THEME.slate,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {ARRIVAL_TIMES.map(t => {
+                  const isSelected = selectedArrival === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSelectedArrival(t)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        border: isSelected ? `1px solid ${restaurant?.primary_color || DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
+                        backgroundColor: isSelected ? (restaurant?.primary_color ? `${restaurant.primary_color}18` : DINE_THEME.tealLight) : '#FFF',
+                        color: isSelected ? (restaurant?.primary_color || DINE_THEME.tealDark) : DINE_THEME.slate,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -698,7 +905,7 @@ export default function CustomerStorefrontView({
           backgroundColor: '#FFF',
           borderBottom: `2px solid ${DINE_THEME.teal}`,
           padding: '16px 20px',
-          boxShadow: '0 4px 20px rgba(42,157,154,0.08)'
+          boxShadow: `0 4px 20px ${DINE_THEME.tealLight}`
         }}>
           <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '14px' }}>
@@ -773,7 +980,7 @@ export default function CustomerStorefrontView({
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '14px',
-                      boxShadow: isCurrent ? '0 0 0 4px rgba(42,157,154,0.2)' : 'none',
+                      boxShadow: isCurrent ? `0 0 0 4px ${DINE_THEME.tealLight}` : 'none',
                       transition: 'all 0.2s ease'
                     }}>
                       <i className={step.icon} />
@@ -792,59 +999,16 @@ export default function CustomerStorefrontView({
       {/* ─── MAIN CONTENT CONTAINER ────────────────────────────────────── */}
       <main style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 20px 80px' }}>
 
-        {/* Section Filters, Category Navigation & Live Search Bar */}
+        {/* Category Navigation & Live Search Bar */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '20px' }}>
-
-          {/* Quick Food vs Drinks Toggle */}
-          <div style={{ display: 'flex', backgroundColor: '#FFF', padding: '4px', borderRadius: '12px', border: `1px solid ${DINE_THEME.border}` }}>
-            <button
-              type="button"
-              onClick={() => { setActiveSection('all'); setActiveCategory('All'); }}
-              style={{
-                padding: '7px 16px',
-                borderRadius: '9px',
-                fontSize: '13px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: activeSection === 'all' ? DINE_THEME.teal : 'transparent',
-                color: activeSection === 'all' ? '#FFF' : DINE_THEME.dark
-              }}
-            >
-              All Menu
-            </button>
-            <button
-              type="button"
-              onClick={() => { setActiveSection('food'); setActiveCategory('All'); }}
-              style={{
-                padding: '7px 16px',
-                borderRadius: '9px',
-                fontSize: '13px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: activeSection === 'food' ? DINE_THEME.teal : 'transparent',
-                color: activeSection === 'food' ? '#FFF' : DINE_THEME.dark
-              }}
-            >
-              🍳 Meals & Snacks
-            </button>
-            <button
-              type="button"
-              onClick={() => { setActiveSection('drinks'); setActiveCategory('All'); }}
-              style={{
-                padding: '7px 16px',
-                borderRadius: '9px',
-                fontSize: '13px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: activeSection === 'drinks' ? DINE_THEME.teal : 'transparent',
-                color: activeSection === 'drinks' ? '#FFF' : DINE_THEME.dark
-              }}
-            >
-              ☕ Coffee & Drinks
-            </button>
+          {/* Dynamic Category Count Indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: DINE_THEME.dark }}>
+              Menu Catalog
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', backgroundColor: DINE_THEME.pinkLight, color: DINE_THEME.slate, border: `1px solid ${DINE_THEME.border}` }}>
+              {categories.length} {categories.length === 1 ? 'Category' : 'Categories'} • {allItems.length} {allItems.length === 1 ? 'Item' : 'Items'}
+            </span>
           </div>
 
           {/* Search Box */}
@@ -852,7 +1016,7 @@ export default function CustomerStorefrontView({
             <i className="ri-search-line" style={{ color: DINE_THEME.slate, marginRight: '8px', fontSize: '16px' }} />
             <input
               type="text"
-              placeholder="Search carbonara, matcha, latte, sisig..."
+              placeholder="Search dishes, drinks, extras..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: DINE_THEME.dark, backgroundColor: 'transparent' }}
@@ -895,7 +1059,7 @@ export default function CustomerStorefrontView({
                   border: isCatActive ? `1px solid ${DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
                   backgroundColor: isCatActive ? DINE_THEME.teal : '#FFF',
                   color: isCatActive ? '#FFF' : DINE_THEME.dark,
-                  boxShadow: isCatActive ? '0 4px 12px rgba(42,157,154,0.25)' : 'none',
+                  boxShadow: isCatActive ? `0 4px 12px ${DINE_THEME.tealGlow}` : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -906,7 +1070,37 @@ export default function CustomerStorefrontView({
         </div>
 
         {/* ─── RESPONSIVE MENU CARDS GRID ─────────────────────────────────── */}
-        {filteredItems.length === 0 ? (
+        {allItems.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '64px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${DINE_THEME.border}`, maxWidth: '600px', margin: '30px auto' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: DINE_THEME.tealLight, color: DINE_THEME.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', margin: '0 auto 16px' }}>
+              <i className="ri-restaurant-line" />
+            </div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: 800, color: DINE_THEME.dark }}>
+              Menu Coming Soon
+            </h3>
+            <p style={{ margin: '0 0 20px 0', color: DINE_THEME.slate, fontSize: '14px', lineHeight: 1.5 }}>
+              <strong>{restaurant?.name || 'This restaurant'}</strong> has not published any menu items yet. Tenant portal admins can add categories and dishes directly from their management dashboard.
+            </p>
+            <a
+              href={`/portal/${slug}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                backgroundColor: DINE_THEME.teal,
+                color: '#FFF',
+                fontWeight: 700,
+                fontSize: '13px',
+                textDecoration: 'none'
+              }}
+            >
+              <i className="ri-dashboard-line" />
+              <span>Open Tenant Management Portal</span>
+            </a>
+          </div>
+        ) : filteredItems.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${DINE_THEME.border}` }}>
             <i className="ri-search-2-line" style={{ fontSize: '42px', color: DINE_THEME.slate, display: 'block', marginBottom: '10px' }} />
             <h4 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 700, color: DINE_THEME.dark }}>No dishes found</h4>
@@ -935,7 +1129,7 @@ export default function CustomerStorefrontView({
                 onClick={() => openProductModal(item)}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 12px 28px rgba(42, 157, 154, 0.12)';
+                  e.currentTarget.style.boxShadow = `0 12px 28px ${DINE_THEME.tealLight}`;
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.transform = 'translateY(0)';
@@ -1288,7 +1482,7 @@ export default function CustomerStorefrontView({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    boxShadow: '0 6px 16px rgba(42,157,154,0.35)'
+                    boxShadow: `0 6px 16px ${DINE_THEME.tealGlow}`
                   }}
                 >
                   <span>Add to Order</span>
@@ -1535,7 +1729,7 @@ export default function CustomerStorefrontView({
                     fontSize: '15px',
                     fontWeight: 800,
                     cursor: isPlacingOrder ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 6px 18px rgba(42,157,154,0.3)',
+                    boxShadow: `0 6px 18px ${DINE_THEME.tealGlow}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1598,7 +1792,7 @@ export default function CustomerStorefrontView({
                     {restaurant?.name || 'DINE'} Order Tracker
                   </h3>
                   <span style={{ fontSize: '11px', color: DINE_THEME.slate }}>
-                    Database: {activeOrder?.database_file || `tenant_${slug}.db`}
+                    Real-Time Kitchen Status
                   </span>
                 </div>
               </div>
@@ -1730,7 +1924,7 @@ export default function CustomerStorefrontView({
                     {customerUser ? `Hello, ${customerUser.name}!` : 'Diner Account Sign In'}
                   </h3>
                   <span style={{ fontSize: '11px', color: DINE_THEME.slate }}>
-                    {restaurant?.name || 'Restaurant'} • Isolated DB ({`tenant_${slug}.db`})
+                    {restaurant?.name || 'Restaurant'} • Customer Account
                   </span>
                 </div>
               </div>
@@ -1760,52 +1954,41 @@ export default function CustomerStorefrontView({
               {customerUser ? (
                 /* ─── LOGGED IN CUSTOMER DASHBOARD ─── */
                 <div>
-                  {/* Loyalty Stamp Card (from DINE Mobile Prototype) */}
+                  {/* Verified Customer Header Banner */}
                   <div style={{
                     background: `linear-gradient(135deg, ${DINE_THEME.tealDark} 0%, ${DINE_THEME.teal} 100%)`,
                     borderRadius: '16px',
                     padding: '20px',
                     color: '#FFF',
                     marginBottom: '20px',
-                    boxShadow: '0 8px 24px rgba(42,157,154,0.25)'
+                    boxShadow: `0 8px 24px ${DINE_THEME.tealGlow}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', opacity: 0.9 }}>
-                        DINE Loyalty Passport
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', opacity: 0.85 }}>
+                        Customer Account
                       </span>
-                      <span style={{ backgroundColor: 'rgba(255,255,255,0.25)', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>
-                        ⭐ {customerUser.loyalty_points || 50} Points
-                      </span>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 800 }}>
+                        {customerUser.name}
+                      </h4>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
+                        {customerUser.email || customerUser.phone || 'Dine-in Customer'}
+                      </p>
                     </div>
-
-                    <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800 }}>
-                      Collect 10 Stamps for a Free Special Drink!
-                    </h4>
-
-                    {/* Stamp Circles */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(stampNo => {
-                        const isStamped = stampNo <= ((customerUser.total_orders || 1) % 10 || 4);
-                        return (
-                          <div
-                            key={stampNo}
-                            style={{
-                              aspectRatio: '1',
-                              borderRadius: '50%',
-                              backgroundColor: isStamped ? '#FFF' : 'rgba(255,255,255,0.2)',
-                              color: isStamped ? DINE_THEME.tealDark : 'rgba(255,255,255,0.6)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: isStamped ? '16px' : '11px',
-                              fontWeight: 800,
-                              boxShadow: isStamped ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
-                            }}
-                          >
-                            {isStamped ? <i className="ri-cup-fill" /> : stampNo}
-                          </div>
-                        );
-                      })}
+                    <div style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '22px'
+                    }}>
+                      <i className="ri-user-smile-line" />
                     </div>
                   </div>
 
@@ -1818,9 +2001,15 @@ export default function CustomerStorefrontView({
                     marginBottom: '20px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', color: DINE_THEME.slate, fontWeight: 600 }}>Diner Name:</span>
+                      <span style={{ fontSize: '12px', color: DINE_THEME.slate, fontWeight: 600 }}>Full Name:</span>
                       <strong style={{ fontSize: '13px', color: DINE_THEME.dark }}>{customerUser.name}</strong>
                     </div>
+                    {customerUser.email && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '12px', color: DINE_THEME.slate, fontWeight: 600 }}>Email Address:</span>
+                        <strong style={{ fontSize: '13px', color: DINE_THEME.dark }}>{customerUser.email}</strong>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <span style={{ fontSize: '12px', color: DINE_THEME.slate, fontWeight: 600 }}>Mobile Number:</span>
                       <strong style={{ fontSize: '13px', color: DINE_THEME.dark }}>{customerUser.phone || 'Not set'}</strong>
@@ -1875,39 +2064,49 @@ export default function CustomerStorefrontView({
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <button
                       type="button"
                       onClick={() => setIsAuthModalOpen(false)}
                       style={{
-                        flex: 1,
-                        padding: '12px',
-                        borderRadius: '10px',
+                        width: '100%',
+                        padding: '13px',
+                        borderRadius: '12px',
                         border: 'none',
                         backgroundColor: DINE_THEME.teal,
                         color: '#FFF',
-                        fontSize: '13px',
+                        fontSize: '14px',
                         fontWeight: 800,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: `0 4px 14px ${DINE_THEME.tealGlow}`
                       }}
                     >
                       Continue Dining
                     </button>
                     <button
                       type="button"
-                      onClick={handleCustomerLogout}
+                      onClick={() => {
+                        handleCustomerLogout();
+                        setIsAuthModalOpen(false);
+                      }}
                       style={{
-                        padding: '12px 18px',
-                        borderRadius: '10px',
-                        border: `1px solid #FCA5A5`,
+                        width: '100%',
+                        padding: '12px',
+                        borderRadius: '12px',
+                        border: `1.5px solid #FCA5A5`,
                         backgroundColor: '#FEF2F2',
                         color: '#DC2626',
                         fontSize: '13px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
                       }}
                     >
-                      Sign Out
+                      <i className="ri-logout-box-r-line" style={{ fontSize: '16px' }} />
+                      <span>Log Out of Account</span>
                     </button>
                   </div>
                 </div>
@@ -1988,26 +2187,26 @@ export default function CustomerStorefrontView({
                   )}
 
                   {authModalTab === 'signin' ? (
-                    /* ─── UNIFIED SINGLE SIGN IN FORM ─── */
+                    /* ─── CUSTOMER SIGN IN FORM ─── */
                     <form onSubmit={handleUnifiedLogin}>
                       <div style={{ textAlign: 'center', marginBottom: '18px' }}>
                         <h4 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 800, color: DINE_THEME.dark }}>
                           Sign In to {restaurant?.name || 'Restaurant'}
                         </h4>
                         <p style={{ margin: 0, fontSize: '12px', color: DINE_THEME.slate, lineHeight: 1.5 }}>
-                          Single login for Customers, Staff, and Owners.
+                          Access your past orders and enjoy fast 1-click checkout.
                         </p>
                       </div>
 
                       <div style={{ marginBottom: '14px' }}>
                         <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
-                          EMAIL, MOBILE NUMBER, OR STAFF PIN
+                          EMAIL OR MOBILE NUMBER *
                         </label>
                         <input
                           type="text"
                           value={authIdentifier}
                           onChange={e => setAuthIdentifier(e.target.value)}
-                          placeholder="e.g. 0917 555 101 or owner@restaurant.com or 1234"
+                          placeholder="e.g. 0917 555 101 or diner@email.com"
                           required
                           style={{
                             width: '100%',
@@ -2021,98 +2220,55 @@ export default function CustomerStorefrontView({
                         />
                       </div>
 
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
-                          PASSWORD (REQUIRED ONLY FOR OWNER / ADMIN)
-                        </label>
-                        <input
-                          type="password"
-                          value={authPassword}
-                          onChange={e => setAuthPassword(e.target.value)}
-                          placeholder="Enter password (if logging in as Owner/Admin)"
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: `1.5px solid ${DINE_THEME.border}`,
-                            outline: 'none',
-                            fontSize: '14px',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-
-                      {/* 3 Quick Demo Buttons */}
                       <div style={{ marginBottom: '18px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: DINE_THEME.slate, display: 'block', marginBottom: '8px', textAlign: 'center' }}>
-                          Quick One-Click Demo Logins:
-                        </span>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          PASSWORD *
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type={showAuthPassword ? 'text' : 'password'}
+                            value={authPassword}
+                            onChange={e => setAuthPassword(e.target.value)}
+                            placeholder="Enter your account password"
+                            required
+                            style={{
+                              width: '100%',
+                              padding: '12px 42px 12px 14px',
+                              borderRadius: '10px',
+                              border: `1.5px solid ${DINE_THEME.border}`,
+                              outline: 'none',
+                              fontSize: '14px',
+                              boxSizing: 'border-box'
+                            }}
+                          />
                           <button
                             type="button"
-                            onClick={() => {
-                              setAuthIdentifier(slug === 'brandobar' ? 'dezznuts@gmail.com' : (slug === 'tokyo-ramen' ? 'kenji@tokyoramen.ph' : 'arthur@gmail.com'));
-                              setAuthPassword('password123');
-                            }}
+                            onClick={() => setShowAuthPassword(!showAuthPassword)}
                             style={{
-                              backgroundColor: '#FEF3C7',
-                              color: '#92400E',
-                              border: '1px solid #FDE68A',
-                              padding: '7px 4px',
-                              borderRadius: '8px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              cursor: 'pointer'
+                              position: 'absolute',
+                              right: '12px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: showAuthPassword ? DINE_THEME.teal : DINE_THEME.slate,
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '16px'
                             }}
+                            title={showAuthPassword ? 'Hide password' : 'Show password'}
                           >
-                            👑 Owner
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAuthIdentifier('1234');
-                              setAuthPassword('');
-                            }}
-                            style={{
-                              backgroundColor: DINE_THEME.tealLight,
-                              color: DINE_THEME.tealDark,
-                              border: `1px solid ${DINE_THEME.teal}`,
-                              padding: '7px 4px',
-                              borderRadius: '8px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            🍳 Staff PIN
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAuthIdentifier('0917 555 101');
-                              setAuthPassword('');
-                            }}
-                            style={{
-                              backgroundColor: DINE_THEME.pinkLight,
-                              color: DINE_THEME.dark,
-                              border: `1px solid ${DINE_THEME.border}`,
-                              padding: '7px 4px',
-                              borderRadius: '8px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            👤 Customer
+                            <i className={showAuthPassword ? 'ri-eye-off-line' : 'ri-eye-line'} />
                           </button>
                         </div>
                       </div>
 
                       <button
                         type="submit"
-                        disabled={authLoading || !authIdentifier.trim()}
+                        disabled={authLoading || !authIdentifier.trim() || !authPassword.trim()}
                         style={{
                           width: '100%',
                           padding: '14px',
@@ -2122,8 +2278,8 @@ export default function CustomerStorefrontView({
                           borderRadius: '12px',
                           fontSize: '14px',
                           fontWeight: 800,
-                          cursor: (authLoading || !authIdentifier.trim()) ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                          cursor: (authLoading || !authIdentifier.trim() || !authPassword.trim()) ? 'not-allowed' : 'pointer',
+                          boxShadow: `0 6px 20px ${DINE_THEME.tealGlow}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -2143,7 +2299,7 @@ export default function CustomerStorefrontView({
                         )}
                       </button>
 
-                      <div style={{ marginTop: '16px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '12px' }}>
+                      <div style={{ marginTop: '16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
                         <button
                           type="button"
                           onClick={() => { setAuthModalTab('register'); setAuthError(''); }}
@@ -2157,6 +2313,20 @@ export default function CustomerStorefrontView({
                         >
                           New Diner? Create Account ➔
                         </button>
+                        <a
+                          href={`/portal/${slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            color: DINE_THEME.slate,
+                            fontSize: '11px',
+                            textDecoration: 'none',
+                            fontWeight: 600,
+                            marginTop: '4px'
+                          }}
+                        >
+                          Restaurant Staff / Owner? <span style={{ color: DINE_THEME.tealDark, textDecoration: 'underline' }}>Open Restaurant Portal ↗</span>
+                        </a>
                       </div>
                     </form>
                   ) : (
@@ -2167,25 +2337,8 @@ export default function CustomerStorefrontView({
                           Create Your Diner Account
                         </h4>
                         <p style={{ margin: 0, fontSize: '12px', color: DINE_THEME.slate, lineHeight: 1.5 }}>
-                          Save your favorite orders, collect loyalty stamps & fast checkout!
+                          Save your favorite orders and enjoy fast 1-click checkout!
                         </p>
-                      </div>
-
-                      <div style={{
-                        backgroundColor: '#FEF3C7',
-                        border: '1px solid #FDE68A',
-                        borderRadius: '10px',
-                        padding: '10px 14px',
-                        marginBottom: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '12px',
-                        color: '#92400E',
-                        fontWeight: 700
-                      }}>
-                        <i className="ri-gift-line" style={{ fontSize: '16px' }} />
-                        <span>🎁 Welcome Bonus: 50 Starter Loyalty Points upon joining!</span>
                       </div>
 
                       <div style={{ marginBottom: '14px' }}>
@@ -2232,7 +2385,7 @@ export default function CustomerStorefrontView({
                         />
                       </div>
 
-                      <div style={{ marginBottom: '18px' }}>
+                      <div style={{ marginBottom: '14px' }}>
                         <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
                           EMAIL ADDRESS (OPTIONAL)
                         </label>
@@ -2253,9 +2406,55 @@ export default function CustomerStorefrontView({
                         />
                       </div>
 
+                      <div style={{ marginBottom: '18px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '6px' }}>
+                          CREATE PASSWORD *
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type={showRegPassword ? 'text' : 'password'}
+                            required
+                            value={regPassword}
+                            onChange={e => setRegPassword(e.target.value)}
+                            placeholder="Create account password"
+                            style={{
+                              width: '100%',
+                              padding: '12px 42px 12px 14px',
+                              borderRadius: '10px',
+                              border: `1.5px solid ${DINE_THEME.border}`,
+                              outline: 'none',
+                              fontSize: '14px',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegPassword(!showRegPassword)}
+                            style={{
+                              position: 'absolute',
+                              right: '12px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: showRegPassword ? DINE_THEME.teal : DINE_THEME.slate,
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '16px'
+                            }}
+                            title={showRegPassword ? 'Hide password' : 'Show password'}
+                          >
+                            <i className={showRegPassword ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                          </button>
+                        </div>
+                      </div>
+
                       <button
                         type="submit"
-                        disabled={authLoading || !regName.trim() || !regPhone.trim()}
+                        disabled={authLoading || !regName.trim() || !regPhone.trim() || !regPassword.trim()}
                         style={{
                           width: '100%',
                           padding: '14px',
@@ -2265,8 +2464,8 @@ export default function CustomerStorefrontView({
                           borderRadius: '12px',
                           fontSize: '14px',
                           fontWeight: 800,
-                          cursor: (authLoading || !regName.trim() || !regPhone.trim()) ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                          cursor: (authLoading || !regName.trim() || !regPhone.trim() || !regPassword.trim()) ? 'not-allowed' : 'pointer',
+                          boxShadow: `0 6px 20px ${DINE_THEME.tealGlow}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',

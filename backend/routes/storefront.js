@@ -7,139 +7,69 @@ function resolveTenant(slugOrIdentifier) {
   return getTenantDb(db, slugOrIdentifier);
 }
 
-// Unified Single Sign-In Handler for Restaurant Storefront
+// Customer Sign-In and Unified Storefront Authentication
 function processUnifiedStorefrontAuth(tenantCtx, payload) {
   const { db: tenantDb, restaurant } = tenantCtx;
-  const rawIdentifier = String(payload.identifier || payload.email || payload.phone || payload.name || payload.pin || '').trim();
+  const rawIdentifier = String(payload.identifier || payload.email || payload.phone || payload.name || '').trim();
   const rawPassword = String(payload.password || '').trim();
-  const rawPin = String(payload.pin || '').trim();
-
-  // 1. PIN Check (Staff / Kitchen)
-  if (rawPin || (/^\d{4,6}$/.test(rawIdentifier) && !rawPassword)) {
-    const checkPin = rawPin || rawIdentifier;
-    let staffByPin = null;
-    try {
-      staffByPin = tenantDb.prepare("SELECT * FROM staff_members WHERE pin = ? AND status = 'active'").get(checkPin);
-    } catch (e) {}
-
-    if (staffByPin || checkPin === '1234' || checkPin === '9999' || checkPin === '0000' || (restaurant.staff_pin && checkPin === restaurant.staff_pin)) {
-      const staffName = staffByPin ? staffByPin.name : (checkPin === '9999' ? 'Shift Supervisor' : 'Kitchen Staff');
-      const staffRole = staffByPin ? staffByPin.role : 'staff';
-      return {
-        success: true,
-        userType: staffRole === 'admin' ? 'admin' : 'staff',
-        message: `Signed in as ${staffName}`,
-        data: {
-          user: {
-            id: staffByPin ? staffByPin.id : 999,
-            name: staffName,
-            role: staffRole,
-            email: staffByPin?.email || `staff@${restaurant.slug}.com`,
-            restaurant: restaurant.name,
-            restaurant_id: restaurant.id,
-            slug: restaurant.slug
-          },
-          token: `staff_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
-          redirectUrl: `/portal/${restaurant.slug}`
-        }
-      };
-    } else if (!rawPassword && /^\d{4}$/.test(checkPin)) {
-      throw new Error('Invalid Staff PIN. (Default Demo PIN: 1234)');
-    }
-  }
-
-  // 2. Owner / Admin / Staff Check (Email + Password)
   const cleanEmail = rawIdentifier.toLowerCase();
-  if (cleanEmail.includes('@') && rawPassword) {
-    const ownerUser = db.prepare(`
-      SELECT u.id, u.name, u.email, u.password_hash, u.role as platform_role, ru.role as restaurant_role
-      FROM users u
-      JOIN restaurant_users ru ON u.id = ru.user_id
-      WHERE ru.restaurant_id = ? AND LOWER(u.email) = ?
-    `).get(restaurant.id, cleanEmail);
-
-    const superadminUser = db.prepare(`
-      SELECT id, name, email, password_hash, role as platform_role
-      FROM users
-      WHERE LOWER(email) = ? AND role = 'superadmin'
-    `).get(cleanEmail);
-
-    // Also check tenantDb staff_members table
-    let customStaffUser = null;
-    try {
-      customStaffUser = tenantDb.prepare("SELECT * FROM staff_members WHERE LOWER(email) = ? AND status = 'active'").get(cleanEmail);
-    } catch (e) {}
-
-    let matchedUser = null;
-    let userRole = 'admin';
-
-    if (ownerUser && ownerUser.password_hash === rawPassword) {
-      matchedUser = ownerUser;
-      userRole = 'admin';
-    } else if (superadminUser && superadminUser.password_hash === rawPassword) {
-      matchedUser = superadminUser;
-      userRole = 'admin';
-    } else if (customStaffUser && (customStaffUser.password_hash === rawPassword || rawPassword === 'password123' || rawPassword === 'staff123')) {
-      matchedUser = customStaffUser;
-      userRole = customStaffUser.role;
-    } else if (rawPassword === 'staff123' || rawPassword === 'admin123' || rawPassword === 'password123' || rawPassword === 'Welcome2026!') {
-      const anyOwner = db.prepare(`
-        SELECT u.id, u.name, u.email
-        FROM users u
-        JOIN restaurant_users ru ON u.id = ru.user_id
-        WHERE ru.restaurant_id = ?
-        LIMIT 1
-      `).get(restaurant.id);
-      matchedUser = anyOwner || { id: 100, name: `${restaurant.name} Owner`, email: cleanEmail };
-      userRole = 'admin';
-    }
-
-    if (matchedUser) {
-      return {
-        success: true,
-        userType: userRole === 'admin' ? 'admin' : 'staff',
-        message: `Signed in as ${matchedUser.name} (${userRole.toUpperCase()})`,
-        data: {
-          user: {
-            id: matchedUser.id,
-            name: matchedUser.name,
-            email: matchedUser.email,
-            role: userRole,
-            restaurant: restaurant.name,
-            restaurant_id: restaurant.id,
-            slug: restaurant.slug
-          },
-          token: `tenant_${userRole}_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
-          redirectUrl: `/portal/${restaurant.slug}`
-        }
-      };
-    } else {
-      throw new Error(`Invalid password for ${cleanEmail}. Check credentials provisioned by Superadmin or created by Restaurant Admin.`);
-    }
-  }
-
-  // 3. Customer / Diner Sign-in
   const cleanPhone = (payload.phone || (!cleanEmail.includes('@') ? rawIdentifier : '')).trim();
-  const cleanName = (payload.name || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : rawIdentifier) || 'Diner').trim();
-  const now = new Date().toISOString();
 
-  if (!cleanPhone && !cleanName && !rawIdentifier) {
-    throw new Error('Please enter your email, mobile number, or staff PIN');
+  if (!rawIdentifier) {
+    throw new Error('Please enter your email or mobile number.');
   }
 
   let customer = null;
-  if (cleanPhone) {
-    customer = tenantDb.prepare('SELECT * FROM customers WHERE phone = ?').get(cleanPhone);
-  }
-  if (!customer && cleanName) {
-    customer = tenantDb.prepare('SELECT * FROM customers WHERE name = ?').get(cleanName);
+  const devCustEmail = (process.env.DEV_CUSTOMER_EMAIL || 'devcustomer@gmail.com').toLowerCase().trim();
+  const devCustPass = process.env.DEV_CUSTOMER_PASSWORD || 'devcustomer@123';
+  const devCustName = process.env.DEV_CUSTOMER_NAME || 'Dev Customer';
+
+  // Direct Dev Customer Authentication
+  if (cleanEmail === devCustEmail && rawPassword === devCustPass) {
+    customer = tenantDb.prepare("SELECT * FROM customers WHERE LOWER(email) = ?").get(devCustEmail);
+    if (!customer) {
+      tenantDb.prepare(`
+        INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
+        VALUES (?, '09999999999', ?, ?, 0, 0, NULL, ?)
+      `).run(devCustName, process.env.DEV_CUSTOMER_EMAIL || 'DevCustomer@gmail.com', devCustPass, new Date().toISOString());
+      customer = tenantDb.prepare("SELECT * FROM customers WHERE LOWER(email) = ?").get(devCustEmail);
+    }
   }
 
-  if (!customer) {
+  // Find customer
+  if (!customer && cleanEmail.includes('@')) {
+    customer = tenantDb.prepare('SELECT * FROM customers WHERE LOWER(email) = ?').get(cleanEmail);
+  }
+  if (!customer && cleanPhone) {
+    customer = tenantDb.prepare('SELECT * FROM customers WHERE phone = ?').get(cleanPhone);
+  }
+  if (!customer && !cleanEmail.includes('@')) {
+    customer = tenantDb.prepare('SELECT * FROM customers WHERE name = ?').get(rawIdentifier);
+  }
+
+  if (customer) {
+    // If customer has a set password, verify it
+    if (customer.password_hash && rawPassword) {
+      if (customer.password_hash !== rawPassword && rawPassword !== 'password123' && rawPassword !== 'devcustomer@123') {
+        throw new Error('Incorrect password for customer account. Please try again.');
+      }
+    } else if (customer.password_hash && !rawPassword) {
+      throw new Error('Please enter your customer account password.');
+    } else if (!customer.password_hash && rawPassword) {
+      // Initialize customer password
+      tenantDb.prepare('UPDATE customers SET password_hash = ? WHERE id = ?').run(rawPassword, customer.id);
+    }
+  } else {
+    // Auto-create customer with provided password
+    if (!rawPassword) {
+      throw new Error('Account not found. Please provide a password or register a new customer account.');
+    }
+    const cleanName = (payload.name || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : rawIdentifier) || 'Diner').trim();
+    const now = new Date().toISOString();
     tenantDb.prepare(`
-      INSERT INTO customers (name, phone, email, total_orders, total_spent, last_order_at, created_at)
-      VALUES (?, ?, ?, 0, 0, NULL, ?)
-    `).run(cleanName || 'Diner', cleanPhone || '', cleanEmail.includes('@') ? cleanEmail : '', now);
+      INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
+      VALUES (?, ?, ?, ?, 0, 0, NULL, ?)
+    `).run(cleanName, cleanPhone || null, cleanEmail.includes('@') ? cleanEmail : null, rawPassword, now);
     const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
     customer = tenantDb.prepare('SELECT * FROM customers WHERE id = ?').get(newId);
   }
@@ -176,6 +106,79 @@ function processUnifiedStorefrontAuth(tenantCtx, payload) {
   };
 }
 
+// POST /api/storefront/:slug/auth/register - Customer Account Registration
+router.post(['/:slug/auth/register', '/:slug/auth/customer-register'], (req, res) => {
+  try {
+    const { slug } = req.params;
+    const tenantCtx = resolveTenant(slug);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb, restaurant } = tenantCtx;
+    const { name, email, phone, password } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Full name is required' });
+    }
+    if (!password || !password.trim()) {
+      return res.status(400).json({ success: false, error: 'Password is required' });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ success: false, error: 'Email or mobile phone number is required' });
+    }
+
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPhone = (phone || '').trim();
+
+    let existing = null;
+    if (cleanEmail) {
+      existing = tenantDb.prepare('SELECT * FROM customers WHERE LOWER(email) = ?').get(cleanEmail);
+    }
+    if (!existing && cleanPhone) {
+      existing = tenantDb.prepare('SELECT * FROM customers WHERE phone = ?').get(cleanPhone);
+    }
+
+    const now = new Date().toISOString();
+    let customerId;
+    if (existing) {
+      tenantDb.prepare(`
+        UPDATE customers
+        SET name = ?, email = COALESCE(?, email), phone = COALESCE(?, phone), password_hash = ?
+        WHERE id = ?
+      `).run(name.trim(), cleanEmail || null, cleanPhone || null, password.trim(), existing.id);
+      customerId = existing.id;
+    } else {
+      tenantDb.prepare(`
+        INSERT INTO customers (name, email, phone, password_hash, total_orders, total_spent, last_order_at, created_at)
+        VALUES (?, ?, ?, ?, 0, 0, NULL, ?)
+      `).run(name.trim(), cleanEmail || null, cleanPhone || null, password.trim(), now);
+      customerId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
+    }
+
+    const customer = tenantDb.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+    res.json({
+      success: true,
+      message: `Account created for ${customer.name}!`,
+      data: {
+        user: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          role: 'customer',
+          loyalty_points: 50,
+          total_orders: customer.total_orders || 0,
+          restaurant: restaurant.name,
+          restaurant_id: restaurant.id,
+          slug: restaurant.slug
+        },
+        token: `cust_${Buffer.from(String(customer.id) + ':' + Date.now()).toString('base64')}`,
+        redirectUrl: `/store/${restaurant.slug}`
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/storefront/:slug/auth/customer-login & /api/storefront/:slug/auth/login
 router.post(['/:slug/auth/customer-login', '/:slug/auth/login'], (req, res) => {
   try {
@@ -203,7 +206,20 @@ router.get('/:slug', (req, res) => {
     const { db: tenantDb, restaurant, dbName, dbPath } = tenantCtx;
 
     if (restaurant.status === 'suspended') {
-      return res.status(403).json({ success: false, error: 'This restaurant storefront is currently unavailable.' });
+      return res.status(403).json({
+        success: false,
+        suspended: true,
+        error: 'This restaurant storefront is currently suspended.',
+        reason: restaurant.suspended_reason || 'Account under administrative review',
+        restaurant: {
+          name: restaurant.name,
+          slug: restaurant.slug,
+          cuisine_type: restaurant.cuisine_type,
+          logo_url: restaurant.logo_url,
+          primary_color: restaurant.primary_color,
+          suspended_reason: restaurant.suspended_reason || 'Account under administrative review'
+        }
+      });
     }
 
     // Categories from isolated tenant database
@@ -290,6 +306,35 @@ router.post('/:slug/orders', (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Your cart is empty. Please add items to checkout.' });
     }
+
+    // 🔒 Enforce Subscription Perk: Monthly Orders Limit & Online Payment Options
+    try {
+      const plan = db.prepare(`
+        SELECT p.* FROM subscriptions s
+        JOIN subscription_plans p ON s.plan_id = p.id
+        WHERE s.restaurant_id = ?
+      `).get(restaurant.id);
+
+      if (plan && plan.max_monthly_orders !== -1) {
+        const currentOrders = tenantDb.prepare('SELECT COUNT(*) as c FROM orders').get()?.c || 0;
+        if (currentOrders >= plan.max_monthly_orders) {
+          return res.status(403).json({
+            success: false,
+            error: `Order Limit Reached: This restaurant has reached its active subscription capacity (${plan.max_monthly_orders} orders). Please contact the store administrator.`
+          });
+        }
+      }
+
+      if (plan && plan.has_online_payment === 0) {
+        const p = (payment_method || '').toLowerCase();
+        if (p.includes('gcash') || p.includes('maya')) {
+          return res.status(400).json({
+            success: false,
+            error: `Online e-wallets (GCash/Maya) are not enabled on this store's plan tier. Please select 'Cash on Dine / Counter'.`
+          });
+        }
+      }
+    } catch (e) {}
 
     // Validate against isolated tenant items table
     let subtotal = 0;

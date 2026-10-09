@@ -6,6 +6,7 @@ import Drawer from './components/Drawer';
 import ProvisionModal from './components/ProvisionModal';
 import PlanModal from './components/PlanModal';
 import UserModal from './components/UserModal';
+import ProfileModal from './components/ProfileModal';
 
 import LandingPageView from './views/LandingPageView';
 import LoginView from './views/LoginView';
@@ -28,10 +29,27 @@ export default function App() {
   const [activeTenantSlug, setActiveTenantSlug] = useState('brandobar');
   const [customerTable, setCustomerTable] = useState('T-01');
 
-  const [currentRoute, setCurrentRoute] = useState('dashboard');
+  const getInitialAdminRoute = () => {
+    const hash = window.location.hash.replace('#', '').trim();
+    const validRoutes = ['dashboard', 'tenants', 'plans', 'billing', 'users', 'audit', 'settings'];
+    if (validRoutes.includes(hash)) return hash;
+    const stored = localStorage.getItem('restosaas_admin_route');
+    if (validRoutes.includes(stored)) return stored;
+    return 'dashboard';
+  };
+
+  const [currentRoute, setCurrentRoute] = useState(getInitialAdminRoute);
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState([]);
   const [adminUser, setAdminUser] = useState(null);
+
+  const handleNavigateAdmin = (route) => {
+    setCurrentRoute(route);
+    localStorage.setItem('restosaas_admin_route', route);
+    if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin')) {
+      window.history.replaceState(null, '', `/admin#${route}`);
+    }
+  };
 
   // Data states
   const [stats, setStats] = useState(null);
@@ -47,6 +65,8 @@ export default function App() {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [editPlan, setEditPlan] = useState(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [drawerTenant, setDrawerTenant] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -81,6 +101,12 @@ export default function App() {
 
     // 3. Dedicated /admin URL path: http://localhost:5173/admin
     if (pathname === '/admin' || pathname.startsWith('/admin')) {
+      const hash = window.location.hash.replace('#', '').trim();
+      const validRoutes = ['dashboard', 'tenants', 'plans', 'billing', 'users', 'audit', 'settings'];
+      if (validRoutes.includes(hash)) {
+        setCurrentRoute(hash);
+        localStorage.setItem('restosaas_admin_route', hash);
+      }
       return { mode: 'admin', slug: null, table: null };
     }
 
@@ -121,22 +147,32 @@ export default function App() {
     if (initial.slug) setActiveTenantSlug(initial.slug);
     if (initial.table) setCustomerTable(initial.table);
 
-    // Listen to browser Back/Forward navigation
-    const handlePopState = () => {
+    // Listen to browser Back/Forward and Hash navigation
+    const handleUrlChange = () => {
       const current = resolveRouteFromUrl();
       setAppMode(current.mode);
       if (current.slug) setActiveTenantSlug(current.slug);
       if (current.table) setCustomerTable(current.table);
+      
+      const hash = window.location.hash.replace('#', '').trim();
+      const validRoutes = ['dashboard', 'tenants', 'plans', 'billing', 'users', 'audit', 'settings'];
+      if (validRoutes.includes(hash)) {
+        setCurrentRoute(hash);
+      }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
   }, []);
 
   // Set Super Admin title when in super admin or landing mode
   useEffect(() => {
     if (appMode === 'admin' || appMode === 'landing' || appMode === 'login') {
-      document.title = 'RestoSaaS — Super Admin Multi-Tenancy Console (MERN Stack)';
+      document.title = 'RestoSaaS — Multi-Tenant Restaurant Management Platform';
     }
   }, [appMode]);
 
@@ -196,10 +232,11 @@ export default function App() {
     loadRouteData();
   }, [currentRoute, appMode]);
 
-  // Load initial plans and tenants
+  // Load initial plans, tenants, and users
   useEffect(() => {
     api.plans.list().then(r => setPlans(r.data)).catch(() => {});
     api.tenants.list().then(r => setTenants(r.data)).catch(() => {});
+    api.users.list().then(r => setUsers(r.data)).catch(() => {});
   }, []);
 
   // Handlers
@@ -216,6 +253,22 @@ export default function App() {
     setAdminUser(null);
     navigateTo('/admin');
     showToast('Signed out successfully', 'info');
+  };
+
+  // Update current Superadmin Profile (Name, Email, Password, Phone, Avatar)
+  const handleUpdateProfile = async (profilePayload) => {
+    try {
+      const res = await api.users.updateProfile(profilePayload);
+      const updatedUser = res.data;
+      setAdminUser(updatedUser);
+      localStorage.setItem('restosaas_admin_user', JSON.stringify(updatedUser));
+      showToast('Superadmin profile & credentials updated!');
+      const uRes = await api.users.list();
+      setUsers(uRes.data);
+    } catch (err) {
+      showToast(err.message, 'error');
+      throw err;
+    }
   };
 
   const handleInspectTenant = async (id) => {
@@ -323,10 +376,34 @@ export default function App() {
     }
   };
 
-  const handleCreateUser = async (formData) => {
+  // Create or update Super Admin / User
+  const handleUserSubmit = async (formData, editId) => {
     try {
-      await api.users.create(formData);
-      showToast('Super Admin created successfully');
+      if (editId) {
+        await api.users.update(editId, { ...formData, admin_name: adminUser?.name });
+        showToast('User account updated successfully');
+        if (adminUser && adminUser.id === editId) {
+          const updatedSelf = { ...adminUser, ...formData };
+          delete updatedSelf.password;
+          setAdminUser(updatedSelf);
+          localStorage.setItem('restosaas_admin_user', JSON.stringify(updatedSelf));
+        }
+      } else {
+        await api.users.create({ ...formData, admin_name: adminUser?.name });
+        showToast(`Super Admin '${formData.name}' created successfully!`);
+      }
+      const res = await api.users.list();
+      setUsers(res.data);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!confirm(`Permanently delete account for '${userName || 'this user'}'?`)) return;
+    try {
+      await api.users.delete(userId);
+      showToast(`User '${userName}' deleted successfully.`);
       const res = await api.users.list();
       setUsers(res.data);
     } catch (err) {
@@ -364,8 +441,9 @@ export default function App() {
           onGoToLogin={() => navigateTo('/admin')}
           onGoToConsole={() => navigateTo('/admin')}
           isAuthenticated={!!adminUser}
-          onOpenTenantPortal={() => window.open('/portal/brandobar', '_blank')}
-          onOpenStorefront={(slug) => window.open('/store/' + (slug || 'brandobar'), '_blank')}
+          tenants={tenants}
+          onOpenTenantPortal={(slug) => window.open(`/portal/${slug || 'brandobar'}`, '_blank')}
+          onOpenStorefront={(slug) => window.open(`/store/${slug || 'brandobar'}`, '_blank')}
         />
         <Toast toasts={toasts} onDismiss={dismissToast} />
       </>
@@ -419,10 +497,11 @@ export default function App() {
     <div id="app">
       <Sidebar
         currentRoute={currentRoute}
-        onNavigate={setCurrentRoute}
+        onNavigate={handleNavigateAdmin}
         onGoToLanding={() => navigateTo('/')}
         onSignOut={handleSignOut}
         tenantCount={tenants.length}
+        tenants={tenants}
       />
 
       <div className="main-wrapper">
@@ -431,18 +510,20 @@ export default function App() {
           searchQuery={searchQuery}
           onSearchChange={(q) => {
             setSearchQuery(q);
-            if (currentRoute !== 'tenants' && q) setCurrentRoute('tenants');
+            if (currentRoute !== 'tenants' && q) handleNavigateAdmin('tenants');
           }}
           onOpenProvision={() => setIsProvisionOpen(true)}
           onGoToLanding={() => navigateTo('/')}
           onSignOut={handleSignOut}
+          adminUser={adminUser}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
         />
 
         <main className="content-area">
           {currentRoute === 'dashboard' && (
             <DashboardView
               stats={stats}
-              onNavigate={setCurrentRoute}
+              onNavigate={handleNavigateAdmin}
               onOpenProvision={() => setIsProvisionOpen(true)}
               onInspectTenant={handleInspectTenant}
             />
@@ -480,7 +561,9 @@ export default function App() {
           {currentRoute === 'users' && (
             <UsersView
               users={users}
-              onOpenCreateUser={() => setIsUserModalOpen(true)}
+              onOpenCreateUser={() => { setEditUser(null); setIsUserModalOpen(true); }}
+              onOpenEditUser={(u) => { setEditUser(u); setIsUserModalOpen(true); }}
+              onDeleteUser={handleDeleteUser}
               onToggleStatus={handleToggleUserStatus}
             />
           )}
@@ -496,6 +579,9 @@ export default function App() {
             <SettingsView
               settings={settings}
               onSave={handleSaveSettings}
+              adminUser={adminUser}
+              onOpenProfile={() => setIsProfileModalOpen(true)}
+              onOpenCreateSuperadmin={() => { setEditUser(null); setIsUserModalOpen(true); }}
             />
           )}
         </main>
@@ -529,8 +615,16 @@ export default function App() {
 
       <UserModal
         isOpen={isUserModalOpen}
-        onClose={() => setIsUserModalOpen(false)}
-        onSubmit={handleCreateUser}
+        onClose={() => { setIsUserModalOpen(false); setEditUser(null); }}
+        onSubmit={handleUserSubmit}
+        editUser={editUser}
+      />
+
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={adminUser}
+        onUpdateProfile={handleUpdateProfile}
       />
 
       {/* Toasts */}

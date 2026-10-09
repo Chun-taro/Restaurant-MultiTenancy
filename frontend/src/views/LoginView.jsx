@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 
 export default function LoginView({ onLoginSuccess, onBackToLanding }) {
-  const [email, setEmail] = useState('admin@restosaas.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -15,7 +16,7 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: email.trim(), password: password.trim() })
       });
 
       const data = await res.json();
@@ -34,12 +35,6 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
     }
   };
 
-  const handleQuickDemo = () => {
-    setEmail('admin@restosaas.com');
-    setPassword('admin123');
-    setError('');
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -55,7 +50,7 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
         position: 'absolute',
         width: '450px',
         height: '450px',
-        background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(255, 90, 31, 0.18) 0%, rgba(245, 158, 11, 0.08) 50%, transparent 70%)',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
@@ -65,12 +60,12 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
       <div style={{
         width: '100%',
         maxWidth: '440px',
-        background: 'rgba(17, 24, 39, 0.85)',
+        background: 'rgba(22, 25, 33, 0.88)',
         border: '1px solid var(--border-card)',
         borderRadius: 'var(--radius-xl)',
         backdropFilter: 'blur(20px)',
         padding: '36px 32px',
-        boxShadow: 'var(--shadow-lg), 0 0 35px rgba(99, 102, 241, 0.2)',
+        boxShadow: 'var(--shadow-lg), 0 0 35px rgba(255, 90, 31, 0.2)',
         position: 'relative'
       }}>
         {/* Brand header */}
@@ -80,7 +75,7 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
             height: '54px',
             margin: '0 auto 16px',
             borderRadius: 'var(--radius-lg)',
-            background: 'linear-gradient(135deg, var(--primary) 0%, #4338CA 100%)',
+            background: 'linear-gradient(135deg, var(--primary) 0%, #EA580C 50%, #DC2626 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -94,34 +89,8 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
             RestoSaaS Platform
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Super Admin Authentication Portal
+            Super Admin & Developer Authentication Portal
           </p>
-        </div>
-
-        {/* Demo Quickfill pill */}
-        <div style={{
-          background: 'rgba(99, 102, 241, 0.1)',
-          border: '1px solid rgba(99, 102, 241, 0.25)',
-          borderRadius: 'var(--radius-md)',
-          padding: '10px 14px',
-          marginBottom: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '12px'
-        }}>
-          <div>
-            <span style={{ color: 'var(--text-muted)' }}>Credentials: </span>
-            <code style={{ color: 'var(--primary-light)', fontFamily: 'var(--font-mono)' }}>admin@restosaas.com</code>
-          </div>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            style={{ padding: '4px 10px', fontSize: '11px' }}
-            onClick={handleQuickDemo}
-          >
-            Auto-fill
-          </button>
         </div>
 
         {error && (
@@ -164,14 +133,37 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
             <div style={{ position: 'relative' }}>
               <i className="ri-lock-line" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}></i>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 className="form-control"
-                style={{ paddingLeft: '40px' }}
+                style={{ paddingLeft: '40px', paddingRight: '42px' }}
                 placeholder="••••••••"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: showPassword ? 'var(--primary-light)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                  transition: 'color 0.15s ease'
+                }}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <i className={showPassword ? 'ri-eye-off-line' : 'ri-eye-line'}></i>
+              </button>
             </div>
           </div>
 

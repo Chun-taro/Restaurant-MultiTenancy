@@ -42,8 +42,8 @@ export default function SVGChart({ data = [], height = 220 }) {
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
       <defs>
         <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6366F1" stopOpacity="0.38" />
-          <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0" />
+          <stop offset="0%" stopColor="#FF5A1F" stopOpacity="0.38" />
+          <stop offset="100%" stopColor="#FF5A1F" stopOpacity="0.0" />
         </linearGradient>
       </defs>
 
@@ -71,7 +71,7 @@ export default function SVGChart({ data = [], height = 220 }) {
       ))}
 
       <path d={areaD} fill="url(#chartGradient)" />
-      <path d={pathD} fill="none" stroke="#6366F1" strokeWidth="3.5" strokeLinecap="round" />
+      <path d={pathD} fill="none" stroke="#FF5A1F" strokeWidth="3.5" strokeLinecap="round" />
 
       {points.map((p, idx) => (
         <circle
@@ -79,7 +79,7 @@ export default function SVGChart({ data = [], height = 220 }) {
           cx={p.x}
           cy={p.y}
           r="5"
-          fill="#6366F1"
+          fill="#FF5A1F"
           stroke="#FFFFFF"
           strokeWidth="2"
         >

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -11,6 +12,10 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const db = new DatabaseSync(DB_PATH);
+try {
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA busy_timeout = 5000;');
+} catch (e) {}
 
 function initDatabase() {
   db.exec(`
@@ -211,7 +216,6 @@ function initDatabase() {
   `);
 
   seedCleanData();
-  seedAllTenantsDefaults();
 }
 
 function seedCleanData() {
@@ -311,199 +315,74 @@ function seedCleanData() {
   insertAudit.run('System Root', 'System', 'SYSTEM_INIT', 'platform', '0', 'Clean platform database initialized. Zero tenants provisioned.', now);
 }
 
-function seedAllTenantsDefaults() {
-  const restaurants = db.prepare('SELECT id, name FROM restaurants').all();
-  for (const r of restaurants) {
-    seedRestaurantDefaults(r.id, r.name);
+function ensureDevMasterAccounts() {
+  const now = new Date().toISOString();
+
+  // 1. Permanent Developer Superadmin Account
+  const devSuperName = process.env.DEV_SUPERADMIN_NAME || 'RestoSaaS Dev Admin';
+  const devSuperEmail = (process.env.DEV_SUPERADMIN_EMAIL || 'RestoSaasDev@gmail.com').trim();
+  const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || 'restosaasdev@123';
+
+  const existingDev = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(devSuperEmail.toLowerCase());
+  if (!existingDev) {
+    db.prepare(`
+      INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'superadmin', ?, ?, 'active', ?, ?)
+    `).run(
+      devSuperName,
+      devSuperEmail,
+      devSuperPass,
+      '+63 900 000 0001',
+      'https://api.dicebear.com/7.x/bottts/svg?seed=RestoDev',
+      now,
+      now
+    );
+  } else {
+    db.prepare(`
+      UPDATE users SET name = ?, password_hash = ?, role = 'superadmin', status = 'active'
+      WHERE id = ?
+    `).run(devSuperName, devSuperPass, existingDev.id);
+  }
+
+  // 2. Dev Owner Account (in master users for multi-tenant linkage)
+  const devOwnerName = process.env.DEV_OWNER_NAME || 'Restaurant Dev admin';
+  const devOwnerEmail = (process.env.DEV_OWNER_EMAIL || 'DevOwner@gmail.com').trim();
+  const devOwnerPass = process.env.DEV_OWNER_PASSWORD || 'devowner@123';
+
+  const existingOwner = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(devOwnerEmail.toLowerCase());
+  if (!existingOwner) {
+    db.prepare(`
+      INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'restaurant_owner', ?, ?, 'active', ?, ?)
+    `).run(
+      devOwnerName,
+      devOwnerEmail,
+      devOwnerPass,
+      '+63 900 000 0002',
+      'https://api.dicebear.com/7.x/avataaars/svg?seed=DevOwner',
+      now,
+      now
+    );
+  } else {
+    db.prepare(`
+      UPDATE users SET name = ?, password_hash = ?, status = 'active'
+      WHERE id = ?
+    `).run(devOwnerName, devOwnerPass, existingOwner.id);
   }
 }
 
-function seedRestaurantDefaults(restaurantId, restaurantName = 'Restaurant') {
-  const catCount = db.prepare('SELECT COUNT(*) as count FROM menu_categories WHERE restaurant_id = ?').get(restaurantId).count;
-  if (catCount > 0) return;
-
-  const now = new Date().toISOString();
-
-  // 1. Categories
-  const insertCat = db.prepare(`
-    INSERT INTO menu_categories (restaurant_id, name, description, icon, sort_order, is_active, created_at)
-    VALUES (?, ?, ?, ?, ?, 1, ?)
-  `);
-
-  insertCat.run(restaurantId, 'Signature Sizzlers', 'Sizzling hotplates fresh from the grill', 'ri-fire-line', 1, now);
-  const cat1 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertCat.run(restaurantId, 'Heritage Mains', 'Hearty comfort dishes crafted with authentic recipes', 'ri-restaurant-line', 2, now);
-  const cat2 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertCat.run(restaurantId, 'Rice & Noodles', 'Fragrant wok-tossed garlic rice and noodles', 'ri-bowl-line', 3, now);
-  const cat3 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertCat.run(restaurantId, 'Beverages & Brews', 'Chilled handcrafted refreshments & signature drinks', 'ri-cup-line', 4, now);
-  const cat4 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  // 2. Menu Items
-  const insertItem = db.prepare(`
-    INSERT INTO menu_items (
-      restaurant_id, category_id, name, description, price,
-      image_url, is_available, is_featured, preparation_time, badge, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `);
-
-  // Category 1: Sizzlers
-  insertItem.run(
-    restaurantId, cat1, 'Crispy Sizzling Pork Sisig',
-    'Minced pork belly and jowl served on a cast-iron skillet with chili, calamansi & fresh egg.',
-    285.00,
-    'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=80',
-    1, 15, 'Bestseller', now
-  );
-  const item1 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertItem.run(
-    restaurantId, cat1, 'Grilled Pork Liempo Inasal',
-    'Thick-cut pork belly marinated in lemongrass, annatto, and garlic, flame-grilled to perfection.',
-    320.00,
-    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop&q=80',
-    1, 18, 'Chef Pick', now
-  );
-  const item2 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertItem.run(
-    restaurantId, cat1, 'Sizzling Garlic Pepper Beef',
-    'Tender beef strips in rich mushroom gravy topped with toasted garlic flakes and butter.',
-    360.00,
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&auto=format&fit=crop&q=80',
-    0, 15, 'Popular', now
-  );
-
-  // Category 2: Mains
-  insertItem.run(
-    restaurantId, cat2, 'Slow-Cooked Beef Kare-Kare',
-    'Tender beef shank in peanut sauce with string beans, eggplant, and savory shrimp paste (bagoong).',
-    440.00,
-    'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&auto=format&fit=crop&q=80',
-    1, 20, 'Signature', now
-  );
-  const item3 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertItem.run(
-    restaurantId, cat2, 'Crispy Pata Golden Roast',
-    'Whole pork knuckle deep-fried to a brittle golden crackle, served with soy-vinegar dipping sauce.',
-    690.00,
-    'https://images.unsplash.com/photo-1544025162-d76694265947?w=500&auto=format&fit=crop&q=80',
-    1, 25, 'Feast', now
-  );
-
-  insertItem.run(
-    restaurantId, cat2, 'Sinigang na Hipon sa Sampalok',
-    'Fresh tiger prawns in a rich sour tamarind broth loaded with kangkong, radish, and tomatoes.',
-    395.00,
-    'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=500&auto=format&fit=crop&q=80',
-    0, 18, null, now
-  );
-
-  // Category 3: Rice & Noodles
-  insertItem.run(
-    restaurantId, cat3, 'Signature Toasted Garlic Rice Platter',
-    'Wok-fried Jasmine rice with roasted garlic bits and garlic infused oil. Good for 3-4 persons.',
-    160.00,
-    'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=500&auto=format&fit=crop&q=80',
-    0, 10, 'Side', now
-  );
-  const item4 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertItem.run(
-    restaurantId, cat3, 'Pancit Canton Guisado Especial',
-    'Egg noodles stir-fried with pork cuts, chicken livers, shrimp, and fresh seasonal crisp veggies.',
-    290.00,
-    'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500&auto=format&fit=crop&q=80',
-    1, 15, 'Family Size', now
-  );
-
-  // Category 4: Drinks
-  insertItem.run(
-    restaurantId, cat4, 'Fresh Honey Calamansi Cooler',
-    'Freshly squeezed Philippine calamansi with pure honey and crushed mint over ice.',
-    95.00,
-    'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=500&auto=format&fit=crop&q=80',
-    1, 5, 'Refreshing', now
-  );
-  const item5 = db.prepare('SELECT last_insert_rowid() as id').get().id;
-
-  insertItem.run(
-    restaurantId, cat4, 'Ripe Mango Tapioca Shake',
-    'Sweet Carabao mangoes blended with milk, shaved ice, and chewy tapioca pearls.',
-    125.00,
-    'https://images.unsplash.com/photo-1553787499-6f9133860278?w=500&auto=format&fit=crop&q=80',
-    1, 5, 'Bestseller', now
-  );
-
-  // 3. Tables
-  const insertTable = db.prepare(`
-    INSERT INTO restaurant_tables (restaurant_id, table_number, capacity, qr_code_key, status, created_at)
-    VALUES (?, ?, ?, ?, 'available', ?)
-  `);
-
-  insertTable.run(restaurantId, 'T-01', 2, `qr_${restaurantId}_t01`, now);
-  insertTable.run(restaurantId, 'T-02', 4, `qr_${restaurantId}_t02`, now);
-  insertTable.run(restaurantId, 'T-03', 4, `qr_${restaurantId}_t03`, now);
-  insertTable.run(restaurantId, 'T-04', 6, `qr_${restaurantId}_t04`, now);
-  insertTable.run(restaurantId, 'VIP-1', 8, `qr_${restaurantId}_vip1`, now);
-
-  // 4. Initial Demo Orders (so orders dashboard is immediately live!)
-  const insertOrder = db.prepare(`
-    INSERT INTO orders (
-      order_number, restaurant_id, customer_name, customer_phone, order_type,
-      table_number, status, payment_method, payment_status, subtotal, tax, total, notes, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
-  `);
-
-  const insertOrderItem = db.prepare(`
-    INSERT INTO order_items (order_id, menu_item_id, item_name, price, quantity, instructions, subtotal)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  // Order 1: Preparing
-  const o1Num = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-  insertOrder.run(
-    o1Num, restaurantId, 'Marco Valderama', '+63 917 555 1290', 'dine_in',
-    'T-02', 'preparing', 'gcash', 'paid', 605.00, 605.00, 'Extra spicy on the sisig please', now, now
-  );
-  const o1Id = db.prepare('SELECT last_insert_rowid() as id').get().id;
-  insertOrderItem.run(o1Id, item1, 'Crispy Sizzling Pork Sisig', 285.00, 1, 'Extra spicy', 285.00);
-  insertOrderItem.run(o1Id, item2, 'Grilled Pork Liempo Inasal', 320.00, 1, 'Well done', 320.00);
-
-  // Order 2: Ready
-  const o2Num = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-  insertOrder.run(
-    o2Num, restaurantId, 'Sarah Jenkins', '+63 920 888 3412', 'dine_in',
-    'T-01', 'ready', 'maya', 'paid', 255.00, 255.00, 'No ice on calamansi', now, now
-  );
-  const o2Id = db.prepare('SELECT last_insert_rowid() as id').get().id;
-  insertOrderItem.run(o2Id, item4, 'Signature Toasted Garlic Rice Platter', 160.00, 1, null, 160.00);
-  insertOrderItem.run(o2Id, item5, 'Fresh Honey Calamansi Cooler', 95.00, 1, 'No ice', 95.00);
-
-  // Update restaurant stats
-  db.prepare(`
-    UPDATE restaurants SET
-      orders_count = orders_count + 2,
-      total_volume = total_volume + 860.00
-    WHERE id = ?
-  `).run(restaurantId);
-}
-
 // Multi-tenant Database Isolation Engine
-const { getTenantDb, provisionAllTenantDatabases, seedTenantDineCatalog } = require('./tenantDbManager');
+const { getTenantDb, provisionAllTenantDatabases } = require('./tenantDbManager');
 
 initDatabase();
+ensureDevMasterAccounts();
 provisionAllTenantDatabases(db);
 
 module.exports = {
   db,
   initDatabase,
-  seedRestaurantDefaults,
+  ensureDevMasterAccounts,
   getTenantDb,
-  provisionAllTenantDatabases,
-  seedTenantDineCatalog
+  provisionAllTenantDatabases
 };
+

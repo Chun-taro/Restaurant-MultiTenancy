@@ -1,22 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
-// DINE Design Palette & Color Tokens
-const C = {
-  white: '#FFFFFF',
-  pink: '#F6DCE7',
-  pinkLight: '#FBEAF0',
-  pinkSoft: '#FFF5F8',
-  teal: '#2A9D9A',
-  tealDark: '#176B68',
-  tealLight: '#E6F7F6',
-  dark: '#263238',
-  slate: '#64748b',
-  border: '#F0D4E0',
-  grayBorder: '#E2E8F0',
-  gold: '#F59E0B'
-};
-
 export default function TenantPortalView({
   tenantId,
   tenantSlug,
@@ -24,8 +8,25 @@ export default function TenantPortalView({
   onOpenStorefront,
   showToast
 }) {
-  // Navigation: overview | orders | menu | customers | reports | tables | settings
-  const [activeTab, setActiveTab] = useState('overview');
+  const getInitialPortalTab = () => {
+    const hash = window.location.hash.replace('#', '').trim();
+    const validTabs = ['overview', 'orders', 'menu', 'staff', 'customers', 'reports', 'tables', 'subscription', 'settings'];
+    if (validTabs.includes(hash)) return hash;
+    const saved = localStorage.getItem(`dine_portal_tab_${tenantSlug}`);
+    if (validTabs.includes(saved)) return saved;
+    return 'overview';
+  };
+
+  // Navigation: overview | orders | menu | staff | customers | reports | tables | subscription | settings
+  const [activeTab, setActiveTab] = useState(getInitialPortalTab);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    localStorage.setItem(`dine_portal_tab_${tenantSlug}`, tabId);
+    if (window.location.pathname.startsWith('/portal')) {
+      window.history.replaceState(null, '', `/portal/${tenantSlug}#${tabId}`);
+    }
+  };
 
   const [overview, setOverview] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -34,8 +35,45 @@ export default function TenantPortalView({
   const [customers, setCustomers] = useState([]);
   const [reports, setReports] = useState(null);
   const [tables, setTables] = useState([]);
+  const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [settingsForm, setSettingsForm] = useState({
+    name: '',
+    cuisine_type: '',
+    primary_color: '#2A9D9A',
+    secondary_color: '#263238',
+    logo_url: '',
+    banner_url: '',
+    phone: '',
+    address: '',
+    city: '',
+    email: ''
+  });
+
+  // Dynamic Theme Tokens that adapt to the restaurant's active color theme
+  const primaryBrandColor = settingsForm?.primary_color || overview?.restaurant?.primary_color || '#2A9D9A';
+  const secondaryBrandColor = settingsForm?.secondary_color || overview?.restaurant?.secondary_color || '#1E293B';
+
+  const C = {
+    white: '#FFFFFF',
+    pink: '#F1F5F9',        // Clean slate-100 neutral (replaces pastel pink)
+    pinkLight: '#F1F5F9',   // Clean slate-100 neutral (replaces pastel pink)
+    pinkSoft: '#F8FAFC',    // Modern slate-50 page background (replaces pastel pink)
+    bgSoft: '#F8FAFC',
+    bgMuted: '#F1F5F9',
+    cardBg: '#FFFFFF',
+    teal: primaryBrandColor,
+    tealDark: primaryBrandColor,
+    tealLight: `${primaryBrandColor}18`,
+    tealGlow: `${primaryBrandColor}33`,
+    dark: secondaryBrandColor,
+    slate: '#64748B',
+    border: '#E2E8F0',
+    borderDark: '#CBD5E1',
+    grayBorder: '#E2E8F0',
+    gold: '#F59E0B'
+  };
   // Selected Category filter in Menu tab
   const [selectedMenuCat, setSelectedMenuCat] = useState('all');
 
@@ -59,18 +97,6 @@ export default function TenantPortalView({
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [tableForm, setTableForm] = useState({ table_number: '', capacity: 4 });
 
-  const [settingsForm, setSettingsForm] = useState({
-    name: '',
-    cuisine_type: '',
-    primary_color: '#2A9D9A',
-    secondary_color: '#263238',
-    logo_url: '',
-    banner_url: '',
-    phone: '',
-    address: '',
-    city: ''
-  });
-
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
 
   // Tenant Staff Authentication State
@@ -85,8 +111,9 @@ export default function TenantPortalView({
 
   const [authMode, setAuthMode] = useState('pin'); // 'pin' | 'credentials'
   const [loginPin, setLoginPin] = useState('');
-  const [loginEmail, setLoginEmail] = useState(`staff@${tenantSlug || 'restaurant'}.com`);
-  const [loginPassword, setLoginPassword] = useState('staff123');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -96,21 +123,21 @@ export default function TenantPortalView({
   const [portalRegName, setPortalRegName] = useState('');
   const [portalRegPhone, setPortalRegPhone] = useState('');
   const [portalRegEmail, setPortalRegEmail] = useState('');
-  const [portalRegPin, setPortalRegPin] = useState('4321');
-  const [portalRegPassword, setPortalRegPassword] = useState('password123');
+  const [portalRegPin, setPortalRegPin] = useState('');
+  const [portalRegPassword, setPortalRegPassword] = useState('');
+  const [showPortalRegPassword, setShowPortalRegPassword] = useState(false);
 
   // Staff & Admin Team Management State
   const [staffList, setStaffList] = useState([]);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [showStaffFormPassword, setShowStaffFormPassword] = useState(false);
   const [staffForm, setStaffForm] = useState({
     name: '',
     email: '',
     phone: '',
     role: 'staff', // 'admin' | 'manager' | 'staff' | 'kitchen' | 'cashier'
-    auth_method: 'pin', // 'pin' | 'password'
-    pin: '',
-    password: 'password123',
+    password: '',
     status: 'active'
   });
 
@@ -119,7 +146,7 @@ export default function TenantPortalView({
     setLoginError('');
     setIsLoggingIn(true);
     try {
-      const payload = authMode === 'pin' ? { pin: loginPin } : { email: loginEmail, password: loginPassword };
+      const payload = { email: loginEmail.trim(), password: loginPassword.trim() };
       const res = await api.tenantPortal.login(tenantId, payload);
       const user = res.data.user;
       localStorage.setItem(`dine_tenant_staff_${tenantSlug}`, JSON.stringify(user));
@@ -140,8 +167,12 @@ export default function TenantPortalView({
       setLoginError('Please enter your full name');
       return;
     }
-    if (!portalRegPhone.trim() && !portalRegEmail.trim()) {
-      setLoginError('Please enter a mobile phone number or email address');
+    if (!portalRegEmail.trim()) {
+      setLoginError('Please enter your work email address');
+      return;
+    }
+    if (!portalRegPassword.trim()) {
+      setLoginError('Please enter an account password');
       return;
     }
     setIsLoggingIn(true);
@@ -149,10 +180,9 @@ export default function TenantPortalView({
       const res = await api.tenantPortal.register(tenantId, {
         name: portalRegName.trim(),
         phone: portalRegPhone.trim(),
-        email: portalRegEmail.trim(),
+        email: portalRegEmail.trim().toLowerCase(),
         role: portalRegType,
-        pin: portalRegPin.trim() || undefined,
-        password: portalRegPassword.trim() || undefined
+        password: portalRegPassword.trim()
       });
       const user = res.data.user;
       if (res.userType === 'customer') {
@@ -185,13 +215,24 @@ export default function TenantPortalView({
   const handleSaveStaff = async (e) => {
     if (e) e.preventDefault();
     try {
+      if (!staffForm.name.trim()) {
+        showToast?.('Please enter member full name', 'error');
+        return;
+      }
+      if (!staffForm.email.trim()) {
+        showToast?.('Please enter work email address', 'error');
+        return;
+      }
+      if (!staffForm.password.trim()) {
+        showToast?.('Please enter an account password', 'error');
+        return;
+      }
       const payload = {
         name: staffForm.name.trim(),
-        email: staffForm.email ? staffForm.email.trim() : null,
+        email: staffForm.email.trim().toLowerCase(),
         phone: staffForm.phone ? staffForm.phone.trim() : null,
         role: staffForm.role,
-        pin: staffForm.auth_method === 'pin' ? staffForm.pin.trim() : null,
-        password: staffForm.auth_method === 'password' ? staffForm.password.trim() : 'password123',
+        password: staffForm.password.trim(),
         status: staffForm.status
       };
       if (editingStaff) {
@@ -208,8 +249,6 @@ export default function TenantPortalView({
         email: '',
         phone: '',
         role: 'staff',
-        auth_method: 'pin',
-        pin: '',
         password: 'password123',
         status: 'active'
       });
@@ -273,16 +312,18 @@ export default function TenantPortalView({
         });
       }
 
-      // Also fetch staff, customers and reports
+      // Also fetch staff, customers, reports, and subscription
       try {
-        const [custRes, repRes, staffRes] = await Promise.all([
+        const [custRes, repRes, staffRes, subRes] = await Promise.all([
           api.tenantPortal.customers(tenantId),
           api.tenantPortal.reports(tenantId),
-          api.tenantPortal.staff(tenantId)
+          api.tenantPortal.staff(tenantId),
+          api.tenantPortal.subscription(tenantId)
         ]);
         setCustomers(custRes.data || []);
         setReports(repRes.data || null);
         setStaffList(staffRes.data?.all || []);
+        setSubscriptionData(subRes.data || null);
       } catch (e) {
         // Fallback
       }
@@ -370,13 +411,42 @@ export default function TenantPortalView({
     }
   };
 
-  // Reseed DINE catalog
-  const handleReseedDine = async () => {
-    if (!window.confirm('Reset this restaurant menu & starter orders to the authentic DINE 10-category catalog?')) return;
+  // Add / Delete Category
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
     try {
-      await api.tenantPortal.seedDine(tenantId);
-      showToast?.('Seeded authentic DINE catalog into tenant DB!', 'success');
-      loadData();
+      await api.tenantPortal.createCategory(tenantId, catForm);
+      showToast?.(`Category "${catForm.name}" created!`, 'success');
+      setIsCatModalOpen(false);
+      setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
+      const res = await api.tenantPortal.menu(tenantId);
+      setMenuData(res.data);
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  const handleDeleteCategory = async (catId, catName) => {
+    if (!window.confirm(`Delete category "${catName}" and its items from this restaurant database?`)) return;
+    try {
+      await api.tenantPortal.deleteCategory(tenantId, catId);
+      showToast?.(`Category "${catName}" deleted!`);
+      const res = await api.tenantPortal.menu(tenantId);
+      setMenuData(res.data);
+      if (selectedMenuCat === catId) setSelectedMenuCat('all');
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  // Change Subscription Plan
+  const handleChangePlan = async (planId, planName) => {
+    if (!window.confirm(`Switch your restaurant SaaS subscription plan to "${planName}"?`)) return;
+    try {
+      await api.tenantPortal.changeSubscriptionPlan(tenantId, { plan_id: planId });
+      showToast?.(`Subscription plan updated to "${planName}"!`, 'success');
+      const subRes = await api.tenantPortal.subscription(tenantId);
+      setSubscriptionData(subRes.data);
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -448,7 +518,7 @@ export default function TenantPortalView({
             style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: `3px solid ${C.teal}`, marginBottom: '16px' }}
           />
           <h3 style={{ margin: '0 0 6px 0', color: C.dark, fontWeight: 700 }}>Connecting to Tenant Portal...</h3>
-          <p style={{ margin: 0, color: C.slate, fontSize: '13px' }}>Loading isolated database {`tenant_${tenantSlug}.db`}...</p>
+          <p style={{ margin: 0, color: C.slate, fontSize: '13px' }}>Loading restaurant workspace...</p>
         </div>
       </div>
     );
@@ -507,10 +577,6 @@ export default function TenantPortalView({
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.2)', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
               <i className="ri-shield-keyhole-line" />
               <span>SIGN IN TO RESTAURANT</span>
-            </div>
-            <div style={{ marginTop: '8px', fontSize: '11px', opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <i className="ri-database-2-line" />
-              <span>Isolated Database: tenant_{tenantSlug}.db</span>
             </div>
           </div>
 
@@ -593,13 +659,13 @@ export default function TenantPortalView({
               <form onSubmit={handleStaffLogin}>
                 <div style={{ marginBottom: '14px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
-                    EMAIL, MOBILE NUMBER, OR STAFF PIN
+                    WORK EMAIL ADDRESS *
                   </label>
                   <input
-                    type="text"
+                    type="email"
                     value={loginEmail}
                     onChange={e => setLoginEmail(e.target.value)}
-                    placeholder="e.g. owner@restaurant.com, 0917 555 101, or 1234"
+                    placeholder="e.g. staff@restaurant.com or owner@restaurant.com"
                     required
                     autoFocus
                     style={{
@@ -614,91 +680,48 @@ export default function TenantPortalView({
                   />
                 </div>
 
-                <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
-                    PASSWORD (REQUIRED ONLY FOR OWNER / ADMIN EMAIL)
+                    PASSWORD *
                   </label>
-                  <input
-                    type="password"
-                    value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
-                    placeholder="Enter password (if Owner / Admin)"
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      borderRadius: '10px',
-                      border: `1.5px solid ${C.border}`,
-                      outline: 'none',
-                      fontSize: '14px',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-
-                {/* 3 Quick Demo Buttons */}
-                <div style={{ marginBottom: '18px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate, display: 'block', marginBottom: '8px', textAlign: 'center' }}>
-                    Quick One-Click Demo Logins:
-                  </span>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showLoginPassword ? 'text' : 'password'}
+                      value={loginPassword}
+                      onChange={e => setLoginPassword(e.target.value)}
+                      placeholder="Enter your account password"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '12px 42px 12px 14px',
+                        borderRadius: '10px',
+                        border: `1.5px solid ${C.border}`,
+                        outline: 'none',
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        setLoginEmail(ownerInfo.email || 'dezznuts@gmail.com');
-                        setLoginPassword('password123');
-                      }}
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
                       style={{
-                        backgroundColor: '#FEF3C7',
-                        color: '#92400E',
-                        border: '1px solid #FDE68A',
-                        padding: '7px 4px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: showLoginPassword ? C.teal : C.slate,
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '16px'
                       }}
+                      title={showLoginPassword ? 'Hide password' : 'Show password'}
                     >
-                      👑 Owner
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginEmail('1234');
-                        setLoginPassword('');
-                      }}
-                      style={{
-                        backgroundColor: C.tealLight,
-                        color: C.tealDark,
-                        border: `1px solid ${C.teal}`,
-                        padding: '7px 4px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      🍳 Staff PIN
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginEmail('0917 555 101');
-                        setLoginPassword('');
-                      }}
-                      style={{
-                        backgroundColor: C.pinkLight,
-                        color: C.dark,
-                        border: `1px solid ${C.border}`,
-                        padding: '7px 4px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      👤 Customer
+                      <i className={showLoginPassword ? 'ri-eye-off-line' : 'ri-eye-line'} />
                     </button>
                   </div>
                 </div>
@@ -716,7 +739,7 @@ export default function TenantPortalView({
                     fontSize: '14px',
                     fontWeight: 800,
                     cursor: (isLoggingIn || !loginEmail.trim()) ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                    boxShadow: `0 6px 20px ${C.tealGlow}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -820,14 +843,37 @@ export default function TenantPortalView({
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
                       PASSWORD *
                     </label>
-                    <input
-                      type="password"
-                      required
-                      value={portalRegPassword}
-                      onChange={e => setPortalRegPassword(e.target.value)}
-                      placeholder="Enter admin password"
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPortalRegPassword ? 'text' : 'password'}
+                        required
+                        value={portalRegPassword}
+                        onChange={e => setPortalRegPassword(e.target.value)}
+                        placeholder="Enter admin password"
+                        style={{ width: '100%', padding: '10px 38px 10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPortalRegPassword(!showPortalRegPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: showPortalRegPassword ? C.teal : C.slate,
+                          cursor: 'pointer',
+                          padding: '2px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          fontSize: '15px'
+                        }}
+                        title={showPortalRegPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <i className={showPortalRegPassword ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -844,7 +890,7 @@ export default function TenantPortalView({
                     fontSize: '14px',
                     fontWeight: 800,
                     cursor: (isLoggingIn || !portalRegName.trim()) ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 6px 20px rgba(42,157,154,0.3)',
+                    boxShadow: `0 6px 20px ${C.tealGlow}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -880,157 +926,78 @@ export default function TenantPortalView({
     );
   }
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: C.pinkSoft, color: C.dark, fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+  const tabMeta = {
+    overview: { title: 'Overview & Performance', subtitle: 'Live sales volume, order metrics, and kitchen throughput' },
+    orders: { title: 'Live Kitchen Orders', subtitle: 'Active dine-in and takeout tickets ready for preparation' },
+    menu: { title: 'Menu Catalog & Pricing', subtitle: 'Dishes, beverages, categories, and item availability' },
+    staff: { title: 'Team & Staff Governance', subtitle: 'Kitchen PIN access, role permissions, and roster' },
+    customers: { title: 'Customer CRM & Diners', subtitle: 'Loyalty points, purchase history, and diner records' },
+    reports: { title: 'Sales Analytics & Reports', subtitle: 'Revenue breakdowns, popular items, and metrics' },
+    tables: { title: 'Tables & QR Codes', subtitle: 'Dine-in tables, seat capacities, and digital ordering codes' },
+    subscription: { title: 'Subscription & Billing', subtitle: 'Manage your SaaS plan tier, resource quotas, features & invoice receipts' },
+    settings: { title: 'Store Settings & Branding', subtitle: 'Cuisine profiles, brand colors, contact info, and theme' }
+  };
 
-      {/* ─── TOP ADMIN NAVBAR ────────────────────────────────────────────── */}
-      <header style={{
+  const currentTabMeta = tabMeta[activeTab] || { title: 'Restaurant Portal', subtitle: '' };
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', backgroundColor: C.pinkSoft, color: C.dark, fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+
+      {/* ─── TENANT ADMIN SIDEBAR NAVIGATION ────────────────────────────── */}
+      <aside style={{
+        width: '260px',
+        flexShrink: 0,
+        backgroundColor: '#FFFFFF',
+        borderRight: `1px solid ${C.border}`,
+        display: 'flex',
+        flexDirection: 'column',
         position: 'sticky',
         top: 0,
-        zIndex: 50,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: `1px solid ${C.border}`,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+        height: '100vh',
+        zIndex: 40,
+        boxShadow: '2px 0 16px rgba(0,0,0,0.02)'
       }}>
-        <div style={{ maxWidth: '1320px', margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-
-          {/* Left: Brand & DB Info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* Brand Area */}
+        <div style={{ padding: '20px 18px 16px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
             <img
               src={restaurant.logo_url || '/dine/IMG_0162.jpeg'}
               alt={restaurant.name || 'DINE'}
-              style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${C.teal}`, boxShadow: '0 2px 8px rgba(42,157,154,0.2)' }}
+              style={{ width: '44px', height: '44px', borderRadius: '12px', objectFit: 'cover', border: `2px solid ${C.teal}`, boxShadow: `0 2px 8px ${C.tealLight}` }}
             />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark, letterSpacing: '-0.3px' }}>
-                  {restaurant.name || 'DINE Kitchen'}
-                </h2>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  padding: '2px 8px',
-                  borderRadius: '8px',
-                  backgroundColor: staffUser?.role === 'admin' ? '#FEF3C7' : C.tealLight,
-                  color: staffUser?.role === 'admin' ? '#92400E' : C.tealDark,
-                  border: staffUser?.role === 'admin' ? '1px solid #FDE68A' : 'none'
-                }}>
-                  {staffUser?.role === 'admin' ? '👑 OWNER ADMIN' : '🍳 STAFF PORTAL'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', color: C.slate, marginTop: '3px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <i className="ri-database-2-fill" style={{ color: C.teal }} />
-                  <strong>DB:</strong> {overview?.database?.name || `tenant_${tenantSlug}.db`}
-                </span>
-                <span>•</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <i className="ri-time-line" style={{ color: C.teal }} /> {currentTime}
-                </span>
-                <span>•</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <i className="ri-links-line" style={{ color: C.teal }} /> {restaurant.subdomain}.localhost:5173
-                </span>
-              </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: C.dark, letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {restaurant.name || 'DINE Kitchen'}
+              </h2>
+              <span style={{
+                display: 'inline-block',
+                marginTop: '3px',
+                fontSize: '10px',
+                fontWeight: 800,
+                padding: '2px 7px',
+                borderRadius: '6px',
+                backgroundColor: staffUser?.role === 'admin' ? '#FEF3C7' : C.tealLight,
+                color: staffUser?.role === 'admin' ? '#92400E' : C.tealDark,
+                border: staffUser?.role === 'admin' ? '1px solid #FDE68A' : 'none'
+              }}>
+                {staffUser?.role === 'admin' ? '👑 OWNER ADMIN' : '🍳 STAFF PORTAL'}
+              </span>
             </div>
           </div>
 
-          {/* Right: Quick Action Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Authenticated Staff / Owner User Pill */}
-            {staffUser && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                backgroundColor: staffUser.role === 'admin' ? '#FEF3C7' : C.pinkLight,
-                border: staffUser.role === 'admin' ? '1px solid #FDE68A' : `1px solid ${C.border}`,
-                padding: '6px 12px',
-                borderRadius: '10px'
-              }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#10B981', display: 'inline-block' }} />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: C.dark }}>
-                  {staffUser.name || 'Staff'}
-                </span>
-                <span style={{
-                  fontSize: '10px',
-                  color: staffUser.role === 'admin' ? '#92400E' : C.tealDark,
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  backgroundColor: '#FFF',
-                  padding: '1px 6px',
-                  borderRadius: '6px'
-                }}>
-                  {staffUser.role === 'admin' ? 'Owner Admin' : 'Kitchen Staff'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleStaffSignOut}
-                  title="Sign out of tenant portal"
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    color: '#EF4444',
-                    fontSize: '14px',
-                    marginLeft: '4px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <i className="ri-logout-box-r-line" />
-                </button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleReseedDine}
-              style={{
-                backgroundColor: C.pinkLight,
-                color: C.dark,
-                border: `1px solid ${C.border}`,
-                padding: '7px 12px',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-              title="Populate authentic DINE menu catalog"
-            >
-              <i className="ri-magic-line" style={{ color: C.teal }} /> Seed DINE Catalog
-            </button>
-
-            <a
-              href={`/store/${tenantSlug}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                backgroundColor: C.tealLight,
-                color: C.tealDark,
-                border: `1px solid ${C.teal}`,
-                padding: '7px 14px',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                textDecoration: 'none'
-              }}
-            >
-              <i className="ri-external-link-line" /> Open Web Storefront ↗
-            </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: C.slate, backgroundColor: C.pinkLight, padding: '8px 10px', borderRadius: '8px' }}>
+            <i className="ri-store-2-line" style={{ color: C.teal, fontSize: '14px' }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: '10px', display: 'block', color: C.slate, fontWeight: 700, textTransform: 'uppercase' }}>Restaurant Mode</span>
+              <span style={{ fontWeight: 700, color: C.dark, fontSize: '11px', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {overview?.restaurant?.cuisine_type || 'Active Operations'}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Navigation Tabs Bar */}
-        <div style={{ maxWidth: '1320px', margin: '0 auto', padding: '0 24px', display: 'flex', gap: '4px', borderTop: `1px solid ${C.pinkLight}` }}>
+        {/* Navigation Tab Links */}
+        <div style={{ flex: 1, padding: '14px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {[
             { id: 'overview', label: 'Overview', icon: 'ri-dashboard-line' },
             { id: 'orders', label: 'Live Orders', icon: 'ri-restaurant-2-line', badge: metrics.pendingOrders + metrics.preparingOrders },
@@ -1039,6 +1006,7 @@ export default function TenantPortalView({
             { id: 'customers', label: 'Customers', icon: 'ri-user-star-line', badge: customers.length },
             { id: 'reports', label: 'Reports & Analytics', icon: 'ri-bar-chart-2-line' },
             { id: 'tables', label: 'Tables & QR', icon: 'ri-qr-code-line', badge: tables.length },
+            { id: 'subscription', label: 'Subscription & Plan', icon: 'ri-vip-crown-line', tag: subscriptionData?.subscription?.plan_name || 'Active' },
             { id: 'settings', label: 'Store Settings', icon: 'ri-settings-3-line' }
           ].map(tab => {
             const isTabActive = activeTab === tab.id;
@@ -1046,32 +1014,50 @@ export default function TenantPortalView({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 style={{
-                  padding: '12px 18px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
                   border: 'none',
-                  borderBottom: isTabActive ? `3px solid ${C.teal}` : '3px solid transparent',
-                  backgroundColor: 'transparent',
-                  color: isTabActive ? C.tealDark : C.slate,
+                  backgroundColor: isTabActive ? C.teal : 'transparent',
+                  color: isTabActive ? '#FFFFFF' : C.slate,
                   fontWeight: isTabActive ? 800 : 600,
                   fontSize: '13px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  boxShadow: isTabActive ? `0 4px 14px ${C.tealGlow}` : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
-                <i className={tab.icon} style={{ fontSize: '15px' }} />
-                <span>{tab.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <i className={tab.icon} style={{ fontSize: '16px', color: isTabActive ? '#FFFFFF' : C.tealDark }} />
+                  <span>{tab.label}</span>
+                </div>
+                {tab.tag && !tab.badge && (
+                  <span style={{
+                    padding: '2px 6px',
+                    borderRadius: '6px',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    backgroundColor: isTabActive ? 'rgba(255,255,255,0.25)' : C.tealLight,
+                    color: isTabActive ? '#FFFFFF' : C.tealDark,
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {tab.tag}
+                  </span>
+                )}
                 {tab.badge !== undefined && tab.badge > 0 && (
                   <span style={{
                     padding: '2px 7px',
                     borderRadius: '10px',
                     fontSize: '11px',
                     fontWeight: 800,
-                    backgroundColor: isTabActive ? C.tealLight : C.pinkLight,
-                    color: isTabActive ? C.tealDark : C.dark
+                    backgroundColor: isTabActive ? 'rgba(255,255,255,0.25)' : C.pinkLight,
+                    color: isTabActive ? '#FFFFFF' : C.dark
                   }}>
                     {tab.badge}
                   </span>
@@ -1080,10 +1066,128 @@ export default function TenantPortalView({
             );
           })}
         </div>
-      </header>
 
-      {/* ─── MAIN TAB CONTENT ────────────────────────────────────────────── */}
-      <main style={{ maxWidth: '1320px', margin: '0 auto', padding: '24px 24px 80px' }}>
+        {/* Sidebar Footer */}
+        <div style={{ padding: '14px', borderTop: `1px solid ${C.border}`, backgroundColor: '#FAFAFA', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <a
+            href={`/store/${tenantSlug}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '8px 12px',
+              borderRadius: '9px',
+              backgroundColor: C.tealLight,
+              color: C.tealDark,
+              border: `1px solid ${C.teal}`,
+              fontSize: '12px',
+              fontWeight: 700,
+              textDecoration: 'none'
+            }}
+          >
+            <i className="ri-external-link-line" /> Open Web Storefront ↗
+          </a>
+
+          {staffUser && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              backgroundColor: staffUser.role === 'admin' ? '#FEF3C7' : C.pinkLight,
+              border: staffUser.role === 'admin' ? '1px solid #FDE68A' : `1px solid ${C.border}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#10B981', flexShrink: 0 }} />
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: C.dark, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {staffUser.name || 'Staff'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleStaffSignOut}
+                title="Sign out of portal"
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', fontSize: '13px', padding: 0 }}
+              >
+                <i className="ri-logout-box-r-line" />
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* ─── MAIN PORTAL CONTENT WRAPPER ─────────────────────────────────── */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+
+        {/* Top Header Bar */}
+        <header style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(10px)',
+          borderBottom: `1px solid ${C.border}`,
+          padding: '14px 28px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+        }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark, letterSpacing: '-0.3px' }}>
+              {currentTabMeta.title}
+            </h1>
+            <p style={{ margin: 0, fontSize: '12.5px', color: C.slate }}>
+              {currentTabMeta.subtitle}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: C.slate, backgroundColor: C.pinkLight, padding: '6px 12px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+              <i className="ri-time-line" style={{ color: C.teal }} />
+              <strong style={{ color: C.dark }}>{currentTime}</strong>
+            </div>
+          </div>
+        </header>
+
+        {/* Suspension Warning Banner */}
+        {restaurant.status === 'suspended' && (
+          <div style={{
+            backgroundColor: '#FEF2F2',
+            borderBottom: '2px solid #EF4444',
+            padding: '14px 28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.08)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
+                <i className="ri-error-warning-fill" />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#991B1B' }}>
+                  ⚠️ Restaurant Storefront Suspended by Superadmin
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#B91C1C', marginTop: '2px' }}>
+                  Reason: <strong>{restaurant.suspended_reason || 'Account under administrative review or past due billing'}</strong>. Customer online ordering is currently blocked.
+                </div>
+              </div>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#991B1B', backgroundColor: '#FEE2E2', padding: '6px 14px', borderRadius: '8px', border: '1px solid #FECACA', whiteSpace: 'nowrap' }}>
+              Contact Superadmin to Reactivate
+            </span>
+          </div>
+        )}
+
+        {/* ─── MAIN TAB CONTENT ──────────────────────────────────────────── */}
+        <main style={{ flex: 1, padding: '24px 28px 80px', maxWidth: '1440px', width: '100%', boxSizing: 'border-box' }}>
 
         {/* 1. OVERVIEW TAB */}
         {activeTab === 'overview' && (
@@ -1121,7 +1225,7 @@ export default function TenantPortalView({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('orders')}
+                    onClick={() => handleTabChange('orders')}
                     style={{ border: 'none', background: 'none', color: C.tealDark, fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
                   >
                     View All Orders ➔
@@ -1201,25 +1305,29 @@ export default function TenantPortalView({
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: C.dark }}>Top Dishes & Drinks</h3>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {(reports?.topItems?.length > 0 ? reports.topItems : [
-                    { name: 'Cheesy Carbonara', qty: 24 },
-                    { name: "Fika's Houseblend", qty: 21 },
-                    { name: 'Matcha Oat Latte', qty: 19 },
-                    { name: 'Lumpiasilog', qty: 16 },
-                    { name: 'Mango Float', qty: 14 }
-                  ]).map((item, idx) => (
-                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '10px', backgroundColor: C.pinkLight }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: idx === 0 ? C.teal : '#FFF', color: idx === 0 ? '#FFF' : C.dark, fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {idx + 1}
-                        </span>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: C.dark }}>{item.name}</span>
+                {(!reports?.topItems || reports.topItems.length === 0) ? (
+                  <div style={{ textAlign: 'center', padding: '30px 16px', backgroundColor: C.pinkLight, borderRadius: '12px', border: `1px dashed ${C.borderDark}` }}>
+                    <i className="ri-restaurant-line" style={{ fontSize: '28px', color: C.slate, display: 'block', marginBottom: '8px' }} />
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>No Sales Recorded Yet</div>
+                    <span style={{ fontSize: '12px', color: C.slate, lineHeight: 1.4, display: 'block' }}>
+                      Top selling dishes and drinks will automatically populate as customer orders are placed.
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {reports.topItems.map((item, idx) => (
+                      <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '10px', backgroundColor: C.pinkLight }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: idx === 0 ? C.teal : '#FFF', color: idx === 0 ? '#FFF' : C.dark, fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {idx + 1}
+                          </span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: C.dark }}>{item.name}</span>
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: C.tealDark }}>{item.qty} {item.qty === 1 ? 'order' : 'orders'}</span>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: C.tealDark }}>{item.qty} orders</span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1259,7 +1367,7 @@ export default function TenantPortalView({
               </div>
 
               <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600 }}>
-                Showing {filteredOrders.length} orders from {`tenant_${tenantSlug}.db`}
+                Showing {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
               </span>
             </div>
 
@@ -1361,7 +1469,7 @@ export default function TenantPortalView({
         {activeTab === 'menu' && (
           <div>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
                   onClick={() => setSelectedMenuCat('all')}
@@ -1379,27 +1487,65 @@ export default function TenantPortalView({
                   All Categories ({menuData.categories.length})
                 </button>
                 {menuData.categories.map(cat => (
-                  <button
+                  <div
                     key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedMenuCat(cat.id)}
                     style={{
-                      padding: '7px 14px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       borderRadius: '8px',
-                      fontSize: '12px',
-                      fontWeight: 700,
+                      overflow: 'hidden',
                       border: selectedMenuCat === cat.id ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                      backgroundColor: selectedMenuCat === cat.id ? C.teal : '#FFF',
-                      color: selectedMenuCat === cat.id ? '#FFF' : C.dark,
-                      cursor: 'pointer'
+                      backgroundColor: selectedMenuCat === cat.id ? C.teal : '#FFF'
                     }}
                   >
-                    {cat.name} ({cat.items?.length || 0})
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMenuCat(cat.id)}
+                      style={{
+                        padding: '7px 12px',
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: selectedMenuCat === cat.id ? '#FFF' : C.dark,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {cat.name} ({cat.items?.length || 0})
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete category"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(cat.id, cat.name);
+                      }}
+                      style={{
+                        padding: '7px 8px 7px 0',
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '11px',
+                        color: selectedMenuCat === cat.id ? 'rgba(255,255,255,0.7)' : C.slate,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <i className="ri-close-line" />
+                    </button>
+                  </div>
                 ))}
               </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
+                    setIsCatModalOpen(true);
+                  }}
+                  style={{ backgroundColor: '#FFF', color: C.dark, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <i className="ri-folder-add-line" style={{ color: C.teal }} /> + Add Category
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1418,83 +1564,147 @@ export default function TenantPortalView({
                   }}
                   style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <i className="ri-add-line" /> Add New Item
+                  <i className="ri-add-line" /> + Add New Item
                 </button>
               </div>
             </div>
 
-            {/* Menu Items List */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '18px' }}>
-              {menuData.categories.flatMap(cat => (cat.items || []).map(item => ({ ...item, categoryName: cat.name })))
-                .filter(item => selectedMenuCat === 'all' || item.category_id === selectedMenuCat)
-                .map(item => (
-                  <div key={item.id} style={{ backgroundColor: '#FFF', borderRadius: '14px', border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 14px rgba(0,0,0,0.02)' }}>
-                    <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: C.pinkLight }}>
-                      <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {/* Empty State when no categories exist */}
+            {menuData.categories.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
+                <i className="ri-restaurant-line" style={{ fontSize: '42px', color: C.teal, display: 'block', marginBottom: '12px' }} />
+                <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Your Menu Catalog is Empty</h3>
+                <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: C.slate, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+                  Start by creating menu categories (e.g., Main Courses, Appetizers, Beverages, Desserts) and then add dishes and drinks.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
+                    setIsCatModalOpen(true);
+                  }}
+                  style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <i className="ri-folder-add-line" /> Create First Category
+                </button>
+              </div>
+            ) : (
+              /* Menu Items Grid */
+              (() => {
+                const filteredItems = menuData.categories
+                  .flatMap(cat => (cat.items || []).map(item => ({ ...item, categoryName: cat.name })))
+                  .filter(item => selectedMenuCat === 'all' || item.category_id === selectedMenuCat);
+
+                if (filteredItems.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
+                      <i className="ri-cup-line" style={{ fontSize: '36px', color: C.slate, display: 'block', marginBottom: '10px' }} />
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>No Items in This Category</h4>
+                      <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: C.slate }}>
+                        Add dishes, drinks, or combos to populate this section.
+                      </p>
                       <button
                         type="button"
-                        onClick={() => handleToggleStock(item.id)}
-                        style={{
-                          position: 'absolute',
-                          top: '10px',
-                          right: '10px',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          border: 'none',
-                          cursor: 'pointer',
-                          backgroundColor: item.is_available ? '#10B981' : '#EF4444',
-                          color: '#FFF'
+                        onClick={() => {
+                          setItemForm({
+                            name: '',
+                            category_id: selectedMenuCat !== 'all' ? selectedMenuCat : (menuData.categories[0]?.id || ''),
+                            price: '',
+                            description: '',
+                            image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80',
+                            preparation_time: 15,
+                            badge: '',
+                            is_featured: false
+                          });
+                          setEditingItem(null);
+                          setIsItemModalOpen(true);
                         }}
+                        style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '9px 18px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                       >
-                        {item.is_available ? 'In Stock' : 'Sold Out'}
+                        <i className="ri-add-line" /> Add Item to Menu
                       </button>
                     </div>
+                  );
+                }
 
-                    <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 700, color: C.dark }}>{item.name}</h4>
-                          <span style={{ fontSize: '15px', fontWeight: 800, color: C.tealDark }}>₱{item.price}</span>
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '18px' }}>
+                    {filteredItems.map(item => (
+                      <div key={item.id} style={{ backgroundColor: '#FFF', borderRadius: '14px', border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 14px rgba(0,0,0,0.02)' }}>
+                        <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: C.pinkLight }}>
+                          <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStock(item.id)}
+                            style={{
+                              position: 'absolute',
+                              top: '10px',
+                              right: '10px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              border: 'none',
+                              cursor: 'pointer',
+                              backgroundColor: item.is_available ? '#10B981' : '#EF4444',
+                              color: '#FFF'
+                            }}
+                          >
+                            {item.is_available ? 'In Stock' : 'Sold Out'}
+                          </button>
+                          {item.badge && (
+                            <span style={{ position: 'absolute', bottom: '10px', left: '10px', backgroundColor: C.dark, color: '#FFF', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                              {item.badge}
+                            </span>
+                          )}
                         </div>
-                        <span style={{ fontSize: '11px', color: C.slate }}>{item.categoryName}</span>
-                        <p style={{ margin: '6px 0 12px 0', fontSize: '12px', color: C.slate, lineHeight: 1.4 }}>{item.description}</p>
-                      </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingItem(item);
-                            setItemForm({
-                              name: item.name,
-                              category_id: item.category_id,
-                              price: item.price,
-                              description: item.description,
-                              image_url: item.image_url,
-                              preparation_time: item.preparation_time,
-                              badge: item.badge || '',
-                              is_featured: !!item.is_featured
-                            });
-                            setIsItemModalOpen(true);
-                          }}
-                          style={{ border: 'none', background: 'none', color: C.tealDark, fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
-                        >
-                          <i className="ri-edit-line" /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteItem(item.id)}
-                          style={{ border: 'none', background: 'none', color: '#EF4444', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
-                        >
-                          <i className="ri-delete-bin-line" /> Delete
-                        </button>
+                        <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 700, color: C.dark }}>{item.name}</h4>
+                              <span style={{ fontSize: '15px', fontWeight: 800, color: C.tealDark }}>₱{item.price}</span>
+                            </div>
+                            <span style={{ fontSize: '11px', color: C.slate }}>{item.categoryName}</span>
+                            <p style={{ margin: '6px 0 12px 0', fontSize: '12px', color: C.slate, lineHeight: 1.4 }}>{item.description}</p>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingItem(item);
+                                setItemForm({
+                                  name: item.name,
+                                  category_id: item.category_id,
+                                  price: item.price,
+                                  description: item.description,
+                                  image_url: item.image_url,
+                                  preparation_time: item.preparation_time,
+                                  badge: item.badge || '',
+                                  is_featured: !!item.is_featured
+                                });
+                                setIsItemModalOpen(true);
+                              }}
+                              style={{ border: 'none', background: 'none', color: C.tealDark, fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              <i className="ri-edit-line" /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteItem(item.id)}
+                              style={{ border: 'none', background: 'none', color: '#EF4444', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              <i className="ri-delete-bin-line" /> Delete
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-            </div>
+                );
+              })()
+            )}
           </div>
         )}
 
@@ -1540,7 +1750,7 @@ export default function TenantPortalView({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 14px rgba(42,157,154,0.3)'
+                  boxShadow: `0 4px 14px ${C.tealGlow}`
                 }}
               >
                 <i className="ri-user-add-line" style={{ fontSize: '16px' }} />
@@ -1592,7 +1802,7 @@ export default function TenantPortalView({
                   Staff Directory ({staffList.length} Members)
                 </h4>
                 <span style={{ fontSize: '12px', color: C.slate }}>
-                  Stored securely in <code>tenant_{tenantSlug}.db</code>
+                  Manage staff accounts and POS access PINs
                 </span>
               </div>
 
@@ -1658,26 +1868,9 @@ export default function TenantPortalView({
                           </td>
 
                           <td style={{ padding: '14px 16px' }}>
-                            {member.pin ? (
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '3px 10px',
-                                borderRadius: '8px',
-                                backgroundColor: C.pinkLight,
-                                color: C.dark,
-                                fontWeight: 800,
-                                fontSize: '12px',
-                                letterSpacing: '1px'
-                              }}>
-                                <i className="ri-key-line" style={{ color: C.teal }} /> PIN: {member.pin}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: '12px', color: C.slate, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <i className="ri-mail-lock-line" /> {member.email || 'Email / Password'}
-                              </span>
-                            )}
+                            <span style={{ fontSize: '12px', color: C.dark, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <i className="ri-mail-line" style={{ color: C.teal }} /> {member.email || '—'}
+                            </span>
                           </td>
 
                           <td style={{ padding: '14px 16px', fontSize: '12px', color: C.slate }}>
@@ -1717,8 +1910,6 @@ export default function TenantPortalView({
                                       email: member.email || '',
                                       phone: member.phone || '',
                                       role: member.role || 'staff',
-                                      auth_method: member.pin ? 'pin' : 'password',
-                                      pin: member.pin || '',
                                       password: member.password_hash || 'password123',
                                       status: member.status || 'active'
                                     });
@@ -1772,69 +1963,126 @@ export default function TenantPortalView({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Customer Directory</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>Diners recorded in {`tenant_${tenantSlug}.db`}</p>
+                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>Diners and guest loyalty records</p>
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ borderBottom: `2px solid ${C.border}`, textAlign: 'left', color: C.slate, fontSize: '12px' }}>
-                    <th style={{ padding: '10px' }}>Customer Name</th>
-                    <th style={{ padding: '10px' }}>Phone</th>
-                    <th style={{ padding: '10px' }}>Total Visits</th>
-                    <th style={{ padding: '10px' }}>Total Spent</th>
-                    <th style={{ padding: '10px' }}>Last Order</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(customers.length > 0 ? customers : [
-                    { name: 'Alex Santos', phone: '+63 917 555 101', total_orders: 5, total_spent: 1840, last_order_at: 'Just now' },
-                    { name: 'Maria Cruz', phone: '+63 918 555 102', total_orders: 3, total_spent: 1250, last_order_at: '2 hours ago' },
-                    { name: 'James Reyes', phone: '+63 919 555 103', total_orders: 4, total_spent: 1620, last_order_at: 'Today' },
-                    { name: 'Sophie Lim', phone: '+63 920 555 104', total_orders: 2, total_spent: 780, last_order_at: 'Yesterday' }
-                  ]).map((cust, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${C.pinkLight}` }}>
-                      <td style={{ padding: '12px 10px', fontWeight: 700, color: C.dark }}>{cust.name}</td>
-                      <td style={{ padding: '12px 10px', color: C.slate }}>{cust.phone || 'N/A'}</td>
-                      <td style={{ padding: '12px 10px' }}>
-                        <span style={{ padding: '2px 8px', borderRadius: '10px', backgroundColor: C.pinkLight, fontWeight: 700 }}>
-                          {cust.total_orders || 1} orders
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 10px', fontWeight: 800, color: C.tealDark }}>₱{Number(cust.total_spent || 0).toFixed(0)}</td>
-                      <td style={{ padding: '12px 10px', color: C.slate }}>{cust.last_order_at ? new Date(cust.last_order_at).toLocaleDateString() : 'Recent'}</td>
+            {customers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 16px', backgroundColor: C.pinkLight, borderRadius: '12px', border: `1px dashed ${C.borderDark}` }}>
+                <i className="ri-user-smile-line" style={{ fontSize: '32px', color: C.slate, display: 'block', marginBottom: '8px' }} />
+                <div style={{ fontSize: '14px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>No Diners Recorded Yet</div>
+                <span style={{ fontSize: '12px', color: C.slate }}>
+                  Customers will automatically appear here as they place orders online or at dine-in tables.
+                </span>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: `2px solid ${C.border}`, textAlign: 'left', color: C.slate, fontSize: '12px' }}>
+                      <th style={{ padding: '10px' }}>Customer Name</th>
+                      <th style={{ padding: '10px' }}>Phone</th>
+                      <th style={{ padding: '10px' }}>Total Visits</th>
+                      <th style={{ padding: '10px' }}>Total Spent</th>
+                      <th style={{ padding: '10px' }}>Last Order</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {customers.map((cust, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.pinkLight}` }}>
+                        <td style={{ padding: '12px 10px', fontWeight: 700, color: C.dark }}>{cust.name}</td>
+                        <td style={{ padding: '12px 10px', color: C.slate }}>{cust.phone || 'N/A'}</td>
+                        <td style={{ padding: '12px 10px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '10px', backgroundColor: C.pinkLight, fontWeight: 700 }}>
+                            {cust.total_orders || 1} orders
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 10px', fontWeight: 800, color: C.tealDark }}>₱{Number(cust.total_spent || 0).toFixed(0)}</td>
+                        <td style={{ padding: '12px 10px', color: C.slate }}>{cust.last_order_at ? new Date(cust.last_order_at).toLocaleDateString() : 'Recent'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
         {/* 5. REPORTS & ANALYTICS TAB */}
         {activeTab === 'reports' && (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Plan Perk Banner */}
+            <div style={{
+              padding: '14px 20px',
+              borderRadius: '12px',
+              backgroundColor: subscriptionData?.subscription?.has_advanced_analytics ? '#F0FDF4' : '#EFF6FF',
+              border: `1px solid ${subscriptionData?.subscription?.has_advanced_analytics ? '#BBF7D0' : '#BFDBFE'}`,
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <i className={subscriptionData?.subscription?.has_advanced_analytics ? "ri-shield-star-fill" : "ri-vip-crown-line"} style={{ color: subscriptionData?.subscription?.has_advanced_analytics ? '#16A34A' : '#2563EB', fontSize: '20px' }} />
+                <div>
+                  <strong style={{ color: C.dark, fontSize: '13px', display: 'block' }}>
+                    {subscriptionData?.subscription?.has_advanced_analytics
+                      ? `⭐ Advanced Analytics Active (${subscriptionData?.subscription?.plan_name})`
+                      : `Standard Sales Reports (${subscriptionData?.subscription?.plan_name || 'Starter'})`}
+                  </strong>
+                  <span style={{ fontSize: '12px', color: C.slate }}>
+                    {subscriptionData?.subscription?.has_advanced_analytics
+                      ? 'Full sales breakdown, payment distributions, and operational analytics enabled.'
+                      : 'Upgrade to Growth Bistro or Pro to unlock exportable CSV sales reports and hourly throughput heatmaps.'}
+                  </span>
+                </div>
+              </div>
+
+              {!subscriptionData?.subscription?.has_advanced_analytics && (
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('subscription')}
+                  style={{
+                    backgroundColor: C.teal,
+                    color: '#FFF',
+                    border: 'none',
+                    padding: '7px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Upgrade Plan ➔
+                </button>
+              )}
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               {/* Payment Methods Breakdown */}
               <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
                 <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Payment Method Breakdown</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {[
-                    { method: 'GCash', count: reports?.paymentBreakdown?.GCash || 4, color: '#007DFE' },
-                    { method: 'Maya', count: reports?.paymentBreakdown?.Maya || 2, color: '#00C853' },
-                    { method: 'Cash on Dine', count: reports?.paymentBreakdown?.['Cash on Dine'] || 3, color: '#F59E0B' }
-                  ].map(p => (
-                    <div key={p.method}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
-                        <span>{p.method}</span>
-                        <span>{p.count} orders</span>
+                    { method: 'GCash', count: reports?.paymentBreakdown?.GCash ?? 0, color: '#007DFE' },
+                    { method: 'Maya', count: reports?.paymentBreakdown?.Maya ?? 0, color: '#00C853' },
+                    { method: 'Cash on Dine', count: reports?.paymentBreakdown?.['Cash on Dine'] ?? 0, color: '#F59E0B' }
+                  ].map(p => {
+                    const totalP = (reports?.paymentBreakdown?.GCash ?? 0) + (reports?.paymentBreakdown?.Maya ?? 0) + (reports?.paymentBreakdown?.['Cash on Dine'] ?? 0) + (reports?.paymentBreakdown?.Other ?? 0);
+                    const pct = totalP > 0 ? Math.round((p.count / totalP) * 100) : 0;
+                    return (
+                      <div key={p.method}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+                          <span>{p.method}</span>
+                          <span style={{ color: C.slate }}>{p.count} {p.count === 1 ? 'order' : 'orders'} ({pct}%)</span>
+                        </div>
+                        <div style={{ width: '100%', height: '8px', backgroundColor: C.pinkLight, borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', backgroundColor: p.color, transition: 'width 0.3s ease' }} />
+                        </div>
                       </div>
-                      <div style={{ width: '100%', height: '8px', backgroundColor: C.pinkLight, borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min(100, p.count * 20)}%`, height: '100%', backgroundColor: p.color }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1843,10 +2091,10 @@ export default function TenantPortalView({
                 <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Order Status Distribution</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {[
-                    { label: 'Pending', count: reports?.statusBreakdown?.pending || metrics.pendingOrders, color: '#6366F1' },
-                    { label: 'Preparing in Kitchen', count: reports?.statusBreakdown?.preparing || metrics.preparingOrders, color: '#F59E0B' },
-                    { label: 'Ready for Serving', count: reports?.statusBreakdown?.ready || metrics.readyOrders, color: '#10B981' },
-                    { label: 'Completed', count: reports?.statusBreakdown?.completed || metrics.completedOrders, color: C.dark }
+                    { label: 'Pending', count: reports?.statusBreakdown?.pending ?? metrics.pendingOrders ?? 0, color: '#6366F1' },
+                    { label: 'Preparing in Kitchen', count: reports?.statusBreakdown?.preparing ?? metrics.preparingOrders ?? 0, color: '#F59E0B' },
+                    { label: 'Ready for Serving', count: reports?.statusBreakdown?.ready ?? metrics.readyOrders ?? 0, color: '#10B981' },
+                    { label: 'Completed', count: reports?.statusBreakdown?.completed ?? metrics.completedOrders ?? 0, color: C.dark }
                   ].map(s => (
                     <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', backgroundColor: C.pinkLight }}>
                       <span style={{ fontSize: '13px', fontWeight: 700, color: C.dark }}>{s.label}</span>
@@ -1865,7 +2113,7 @@ export default function TenantPortalView({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Tables & QR Ordering</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>Each table links directly to your isolated restaurant catalog.</p>
+                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>Generate unique QR codes for dine-in tables and quick customer ordering.</p>
               </div>
               <button
                 type="button"
@@ -1899,148 +2147,915 @@ export default function TenantPortalView({
           </div>
         )}
 
-        {/* 7. SETTINGS TAB */}
+        {/* 6.5. SUBSCRIPTION & BILLING TAB */}
+        {activeTab === 'subscription' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Active Subscription Hero Card */}
+            <div style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              border: `1px solid ${C.border}`,
+              padding: '24px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.02)'
+            }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '54px',
+                    height: '54px',
+                    borderRadius: '14px',
+                    backgroundColor: C.tealLight,
+                    color: C.tealDark,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '26px'
+                  }}>
+                    <i className="ri-vip-crown-fill" />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: C.dark }}>
+                        {subscriptionData?.subscription?.plan_name || 'Active SaaS Plan'}
+                      </h3>
+                      <span style={{
+                        padding: '3px 10px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        backgroundColor: '#DCFCE7',
+                        color: '#15803D',
+                        textTransform: 'uppercase'
+                      }}>
+                        {subscriptionData?.subscription?.subscription_status || 'Active'}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>
+                      {subscriptionData?.subscription?.plan_description || 'Dedicated Restaurant Multi-Tenant Instance'}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '26px', fontWeight: 800, color: C.tealDark, letterSpacing: '-0.5px' }}>
+                    ₱{subscriptionData?.subscription?.price_monthly?.toLocaleString() || '2,999'}
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: C.slate }}> / month</span>
+                  </div>
+                  <span style={{ fontSize: '12px', color: C.slate, display: 'block', marginTop: '2px' }}>
+                    Billing Cycle: <strong style={{ color: C.dark, textTransform: 'capitalize' }}>{subscriptionData?.subscription?.billing_cycle || 'monthly'}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Renewal & Auto-Renew Bar */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 18px',
+                borderRadius: '12px',
+                backgroundColor: C.pinkLight,
+                border: `1px solid ${C.border}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                  <i className="ri-calendar-check-line" style={{ color: C.teal, fontSize: '18px' }} />
+                  <span>
+                    Current Period Ends:{' '}
+                    <strong style={{ color: C.dark }}>
+                      {subscriptionData?.subscription?.current_period_end
+                        ? new Date(subscriptionData.subscription.current_period_end).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                        : 'Active Subscription'}
+                    </strong>
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: C.slate }}>
+                  <i className="ri-checkbox-circle-fill" style={{ color: '#10B981' }} />
+                  <span>Auto-renew is <strong>enabled</strong></span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quotas & Resource Usage */}
+            <div>
+              <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Resource Usage & Plan Quotas</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                {/* Menu Items */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Menu Products Quota</span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
+                      {subscriptionData?.usage?.menuItemsCount ?? 0} / {subscriptionData?.usage?.maxProducts === -1 ? 'Unlimited' : (subscriptionData?.usage?.maxProducts ?? 150)}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', backgroundColor: C.pinkLight, borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${subscriptionData?.usage?.maxProducts === -1 ? 15 : Math.min(100, Math.round(((subscriptionData?.usage?.menuItemsCount || 0) / (subscriptionData?.usage?.maxProducts || 150)) * 100))}%`,
+                      height: '100%',
+                      backgroundColor: C.teal,
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Staff Accounts */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Staff & Kitchen PINs</span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
+                      {subscriptionData?.usage?.staffCount ?? staffList.length} / {subscriptionData?.usage?.maxStaff === -1 ? 'Unlimited' : (subscriptionData?.usage?.maxStaff ?? 6)}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', backgroundColor: C.pinkLight, borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${Math.min(100, Math.round(((subscriptionData?.usage?.staffCount || staffList.length || 1) / (subscriptionData?.usage?.maxStaff || 6)) * 100))}%`,
+                      height: '100%',
+                      backgroundColor: '#3B82F6',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Monthly Orders */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Monthly Orders Quota</span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
+                      {subscriptionData?.usage?.ordersCount ?? 0} / {subscriptionData?.usage?.maxMonthlyOrders === -1 ? 'Unlimited' : (subscriptionData?.usage?.maxMonthlyOrders ?? 1200)}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', backgroundColor: C.pinkLight, borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${subscriptionData?.usage?.maxMonthlyOrders === -1 ? 10 : Math.min(100, Math.round(((subscriptionData?.usage?.ordersCount || 0) / (subscriptionData?.usage?.maxMonthlyOrders || 1200)) * 100))}%`,
+                      height: '100%',
+                      backgroundColor: '#F59E0B',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Table QR Capacity */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Tables Registered</span>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
+                      {tables.length} Tables
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: C.slate }}>Unlimited QR generation enabled</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Available SaaS Plans Matrix */}
+            <div>
+              <div style={{ marginBottom: '14px' }}>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Available SaaS Tiers & Upgrades</h4>
+                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>Switch or upgrade your plan anytime to unlock extra quotas and advanced features.</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                {(subscriptionData?.availablePlans || [
+                  { id: 1, name: 'Starter Cafe', code: 'starter', price_monthly: 1499, description: 'For small bistros and pop-ups', max_products: 40, max_staff: 2, max_monthly_orders: 300 },
+                  { id: 2, name: 'Growth Bistro', code: 'growth', price_monthly: 2999, description: 'For fast-casual dining restaurants', max_products: 150, max_staff: 6, max_monthly_orders: 1200, is_popular: 1 },
+                  { id: 3, name: 'Pro Restaurant', code: 'pro', price_monthly: 5499, description: 'Advanced operations with inventory', max_products: -1, max_staff: 15, max_monthly_orders: -1 },
+                  { id: 4, name: 'Enterprise Franchise', code: 'enterprise', price_monthly: 12999, description: 'Multi-branch & dedicated SLA', max_products: -1, max_staff: 50, max_monthly_orders: -1 }
+                ]).map(p => {
+                  const isCurrent = subscriptionData?.subscription?.plan_id === p.id || (!subscriptionData?.subscription && p.code === 'growth');
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: '16px',
+                        border: isCurrent ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
+                        padding: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        position: 'relative',
+                        boxShadow: isCurrent ? `0 8px 24px ${C.tealLight}` : 'none'
+                      }}
+                    >
+                      {p.is_popular === 1 && (
+                        <span style={{
+                          position: 'absolute',
+                          top: '-10px',
+                          right: '16px',
+                          backgroundColor: C.teal,
+                          color: '#FFFFFF',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '10px',
+                          textTransform: 'uppercase'
+                        }}>
+                          Most Popular
+                        </span>
+                      )}
+
+                      <div>
+                        <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>{p.name}</h4>
+                        <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: C.slate, minHeight: '32px' }}>{p.description}</p>
+                        
+                        <div style={{ fontSize: '22px', fontWeight: 800, color: C.dark, marginBottom: '14px' }}>
+                          ₱{p.price_monthly?.toLocaleString()}
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: C.slate }}> / mo</span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: C.slate, marginBottom: '18px', paddingTop: '12px', borderTop: `1px solid ${C.pinkLight}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="ri-check-line" style={{ color: C.teal, fontWeight: 800 }} />
+                            <span><strong>{p.max_products === -1 ? 'Unlimited' : `${p.max_products}`}</strong> Menu Items</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="ri-check-line" style={{ color: C.teal, fontWeight: 800 }} />
+                            <span><strong>{p.max_staff === -1 ? 'Unlimited' : `${p.max_staff}`}</strong> Staff Accounts</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="ri-check-line" style={{ color: C.teal, fontWeight: 800 }} />
+                            <span><strong>{p.max_monthly_orders === -1 ? 'Unlimited' : `${p.max_monthly_orders}`}</strong> Monthly Orders</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="ri-check-line" style={{ color: C.teal, fontWeight: 800 }} />
+                            <span>Dedicated High-Speed Database</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="ri-check-line" style={{ color: C.teal, fontWeight: 800 }} />
+                            <span>Instant QR Ordering</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isCurrent ? (
+                        <div style={{
+                          textAlign: 'center',
+                          padding: '10px',
+                          borderRadius: '10px',
+                          backgroundColor: C.tealLight,
+                          color: C.tealDark,
+                          fontWeight: 800,
+                          fontSize: '13px'
+                        }}>
+                          ✔ Active Current Plan
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleChangePlan(p.id, p.name)}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            borderRadius: '10px',
+                            border: `1px solid ${C.teal}`,
+                            backgroundColor: '#FFFFFF',
+                            color: C.tealDark,
+                            fontWeight: 800,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = C.teal;
+                            e.currentTarget.style.color = '#FFFFFF';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.color = C.tealDark;
+                          }}
+                        >
+                          Switch to {p.name} ➔
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Invoices & Billing History */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
+              <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Billing History & Invoices</h4>
+              
+              {(!subscriptionData?.invoices || subscriptionData.invoices.length === 0) ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: C.slate, fontSize: '13px' }}>
+                  No past invoices recorded yet.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${C.border}`, color: C.slate, fontSize: '11px', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '8px 10px' }}>Invoice ID</th>
+                        <th style={{ padding: '8px 10px' }}>Billing Period</th>
+                        <th style={{ padding: '8px 10px' }}>Amount</th>
+                        <th style={{ padding: '8px 10px' }}>Payment Method</th>
+                        <th style={{ padding: '8px 10px' }}>Status</th>
+                        <th style={{ padding: '8px 10px' }}>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subscriptionData.invoices.map(inv => (
+                        <tr key={inv.id} style={{ borderBottom: `1px solid ${C.pinkLight}` }}>
+                          <td style={{ padding: '12px 10px', fontWeight: 700, color: C.dark, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
+                          <td style={{ padding: '12px 10px', color: C.slate }}>{inv.billing_period}</td>
+                          <td style={{ padding: '12px 10px', fontWeight: 800, color: C.tealDark }}>₱{inv.amount?.toLocaleString()}</td>
+                          <td style={{ padding: '12px 10px', color: C.slate }}>{inv.payment_method}</td>
+                          <td style={{ padding: '12px 10px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              backgroundColor: inv.status === 'paid' ? '#DCFCE7' : '#FEF3C7',
+                              color: inv.status === 'paid' ? '#15803D' : '#92400E',
+                              textTransform: 'uppercase'
+                            }}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 10px', color: C.slate }}>{inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : new Date(inv.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 7. SETTINGS & BRANDING TAB */}
         {activeTab === 'settings' && (
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px', maxWidth: '680px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Restaurant Profile & Branding</h3>
-            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Restaurant Name</label>
-                <input
-                  type="text"
-                  value={settingsForm.name}
-                  onChange={e => setSettingsForm({ ...settingsForm, name: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Cuisine Style</label>
-                <input
-                  type="text"
-                  value={settingsForm.cuisine_type}
-                  onChange={e => setSettingsForm({ ...settingsForm, cuisine_type: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Phone / Mobile</label>
-                  <input
-                    type="text"
-                    value={settingsForm.phone}
-                    onChange={e => setSettingsForm({ ...settingsForm, phone: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                  />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(320px, 380px)', gap: '24px', alignItems: 'start' }}>
+            {/* Left: Customization Controls Form */}
+            <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px', boxShadow: '0 4px 16px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '14px', borderBottom: `1px solid ${C.pinkLight}` }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: C.tealLight, color: C.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  <i className="ri-palette-line" />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>City / Location</label>
-                  <input
-                    type="text"
-                    value={settingsForm.city}
-                    onChange={e => setSettingsForm({ ...settingsForm, city: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                  />
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>Brand Identity & Theme Customization</h3>
+                  <p style={{ margin: 0, fontSize: '12px', color: C.slate }}>Customize how your restaurant appears to customers on your storefront</p>
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Logo Image URL</label>
-                <input
-                  type="text"
-                  value={settingsForm.logo_url}
-                  onChange={e => setSettingsForm({ ...settingsForm, logo_url: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
-              </div>
+              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* 1. COLOR THEME SECTION */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '8px' }}>
+                    🎨 Primary Brand Color
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                    <input
+                      type="color"
+                      value={settingsForm.primary_color || '#2A9D9A'}
+                      onChange={e => setSettingsForm({ ...settingsForm, primary_color: e.target.value })}
+                      style={{ width: '48px', height: '44px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                    />
+                    <input
+                      type="text"
+                      value={settingsForm.primary_color || '#2A9D9A'}
+                      onChange={e => setSettingsForm({ ...settingsForm, primary_color: e.target.value })}
+                      style={{ width: '130px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, fontFamily: 'monospace' }}
+                    />
+                    <div style={{ flex: 1, height: '40px', borderRadius: '8px', backgroundColor: settingsForm.primary_color || '#2A9D9A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 800, fontSize: '12px', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+                      Brand Accent
+                    </div>
+                  </div>
 
-              <button
-                type="submit"
-                style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', marginTop: '10px' }}
-              >
-                Save Settings
-              </button>
-            </form>
+                  {/* Curated Color Presets */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate, marginRight: '4px' }}>Curated Themes:</span>
+                    {[
+                      { name: 'Emerald Teal', hex: '#2A9D9A' },
+                      { name: 'Spicy Orange', hex: '#F97316' },
+                      { name: 'Crimson Bistro', hex: '#E11D48' },
+                      { name: 'Espresso Amber', hex: '#D97706' },
+                      { name: 'Royal Indigo', hex: '#6366F1' },
+                      { name: 'Botanical Green', hex: '#10B981' },
+                      { name: 'Minimalist Dark', hex: '#1E293B' }
+                    ].map(preset => (
+                      <button
+                        key={preset.hex}
+                        type="button"
+                        onClick={() => setSettingsForm({ ...settingsForm, primary_color: preset.hex })}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: settingsForm.primary_color === preset.hex ? `2px solid ${C.dark}` : `1px solid ${C.border}`,
+                          backgroundColor: '#FFF',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: preset.hex, display: 'inline-block' }} />
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. LOGO IMAGE & PRESETS */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
+                    🖼️ Restaurant Logo Image
+                  </label>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
+                    <img
+                      src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
+                      alt="Logo preview"
+                      style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover', border: `2px solid ${settingsForm.primary_color || C.teal}` }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="https://images.unsplash.com/..."
+                      value={settingsForm.logo_url}
+                      onChange={e => setSettingsForm({ ...settingsForm, logo_url: e.target.value })}
+                      style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  {/* Logo Presets */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate }}>Logo Presets:</span>
+                    {[
+                      { label: '🍜 Ramen / Asian', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80' },
+                      { label: '☕ Cafe & Bakery', url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=160&auto=format&fit=crop&q=80' },
+                      { label: '🍔 Gourmet Burger', url: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=160&auto=format&fit=crop&q=80' },
+                      { label: '🍕 Italian / Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&auto=format&fit=crop&q=80' }
+                    ].map(p => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => setSettingsForm({ ...settingsForm, logo_url: p.url })}
+                        style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '6px', border: `1px solid ${C.border}`, backgroundColor: settingsForm.logo_url === p.url ? C.tealLight : '#FFF', color: C.dark, cursor: 'pointer' }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. HERO BANNER IMAGE & PRESETS */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
+                    🌄 Storefront Header Banner Image
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={settingsForm.banner_url}
+                    onChange={e => setSettingsForm({ ...settingsForm, banner_url: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }}
+                  />
+
+                  {/* Banner Presets */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate }}>Banner Presets:</span>
+                    {[
+                      { label: 'Izakaya Interior', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80' },
+                      { label: 'Warm Sunlit Cafe', url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1200&auto=format&fit=crop&q=80' },
+                      { label: 'Lively Bistro Dining', url: 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=1200&auto=format&fit=crop&q=80' },
+                      { label: 'Modern Cocktail Bar', url: 'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200&auto=format&fit=crop&q=80' }
+                    ].map(b => (
+                      <button
+                        key={b.label}
+                        type="button"
+                        onClick={() => setSettingsForm({ ...settingsForm, banner_url: b.url })}
+                        style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '6px', border: `1px solid ${C.border}`, backgroundColor: settingsForm.banner_url === b.url ? C.tealLight : '#FFF', color: C.dark, cursor: 'pointer' }}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. RESTAURANT BASIC DETAILS */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Restaurant Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={settingsForm.name}
+                      onChange={e => setSettingsForm({ ...settingsForm, name: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Cuisine Style</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Authentic Japanese Ramen"
+                      value={settingsForm.cuisine_type}
+                      onChange={e => setSettingsForm({ ...settingsForm, cuisine_type: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Phone / Mobile</label>
+                    <input
+                      type="text"
+                      value={settingsForm.phone}
+                      onChange={e => setSettingsForm({ ...settingsForm, phone: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>City / Location</label>
+                    <input
+                      type="text"
+                      value={settingsForm.city}
+                      onChange={e => setSettingsForm({ ...settingsForm, city: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Street Address</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 123 Food Street, Bonifacio Global City"
+                    value={settingsForm.address}
+                    onChange={e => setSettingsForm({ ...settingsForm, address: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    backgroundColor: settingsForm.primary_color || C.teal,
+                    color: '#FFF',
+                    border: 'none',
+                    padding: '13px 20px',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <i className="ri-save-line" /> Save Theme & Branding
+                </button>
+              </form>
+            </div>
+
+            {/* Right: Live Interactive Storefront Preview Card */}
+            <div style={{ position: 'sticky', top: '20px' }}>
+              <div style={{
+                backgroundColor: '#FFF',
+                borderRadius: '16px',
+                border: `1px solid ${C.border}`,
+                overflow: 'hidden',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.06)'
+              }}>
+                <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.pinkLight }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#EF4444', display: 'inline-block' }} />
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#F59E0B', display: 'inline-block' }} />
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: C.slate, marginLeft: '6px' }}>Live Storefront Preview</span>
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: C.tealDark, backgroundColor: '#FFF', padding: '2px 8px', borderRadius: '6px' }}>
+                    {tenantSlug}.localhost
+                  </span>
+                </div>
+
+                {/* Simulated Store Banner */}
+                <div style={{
+                  height: '120px',
+                  backgroundColor: settingsForm.primary_color || C.teal,
+                  backgroundImage: settingsForm.banner_url ? `url(${settingsForm.banner_url})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  position: 'relative'
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.7))'
+                  }} />
+                  <div style={{ position: 'absolute', bottom: '-20px', left: '16px', display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+                    <img
+                      src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
+                      alt="Logo"
+                      style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '14px',
+                        objectFit: 'cover',
+                        border: '3px solid #FFF',
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+                        backgroundColor: '#FFF'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Simulated Store Info */}
+                <div style={{ padding: '28px 16px 16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: C.dark }}>
+                        {settingsForm.name || 'Your Restaurant'}
+                      </h4>
+                      <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600 }}>
+                        {settingsForm.cuisine_type || 'Specialty Cuisine'} • {settingsForm.city || 'Metro Manila'}
+                      </span>
+                    </div>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      backgroundColor: settingsForm.primary_color ? `${settingsForm.primary_color}18` : C.tealLight,
+                      color: settingsForm.primary_color || C.tealDark
+                    }}>
+                      OPEN NOW
+                    </span>
+                  </div>
+
+                  {/* Simulated Category Tabs */}
+                  <div style={{ display: 'flex', gap: '6px', margin: '14px 0 16px', overflowX: 'auto', paddingBottom: '4px' }}>
+                    {['All Menu', 'Signature Bowls', 'Drinks', 'Desserts'].map((tab, idx) => (
+                      <span
+                        key={tab}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          backgroundColor: idx === 0 ? (settingsForm.primary_color || C.teal) : C.pinkLight,
+                          color: idx === 0 ? '#FFF' : C.dark,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {tab}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Simulated Dish Card */}
+                  <div style={{
+                    padding: '10px',
+                    borderRadius: '10px',
+                    backgroundColor: C.pinkLight,
+                    border: `1px solid ${C.border}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '14px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: settingsForm.primary_color || C.teal, fontSize: '18px' }}>
+                        <i className="ri-restaurant-line" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>Signature Specialty Dish</div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: settingsForm.primary_color || C.tealDark }}>₱280.00</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: settingsForm.primary_color || C.teal,
+                        color: '#FFF',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenStorefront?.(tenantSlug)}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: `1px solid ${C.border}`,
+                      backgroundColor: '#FFF',
+                      color: C.dark,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    Open Live Customer Storefront ↗
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
+      </div>
 
       {/* ─── ADD/EDIT ITEM MODAL ─────────────────────────────────────────── */}
       {isItemModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>{editingItem ? 'Edit Item' : 'New Dish / Drink'}</h3>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>{editingItem ? 'Edit Menu Item' : 'New Dish / Drink'}</h3>
               <button type="button" onClick={() => setIsItemModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
                 <i className="ri-close-line" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveItem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Name</label>
-                <input
-                  type="text"
-                  required
-                  value={itemForm.name}
-                  onChange={e => setItemForm({ ...itemForm, name: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
+            {menuData.categories.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <p style={{ color: C.slate, fontSize: '13px', marginBottom: '14px' }}>
+                  You need to create at least one Category before adding items.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsItemModalOpen(false);
+                    setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
+                    setIsCatModalOpen(true);
+                  }}
+                  style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '10px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  + Create Category First
+                </button>
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            ) : (
+              <form onSubmit={handleSaveItem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Category</label>
-                  <select
-                    value={itemForm.category_id}
-                    onChange={e => setItemForm({ ...itemForm, category_id: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                  >
-                    {menuData.categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Price (₱)</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Item Name *</label>
                   <input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     required
-                    value={itemForm.price}
-                    onChange={e => setItemForm({ ...itemForm, price: e.target.value })}
+                    placeholder="e.g. Signature Beef Ramen, Iced Caramel Macchiato"
+                    value={itemForm.name}
+                    onChange={e => setItemForm({ ...itemForm, name: e.target.value })}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
                   />
                 </div>
-              </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Category *</label>
+                    <select
+                      value={itemForm.category_id}
+                      required
+                      onChange={e => setItemForm({ ...itemForm, category_id: e.target.value })}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    >
+                      {menuData.categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Price (₱) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      placeholder="0.00"
+                      value={itemForm.price}
+                      onChange={e => setItemForm({ ...itemForm, price: e.target.value })}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Description</label>
+                  <textarea
+                    rows="2"
+                    placeholder="Describe ingredients, flavor profile, or serving size..."
+                    value={itemForm.description}
+                    onChange={e => setItemForm({ ...itemForm, description: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Image URL</label>
+                  <input
+                    type="text"
+                    placeholder="https://..."
+                    value={itemForm.image_url}
+                    onChange={e => setItemForm({ ...itemForm, image_url: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                  {/* Preset Image Helpers */}
+                  <div style={{ marginTop: '6px', display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', color: C.slate }}>Presets:</span>
+                    {[
+                      { label: 'Ramen/Noodles', url: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Rice Dish', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Coffee', url: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Dessert', url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Burger', url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80' }
+                    ].map(preset => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setItemForm({ ...itemForm, image_url: preset.url })}
+                        style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${C.border}`, backgroundColor: itemForm.image_url === preset.url ? C.tealLight : '#FFF', color: C.dark, cursor: 'pointer' }}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Badge (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Bestseller, Chef Pick"
+                      value={itemForm.badge}
+                      onChange={e => setItemForm({ ...itemForm, badge: e.target.value })}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Prep Time (Mins)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={itemForm.preparation_time}
+                      onChange={e => setItemForm({ ...itemForm, preparation_time: e.target.value })}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}
+                >
+                  {editingItem ? 'Update Menu Item' : 'Create Menu Item'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── ADD CATEGORY MODAL ─────────────────────────────────────────── */}
+      {isCatModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>Create Menu Category</h3>
+              <button type="button" onClick={() => setIsCatModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Description</label>
-                <textarea
-                  rows="2"
-                  value={itemForm.description}
-                  onChange={e => setItemForm({ ...itemForm, description: e.target.value })}
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Category Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Main Dishes, Hot Coffee, Desserts, Sides"
+                  value={catForm.name}
+                  onChange={e => setCatForm({ ...catForm, name: e.target.value })}
                   style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Image URL</label>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Short Description (Optional)</label>
                 <input
                   type="text"
-                  value={itemForm.image_url}
-                  onChange={e => setItemForm({ ...itemForm, image_url: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Badge (Optional, e.g. Bestseller, Popular)</label>
-                <input
-                  type="text"
-                  value={itemForm.badge}
-                  onChange={e => setItemForm({ ...itemForm, badge: e.target.value })}
+                  placeholder="e.g. Handcrafted specialty beverages"
+                  value={catForm.description}
+                  onChange={e => setCatForm({ ...catForm, description: e.target.value })}
                   style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
                 />
               </div>
@@ -2049,7 +3064,7 @@ export default function TenantPortalView({
                 type="submit"
                 style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}
               >
-                Save Menu Item
+                Create Category in DB
               </button>
             </form>
           </div>
@@ -2104,16 +3119,17 @@ export default function TenantPortalView({
       )}
 
       {/* ─── ADD / EDIT STAFF MEMBER MODAL ──────────────────────────────── */}
+      {/* ─── ADD / EDIT STAFF MODAL (EMAIL & PASSWORD) ────────────────── */}
       {isStaffModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
           <div style={{ backgroundColor: '#FFF', borderRadius: '20px', width: '100%', maxWidth: '460px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>
-                  {editingStaff ? `Edit Staff Member` : `Add Team Member / Admin`}
+                  {editingStaff ? `Edit Team Member` : `Add Team Member / Admin`}
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: C.slate }}>
-                  Will be added to <code>tenant_{tenantSlug}.db</code>
+                  Create work email and password credentials for team access
                 </p>
               </div>
               <button type="button" onClick={() => setIsStaffModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
@@ -2134,6 +3150,57 @@ export default function TenantPortalView({
                   onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                  WORK EMAIL ADDRESS *
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. kitchen@restaurant.com or manager@restaurant.com"
+                  value={staffForm.email}
+                  onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
+                  ACCOUNT PASSWORD *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showStaffFormPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Set account password"
+                    value={staffForm.password}
+                    onChange={e => setStaffForm({ ...staffForm, password: e.target.value })}
+                    style={{ width: '100%', padding: '10px 38px 10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStaffFormPassword(!showStaffFormPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: showStaffFormPassword ? C.teal : C.slate,
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontSize: '15px'
+                    }}
+                    title={showStaffFormPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <i className={showStaffFormPassword ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -2169,101 +3236,9 @@ export default function TenantPortalView({
                 </div>
               </div>
 
-              {/* Login Method Toggle */}
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>
-                  LOGIN METHOD
-                </label>
-                <div style={{ display: 'flex', backgroundColor: C.pinkLight, padding: '3px', borderRadius: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setStaffForm({ ...staffForm, auth_method: 'pin' })}
-                    style={{
-                      flex: 1,
-                      padding: '7px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: staffForm.auth_method === 'pin' ? '#FFF' : 'transparent',
-                      color: staffForm.auth_method === 'pin' ? C.tealDark : C.slate,
-                      fontWeight: 800,
-                      fontSize: '12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    🍳 4-Digit Staff PIN
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStaffForm({ ...staffForm, auth_method: 'password' })}
-                    style={{
-                      flex: 1,
-                      padding: '7px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: staffForm.auth_method === 'password' ? '#FFF' : 'transparent',
-                      color: staffForm.auth_method === 'password' ? C.tealDark : C.slate,
-                      fontWeight: 800,
-                      fontSize: '12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ✉️ Email & Password
-                  </button>
-                </div>
-              </div>
-
-              {staffForm.auth_method === 'pin' ? (
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
-                    4-DIGIT PIN * (e.g. 5678)
-                  </label>
-                  <input
-                    type="text"
-                    maxLength="6"
-                    required
-                    placeholder="Enter 4-digit PIN"
-                    value={staffForm.pin}
-                    onChange={e => setStaffForm({ ...staffForm, pin: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1.5px solid ${C.teal}`, fontSize: '15px', fontWeight: 800, letterSpacing: '3px', textAlign: 'center', boxSizing: 'border-box' }}
-                  />
-                  <span style={{ fontSize: '11px', color: C.slate, display: 'block', marginTop: '4px' }}>
-                    Staff can instantly log in with this PIN from any device.
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
-                      LOGIN EMAIL *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. manager@restaurant.com"
-                      value={staffForm.email}
-                      onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
-                      PASSWORD *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="Enter password"
-                      value={staffForm.password}
-                      onChange={e => setStaffForm({ ...staffForm, password: e.target.value })}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                </>
-              )}
-
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>
-                  PHONE NUMBER (OPTIONAL)
+                  MOBILE PHONE (OPTIONAL)
                 </label>
                 <input
                   type="tel"
@@ -2286,10 +3261,10 @@ export default function TenantPortalView({
                   fontWeight: 800,
                   cursor: 'pointer',
                   marginTop: '6px',
-                  boxShadow: '0 4px 14px rgba(42,157,154,0.3)'
+                  boxShadow: `0 4px 14px ${C.tealGlow}`
                 }}
               >
-                {editingStaff ? 'Update Team Member' : 'Save & Add to Restaurant'}
+                {editingStaff ? 'Update Team Member' : 'Save & Add Team Member'}
               </button>
             </form>
           </div>

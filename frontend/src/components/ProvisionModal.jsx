@@ -8,7 +8,7 @@ export default function ProvisionModal({ isOpen, onClose, onSubmit, plans = [] }
     custom_domain: '',
     cuisine_type: '',
     city: 'Metro Manila',
-    primary_color: '#6366F1',
+    primary_color: '#FF5A1F',
     owner_name: '',
     owner_email: '',
     owner_password: 'Welcome2026!',
@@ -19,6 +19,7 @@ export default function ProvisionModal({ isOpen, onClose, onSubmit, plans = [] }
   });
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (!isOpen) return null;
 
@@ -162,12 +163,36 @@ export default function ProvisionModal({ isOpen, onClose, onSubmit, plans = [] }
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Temporary Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  value={formData.owner_password}
-                  onChange={(e) => setFormData(prev => ({ ...prev, owner_password: e.target.value }))}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="form-control"
+                    style={{ paddingRight: '40px' }}
+                    value={formData.owner_password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, owner_password: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: showPassword ? 'var(--primary-light)' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontSize: '15px'
+                    }}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <i className={showPassword ? 'ri-eye-off-line' : 'ri-eye-line'}></i>
+                  </button>
+                </div>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Phone Contact</label>

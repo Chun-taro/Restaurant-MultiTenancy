@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function SettingsView({ settings = {}, onSave }) {
+export default function SettingsView({ settings = {}, onSave, adminUser, onOpenProfile, onOpenCreateSuperadmin }) {
   const [formData, setFormData] = useState({
     platform_name: 'RestoSaaS Platform Suite',
     platform_support_email: 'support@restosaas.com',
@@ -15,7 +15,7 @@ export default function SettingsView({ settings = {}, onSave }) {
   useEffect(() => {
     if (settings && Object.keys(settings).length > 0) {
       setFormData({
-        platform_name: settings.platform_name ? settings.platform_name.value : 'RestoSaaS',
+        platform_name: settings.platform_name ? settings.platform_name.value : 'RestoSaaS Platform Suite',
         platform_support_email: settings.platform_support_email ? settings.platform_support_email.value : 'support@restosaas.com',
         default_currency: settings.default_currency ? settings.default_currency.value : 'PHP',
         trial_days_default: settings.trial_days_default ? settings.trial_days_default.value : '14',
@@ -33,16 +33,65 @@ export default function SettingsView({ settings = {}, onSave }) {
   };
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div className="toolbar-container">
         <div>
-          <h2 style={{ color: '#fff', fontSize: '18px', fontWeight: 700 }}>System Configuration & Engine Settings</h2>
+          <h2 style={{ color: '#fff', fontSize: '18px', fontWeight: 700 }}>Superadmin Profile & System Configuration</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '12.5px' }}>
-            Multi-tenant defaults, Maya/GCash integration mode, currencies, and system switches
+            Customize your Superadmin identity credentials, add administrators, and configure platform defaults
           </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button type="button" className="btn btn-secondary" onClick={onOpenCreateSuperadmin}>
+            <i className="ri-user-add-line"></i> Add Super Admin
+          </button>
+          <button type="button" className="btn btn-primary" onClick={onOpenProfile}>
+            <i className="ri-user-settings-line"></i> Edit Profile & Password
+          </button>
         </div>
       </div>
 
+      {/* ─── ACTIVE SUPERADMIN PROFILE OVERVIEW CARD ──────────────────── */}
+      {adminUser && (
+        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(255,90,31,0.08) 0%, rgba(15,17,22,0.95) 100%)', borderColor: 'rgba(255,90,31,0.25)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <img
+                src={adminUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${adminUser.name}`}
+                alt="Superadmin"
+                style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-light)', background: '#1E293B' }}
+              />
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <h3 style={{ margin: 0, color: '#FFF', fontSize: '18px', fontWeight: 800 }}>
+                    {adminUser.name}
+                  </h3>
+                  <span className="badge" style={{ background: 'rgba(255,90,31,0.2)', color: 'var(--primary-light)', border: '1px solid rgba(255,90,31,0.4)', fontSize: '11px' }}>
+                    <i className="ri-shield-star-fill"></i> ACTIVE SUPERADMIN
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                  <span><i className="ri-mail-line" style={{ marginRight: '5px', color: 'var(--primary-light)' }}></i>{adminUser.email}</span>
+                  <span><i className="ri-phone-line" style={{ marginRight: '5px', color: 'var(--emerald)' }}></i>{adminUser.phone || 'No phone set'}</span>
+                  <span><i className="ri-key-2-line" style={{ marginRight: '5px', color: 'var(--amber)' }}></i>Password Protected</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={onOpenProfile}
+              style={{ padding: '8px 18px', fontWeight: 700 }}
+            >
+              <i className="ri-edit-2-line"></i> Customize Profile & Password
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── PLATFORM SYSTEM SETTINGS FORM ───────────────────────────── */}
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div className="card">
           <div className="card-title" style={{ marginBottom: '18px' }}>

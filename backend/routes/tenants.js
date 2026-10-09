@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db, seedRestaurantDefaults, getTenantDb } = require('../db');
+const { db, getTenantDb } = require('../db');
 
 // Helper to log audit actions
 function logAudit(actorName, actorRole, action, entityType, entityId, details) {
@@ -61,15 +61,16 @@ router.get('/', (req, res) => {
       params.push(term, term, term, term, term);
     }
 
+    let orderClause = 'ORDER BY r.id DESC';
     if (sort === 'oldest') {
-      query += ` ORDER BY r.id ASC`;
+      orderClause = 'ORDER BY r.id ASC';
     } else if (sort === 'volume_desc') {
-      query += ` ORDER BY r.total_volume DESC`;
+      orderClause = 'ORDER BY r.total_volume DESC';
     } else if (sort === 'name_asc') {
-      query += ` ORDER BY r.name ASC`;
-    } else {
-      query += ` ORDER BY r.id DESC`;
+      orderClause = 'ORDER BY r.name ASC';
     }
+
+    query += ` GROUP BY r.id ${orderClause}`;
 
     const tenants = db.prepare(query).all(...params);
     res.json({ success: true, data: tenants });

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { db, getTenantDb } = require('../db');
+const { db, withTransaction, getTenantDb } = require('../db');
+const { hashPassword, comparePassword, generateToken, authRateLimiter, orderRateLimiter } = require('../utils/auth');
 
 // Helper to resolve tenant
 function resolveTenant(slugOrIdentifier) {
@@ -20,18 +21,18 @@ function processUnifiedStorefrontAuth(tenantCtx, payload) {
   }
 
   let customer = null;
-  const devCustEmail = (process.env.DEV_CUSTOMER_EMAIL || 'devcustomer@gmail.com').toLowerCase().trim();
-  const devCustPass = process.env.DEV_CUSTOMER_PASSWORD || 'devcustomer@123';
-  const devCustName = process.env.DEV_CUSTOMER_NAME || 'Dev Customer';
+  const devCustEmail = process.env.DEV_CUSTOMER_EMAIL ? process.env.DEV_CUSTOMER_EMAIL.toLowerCase().trim() : null;
+  const devCustPass = process.env.DEV_CUSTOMER_PASSWORD || null;
+  const devCustName = process.env.DEV_CUSTOMER_NAME || 'Customer';
 
-  // Direct Dev Customer Authentication
-  if (cleanEmail === devCustEmail && rawPassword === devCustPass) {
+  // Direct Dev Customer Authentication (from .env)
+  if (devCustEmail && devCustPass && cleanEmail === devCustEmail && rawPassword === devCustPass) {
     customer = tenantDb.prepare("SELECT * FROM customers WHERE LOWER(email) = ?").get(devCustEmail);
     if (!customer) {
       tenantDb.prepare(`
         INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
         VALUES (?, '09999999999', ?, ?, 0, 0, NULL, ?)
-      `).run(devCustName, process.env.DEV_CUSTOMER_EMAIL || 'DevCustomer@gmail.com', devCustPass, new Date().toISOString());
+      `).run(devCustName, devCustEmail, devCustPass, new Date().toISOString());
       customer = tenantDb.prepare("SELECT * FROM customers WHERE LOWER(email) = ?").get(devCustEmail);
     }
   }
@@ -50,14 +51,14 @@ function processUnifiedStorefrontAuth(tenantCtx, payload) {
   if (customer) {
     // If customer has a set password, verify it
     if (customer.password_hash && rawPassword) {
-      if (customer.password_hash !== rawPassword && rawPassword !== 'password123' && rawPassword !== 'devcustomer@123') {
+      if (!comparePassword(rawPassword, customer.password_hash)) {
         throw new Error('Incorrect password for customer account. Please try again.');
       }
     } else if (customer.password_hash && !rawPassword) {
       throw new Error('Please enter your customer account password.');
     } else if (!customer.password_hash && rawPassword) {
       // Initialize customer password
-      tenantDb.prepare('UPDATE customers SET password_hash = ? WHERE id = ?').run(rawPassword, customer.id);
+      tenantDb.prepare('UPDATE customers SET password_hash = ? WHERE id = ?').run(hashPassword(rawPassword), customer.id);
     }
   } else {
     // Auto-create customer with provided password
@@ -69,7 +70,7 @@ function processUnifiedStorefrontAuth(tenantCtx, payload) {
     tenantDb.prepare(`
       INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
       VALUES (?, ?, ?, ?, 0, 0, NULL, ?)
-    `).run(cleanName, cleanPhone || null, cleanEmail.includes('@') ? cleanEmail : null, rawPassword, now);
+    `).run(cleanName, cleanPhone || null, cleanEmail.includes('@') ? cleanEmail : null, hashPassword(rawPassword), now);
     const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
     customer = tenantDb.prepare('SELECT * FROM customers WHERE id = ?').get(newId);
   }
@@ -77,8 +78,18 @@ function processUnifiedStorefrontAuth(tenantCtx, payload) {
   const pastOrders = tenantDb.prepare(`
     SELECT * FROM orders
     WHERE customer_name = ? OR customer_phone = ?
-    ORDER BY id DESC LIMIT 10
+    ORDER BY id DESC LIMIT 15
   `).all(customer.name, customer.phone || '---');
+
+  const pastOrdersWithItems = pastOrders.map(ord => {
+    const items = tenantDb.prepare(`
+      SELECT oi.*, m.image_url 
+      FROM order_items oi 
+      LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+      WHERE oi.order_id = ?
+    `).all(ord.id);
+    return { ...ord, items };
+  });
 
   return {
     success: true,
@@ -98,16 +109,24 @@ function processUnifiedStorefrontAuth(tenantCtx, payload) {
         slug: restaurant.slug
       },
       customer,
-      past_orders: pastOrders,
-      pastOrders,
-      token: `cust_${Buffer.from(String(customer.id) + ':' + Date.now()).toString('base64')}`,
+      past_orders: pastOrdersWithItems,
+      pastOrders: pastOrdersWithItems,
+      token: generateToken({
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        role: 'customer',
+        slug: restaurant.slug,
+        restaurant_id: restaurant.id
+      }),
       redirectUrl: `/store/${restaurant.slug}`
     }
   };
 }
 
 // POST /api/storefront/:slug/auth/register - Customer Account Registration
-router.post(['/:slug/auth/register', '/:slug/auth/customer-register'], (req, res) => {
+router.post(['/:slug/auth/register', '/:slug/auth/customer-register'], authRateLimiter, (req, res) => {
   try {
     const { slug } = req.params;
     const tenantCtx = resolveTenant(slug);
@@ -137,19 +156,20 @@ router.post(['/:slug/auth/register', '/:slug/auth/customer-register'], (req, res
     }
 
     const now = new Date().toISOString();
+    const storedHash = hashPassword(password.trim());
     let customerId;
     if (existing) {
       tenantDb.prepare(`
         UPDATE customers
         SET name = ?, email = COALESCE(?, email), phone = COALESCE(?, phone), password_hash = ?
         WHERE id = ?
-      `).run(name.trim(), cleanEmail || null, cleanPhone || null, password.trim(), existing.id);
+      `).run(name.trim(), cleanEmail || null, cleanPhone || null, storedHash, existing.id);
       customerId = existing.id;
     } else {
       tenantDb.prepare(`
         INSERT INTO customers (name, email, phone, password_hash, total_orders, total_spent, last_order_at, created_at)
         VALUES (?, ?, ?, ?, 0, 0, NULL, ?)
-      `).run(name.trim(), cleanEmail || null, cleanPhone || null, password.trim(), now);
+      `).run(name.trim(), cleanEmail || null, cleanPhone || null, storedHash, now);
       customerId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
     }
 
@@ -170,7 +190,15 @@ router.post(['/:slug/auth/register', '/:slug/auth/customer-register'], (req, res
           restaurant_id: restaurant.id,
           slug: restaurant.slug
         },
-        token: `cust_${Buffer.from(String(customer.id) + ':' + Date.now()).toString('base64')}`,
+        token: generateToken({
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          role: 'customer',
+          slug: restaurant.slug,
+          restaurant_id: restaurant.id
+        }),
         redirectUrl: `/store/${restaurant.slug}`
       }
     });
@@ -180,7 +208,7 @@ router.post(['/:slug/auth/register', '/:slug/auth/customer-register'], (req, res
 });
 
 // POST /api/storefront/:slug/auth/customer-login & /api/storefront/:slug/auth/login
-router.post(['/:slug/auth/customer-login', '/:slug/auth/login'], (req, res) => {
+router.post(['/:slug/auth/customer-login', '/:slug/auth/login'], authRateLimiter, (req, res) => {
   try {
     const { slug } = req.params;
     const tenantCtx = resolveTenant(slug);
@@ -249,6 +277,11 @@ router.get('/:slug', (req, res) => {
       items: items.filter(it => it.category_id === cat.id)
     }));
 
+    let addons = [];
+    try {
+      addons = tenantDb.prepare('SELECT * FROM menu_addons WHERE is_available = 1 ORDER BY id ASC').all();
+    } catch (e) {}
+
     res.json({
       success: true,
       data: {
@@ -269,7 +302,8 @@ router.get('/:slug', (req, res) => {
         },
         categories: categoriesWithItems,
         featuredItems: items.filter(it => it.is_featured === 1),
-        tables
+        tables,
+        addons
       }
     });
   } catch (err) {
@@ -278,7 +312,7 @@ router.get('/:slug', (req, res) => {
 });
 
 // POST /api/storefront/:slug/orders - Customer places an order into tenant's isolated DB
-router.post('/:slug/orders', (req, res) => {
+router.post('/:slug/orders', orderRateLimiter, (req, res) => {
   try {
     const { slug } = req.params;
     const tenantCtx = resolveTenant(slug);
@@ -292,6 +326,8 @@ router.post('/:slug/orders', (req, res) => {
     const {
       customer_name,
       customer_phone,
+      customer_email,
+      customer_id,
       order_type = 'dine_in',
       table_number,
       payment_method = 'gcash',
@@ -307,7 +343,7 @@ router.post('/:slug/orders', (req, res) => {
       return res.status(400).json({ success: false, error: 'Your cart is empty. Please add items to checkout.' });
     }
 
-    // 🔒 Enforce Subscription Perk: Monthly Orders Limit & Online Payment Options
+    // Enforce Subscription Perk: Monthly Orders Limit & Online Payment Options
     try {
       const plan = db.prepare(`
         SELECT p.* FROM subscriptions s
@@ -345,13 +381,14 @@ router.post('/:slug/orders', (req, res) => {
       if (!dbItem) continue;
 
       const qty = Math.max(1, parseInt(item.quantity) || 1);
-      const itemSubtotal = dbItem.price * qty;
+      const unitPrice = parseFloat(item.price) > 0 ? parseFloat(item.price) : dbItem.price;
+      const itemSubtotal = unitPrice * qty;
       subtotal += itemSubtotal;
 
       validatedItems.push({
         menu_item_id: dbItem.id,
         item_name: dbItem.name,
-        price: dbItem.price,
+        price: unitPrice,
         quantity: qty,
         instructions: item.instructions || '',
         subtotal: itemSubtotal
@@ -366,78 +403,104 @@ router.post('/:slug/orders', (req, res) => {
     const orderNumber = `ORD-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
     const now = new Date().toISOString();
 
-    // Insert order directly into isolated tenant database
-    const insertOrder = tenantDb.prepare(`
-      INSERT INTO orders (
-        order_number, customer_name, customer_phone,
-        order_type, table_number, status, payment_method, payment_status,
-        subtotal, tax, total, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 'paid', ?, 0, ?, ?, ?, ?)
-    `);
+    // Insert order and items atomically into isolated tenant database
+    const { orderId } = withTransaction(tenantDb, () => {
+      const insertOrder = tenantDb.prepare(`
+        INSERT INTO orders (
+          order_number, customer_name, customer_phone,
+          order_type, table_number, status, payment_method, payment_status,
+          subtotal, tax, total, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 'paid', ?, 0, ?, ?, ?, ?)
+      `);
 
-    insertOrder.run(
-      orderNumber,
-      customer_name.trim(),
-      customer_phone || '',
-      order_type,
-      table_number || (order_type === 'takeaway' ? 'Takeout' : 'Walk-in'),
-      payment_method,
-      subtotal,
-      total,
-      notes || '',
-      now,
-      now
-    );
-
-    const orderId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
-
-    // Insert order items into isolated tenant database
-    const insertItem = tenantDb.prepare(`
-      INSERT INTO order_items (order_id, menu_item_id, item_name, price, quantity, instructions, subtotal)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    for (const vItem of validatedItems) {
-      insertItem.run(
-        orderId,
-        vItem.menu_item_id,
-        vItem.item_name,
-        vItem.price,
-        vItem.quantity,
-        vItem.instructions,
-        vItem.subtotal
+      const orderResult = insertOrder.run(
+        orderNumber,
+        customer_name.trim(),
+        customer_phone || '',
+        order_type,
+        table_number || (order_type === 'takeaway' ? 'Takeout' : 'Walk-in'),
+        payment_method,
+        subtotal,
+        total,
+        notes || '',
+        now,
+        now
       );
-    }
 
-    // Record or update customer profile in tenant's isolated database
-    try {
-      const existingCust = tenantDb.prepare('SELECT id FROM customers WHERE name = ?').get(customer_name.trim());
-      if (existingCust) {
-        tenantDb.prepare(`
-          UPDATE customers SET
-            total_orders = total_orders + 1,
-            total_spent = total_spent + ?,
-            last_order_at = ?
-          WHERE id = ?
-        `).run(total, now, existingCust.id);
-      } else {
-        tenantDb.prepare(`
-          INSERT INTO customers (name, phone, email, total_orders, total_spent, last_order_at, created_at)
-          VALUES (?, ?, '', 1, ?, ?, ?)
-        `).run(customer_name.trim(), customer_phone || '', total, now, now);
+      const newOrderId = Number(orderResult.lastInsertRowid);
+
+      // Insert order items into isolated tenant database
+      const insertItem = tenantDb.prepare(`
+        INSERT INTO order_items (order_id, menu_item_id, item_name, price, quantity, instructions, subtotal)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const vItem of validatedItems) {
+        insertItem.run(
+          newOrderId,
+          vItem.menu_item_id,
+          vItem.item_name,
+          vItem.price,
+          vItem.quantity,
+          vItem.instructions,
+          vItem.subtotal
+        );
       }
-    } catch (e) {}
+
+      // Record or update customer profile in tenant's isolated database
+      try {
+        let existingCust = null;
+        if (customer_id) {
+          existingCust = tenantDb.prepare('SELECT id FROM customers WHERE id = ?').get(customer_id);
+        }
+        if (!existingCust && customer_phone) {
+          existingCust = tenantDb.prepare('SELECT id FROM customers WHERE phone = ?').get(customer_phone.trim());
+        }
+        if (!existingCust && customer_email) {
+          existingCust = tenantDb.prepare('SELECT id FROM customers WHERE LOWER(email) = LOWER(?)').get(customer_email.trim());
+        }
+        if (!existingCust && customer_name) {
+          existingCust = tenantDb.prepare('SELECT id FROM customers WHERE LOWER(name) = LOWER(?)').get(customer_name.trim());
+        }
+
+        if (existingCust) {
+          tenantDb.prepare(`
+            UPDATE customers SET
+              total_orders = total_orders + 1,
+              total_spent = total_spent + ?,
+              last_order_at = ?,
+              phone = CASE WHEN phone IS NULL OR phone = '' THEN ? ELSE phone END,
+              email = CASE WHEN email IS NULL OR email = '' THEN ? ELSE email END
+            WHERE id = ?
+          `).run(total, now, customer_phone || '', customer_email || '', existingCust.id);
+        } else {
+          tenantDb.prepare(`
+            INSERT INTO customers (name, phone, email, total_orders, total_spent, last_order_at, created_at)
+            VALUES (?, ?, ?, 1, ?, ?, ?)
+          `).run(customer_name.trim(), customer_phone || '', customer_email || '', total, now, now);
+        }
+      } catch (e) {}
+
+      return { orderId: newOrderId };
+    });
 
     // Update global platform metrics in master database
-    db.prepare(`
-      UPDATE restaurants SET
-        orders_count = orders_count + 1,
-        total_volume = total_volume + ?
-      WHERE id = ?
-    `).run(total, restaurant.id);
+    try {
+      db.prepare(`
+        UPDATE restaurants SET
+          orders_count = orders_count + 1,
+          total_volume = total_volume + ?
+        WHERE id = ?
+      `).run(total, restaurant.id);
+    } catch (e) {}
 
     const createdOrder = tenantDb.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    const orderItems = tenantDb.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+    const orderItems = tenantDb.prepare(`
+      SELECT oi.*, m.image_url 
+      FROM order_items oi 
+      LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+      WHERE oi.order_id = ?
+    `).all(orderId);
 
     res.status(201).json({
       success: true,
@@ -448,6 +511,56 @@ router.post('/:slug/orders', (req, res) => {
         database_file: dbName,
         items: orderItems
       }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/storefront/:slug/customer/orders - Customer order history
+router.get('/:slug/customer/orders', (req, res) => {
+  try {
+    const { slug } = req.params;
+    const tenantCtx = resolveTenant(slug);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+
+    const { db: tenantDb } = tenantCtx;
+    const { phone, name } = req.query;
+
+    const conditions = [];
+    const params = [];
+
+    if (phone && phone.trim()) {
+      conditions.push('customer_phone = ?');
+      params.push(phone.trim());
+    }
+    if (name && name.trim()) {
+      conditions.push('LOWER(customer_name) = LOWER(?)');
+      params.push(name.trim());
+    }
+
+    let orders = [];
+    if (conditions.length > 0) {
+      orders = tenantDb.prepare(`
+        SELECT * FROM orders
+        WHERE ${conditions.join(' OR ')}
+        ORDER BY id DESC LIMIT 25
+      `).all(...params);
+    }
+
+    const ordersWithItems = orders.map(ord => {
+      const items = tenantDb.prepare(`
+        SELECT oi.*, m.image_url 
+        FROM order_items oi 
+        LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+        WHERE oi.order_id = ?
+      `).all(ord.id);
+      return { ...ord, items };
+    });
+
+    res.json({
+      success: true,
+      data: ordersWithItems
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -466,7 +579,12 @@ router.get('/:slug/orders/:orderNumber', (req, res) => {
     const order = tenantDb.prepare('SELECT * FROM orders WHERE order_number = ?').get(orderNumber);
     if (!order) return res.status(404).json({ success: false, error: 'Order not found in restaurant database' });
 
-    const items = tenantDb.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+    const items = tenantDb.prepare(`
+      SELECT oi.*, m.image_url 
+      FROM order_items oi 
+      LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+      WHERE oi.order_id = ?
+    `).all(order.id);
 
     res.json({
       success: true,
@@ -496,7 +614,7 @@ router.post('/:slug/auth/register', (req, res) => {
     const tenantCtx = resolveTenant(slug);
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { db: tenantDb, restaurant } = tenantCtx;
-    const { name, phone, email, role = 'customer', pin, password = 'password123' } = req.body;
+    const { name, phone, email, role = 'customer', pin, password = '' } = req.body;
 
     if (!name || (!phone && !email)) {
       return res.status(400).json({ success: false, error: 'Name and either Mobile Phone or Email are required' });

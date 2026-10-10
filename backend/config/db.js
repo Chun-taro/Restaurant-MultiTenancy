@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
@@ -19,12 +19,12 @@ async function connectDB() {
       serverSelectionTimeoutMS: 2500
     });
     isConnected = true;
-    console.log('✅ Connected to MongoDB successfully.');
+    console.log('[DB] Connected to MongoDB successfully.');
     await seedMongoData();
   } catch (err) {
-    console.warn(`⚠️ Local MongoDB daemon is not running on 27017 (${err.message}).`);
-    console.log('💡 Using embedded document store with Mongoose model architecture.');
-    console.log('💡 Set MONGODB_URI in .env to connect to MongoDB Atlas or local MongoDB.');
+    console.warn(`[DB] Local MongoDB daemon is not running on 27017 (${err.message}).`);
+    console.log('[DB] Using embedded document store with Mongoose model architecture.');
+    console.log('[DB] Set MONGODB_URI in .env to connect to MongoDB Atlas or local MongoDB.');
     await seedMemoryData();
   }
 }
@@ -56,33 +56,26 @@ async function seedMemoryData() {
   const nextYear = new Date(Date.now() + 365 * 86400000);
 
   // 1. Super Admins
-  const admin1 = {
-    _id: generateId(),
-    name: 'Alexandre Vance',
-    email: 'admin@restosaas.com',
-    password: 'admin123',
-    role: 'superadmin',
-    phone: '+63 917 888 1234',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    status: 'active',
-    lastLoginAt: now,
-    createdAt: past30Days,
-    updatedAt: now
-  };
-  const admin2 = {
-    _id: generateId(),
-    name: 'Sofia Reyes',
-    email: 'sofia.billing@restosaas.com',
-    password: 'admin123',
-    role: 'superadmin',
-    phone: '+63 918 555 4321',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
-    status: 'active',
-    lastLoginAt: past30Days,
-    createdAt: past30Days,
-    updatedAt: now
-  };
-  memoryStore.users.push(admin1, admin2);
+  const devSuperName = process.env.DEV_SUPERADMIN_NAME || 'Platform Admin';
+  const devSuperEmail = process.env.DEV_SUPERADMIN_EMAIL || 'admin@example.com';
+  const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || '';
+
+  if (devSuperPass) {
+    const admin1 = {
+      _id: generateId(),
+      name: devSuperName,
+      email: devSuperEmail,
+      password: devSuperPass,
+      role: 'superadmin',
+      phone: '+63 900 000 0001',
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(devSuperName)}`,
+      status: 'active',
+      lastLoginAt: now,
+      createdAt: past30Days,
+      updatedAt: now
+    };
+    memoryStore.users.push(admin1);
+  }
 
   // 2. Subscription Plans
   const starter = {
@@ -339,7 +332,7 @@ async function seedMemoryData() {
       _id: generateId(),
       name: t.owner.name,
       email: t.owner.email,
-      password: 'password123',
+      password: process.env.DEV_OWNER_PASSWORD || '',
       role: 'restaurant_owner',
       phone: t.phone,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(t.owner.name)}`,
@@ -446,7 +439,7 @@ async function seedMongoData() {
   await Invoice.insertMany(memoryStore.invoices);
   await AuditLog.insertMany(memoryStore.auditLogs);
   await SystemSetting.insertMany(memoryStore.settings);
-  console.log('🌱 Seeded initial multi-tenant data into MongoDB successfully.');
+  console.log('[DB] Seeded initial multi-tenant data into MongoDB successfully.');
 }
 
 module.exports = {

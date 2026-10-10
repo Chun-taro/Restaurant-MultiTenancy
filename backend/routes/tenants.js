@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db, getTenantDb } = require('../db');
+const { db, withTransaction, getTenantDb } = require('../db');
 
 // Helper to log audit actions
 function logAudit(actorName, actorRole, action, entityType, entityId, details) {
@@ -9,7 +9,7 @@ function logAudit(actorName, actorRole, action, entityType, entityId, details) {
       INSERT INTO audit_logs (actor_name, actor_role, action, entity_type, entity_id, details, ip_address, created_at)
       VALUES (?, ?, ?, ?, ?, ?, '127.0.0.1', ?)
     `);
-    insert.run(actorName || 'Alexandre Vance', actorRole || 'superadmin', action, entityType, String(entityId), details, new Date().toISOString());
+    insert.run(actorName || 'Super Admin', actorRole || 'superadmin', action, entityType, String(entityId), details, new Date().toISOString());
   } catch (e) {
     console.error('Audit log failed:', e);
   }
@@ -157,15 +157,15 @@ router.post('/', (req, res) => {
       email,
       owner_name,
       owner_email,
-      owner_password = 'password123',
+      owner_password,
       owner_phone,
       plan_id = 2,
       billing_cycle = 'monthly',
       status = 'active'
     } = req.body;
 
-    if (!name || !slug || !owner_name || !owner_email) {
-      return res.status(400).json({ success: false, error: 'Name, slug, owner name and owner email are required.' });
+    if (!name || !slug || !owner_name || !owner_email || !owner_password) {
+      return res.status(400).json({ success: false, error: 'Name, slug, owner name, owner email, and owner password are required.' });
     }
 
     const cleanSlug = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
@@ -180,102 +180,107 @@ router.post('/', (req, res) => {
     const nextPeriod = new Date(Date.now() + (billing_cycle === 'yearly' ? 365 : 30) * 86400000).toISOString();
     const trialEnds = status === 'trialing' ? new Date(Date.now() + 14 * 86400000).toISOString() : null;
 
-    // 1. Owner user
-    let owner = db.prepare('SELECT id FROM users WHERE email = ?').get(owner_email.trim().toLowerCase());
-    let ownerId;
-    if (owner) {
-      ownerId = owner.id;
-    } else {
-      const insertUser = db.prepare(`
-        INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
-        VALUES (?, ?, ?, 'restaurant_owner', ?, ?, 'active', ?, ?)
+    // Execute multi-table provisioning inside an atomic transaction (BEGIN IMMEDIATE / COMMIT / ROLLBACK)
+    const { restaurantId, ownerId, selectedPlan } = withTransaction(db, () => {
+      // 1. Owner user
+      let owner = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(owner_email.trim().toLowerCase());
+      let resolvedOwnerId;
+      if (owner) {
+        resolvedOwnerId = owner.id;
+      } else {
+        const insertUser = db.prepare(`
+          INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
+          VALUES (?, ?, ?, 'restaurant_owner', ?, ?, 'active', ?, ?)
+        `);
+        const userResult = insertUser.run(
+          owner_name.trim(),
+          owner_email.trim().toLowerCase(),
+          owner_password,
+          owner_phone || null,
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(owner_name)}`,
+          now,
+          now
+        );
+        resolvedOwnerId = Number(userResult.lastInsertRowid);
+      }
+
+      // 2. Restaurant
+      const insertRest = db.prepare(`
+        INSERT INTO restaurants (
+          name, slug, subdomain, custom_domain, cuisine_type, logo_url,
+          primary_color, secondary_color, status, address, city, phone, email,
+          currency, orders_count, total_volume, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, '#1E293B', ?, ?, ?, ?, ?, 'PHP', 0, 0, ?, ?)
       `);
-      insertUser.run(
-        owner_name.trim(),
-        owner_email.trim().toLowerCase(),
-        owner_password,
-        owner_phone || null,
-        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(owner_name)}`,
+
+      const restResult = insertRest.run(
+        name.trim(),
+        cleanSlug,
+        cleanSubdomain,
+        custom_domain ? custom_domain.trim().toLowerCase() : null,
+        cuisine_type || 'General Dining',
+        `https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80`,
+        primary_color,
+        status,
+        address || '',
+        city || 'Metro Manila',
+        phone || owner_phone || '',
+        email || owner_email,
         now,
         now
       );
-      ownerId = db.prepare('SELECT last_insert_rowid() as id').get().id;
-    }
+      const newRestaurantId = Number(restResult.lastInsertRowid);
 
-    // 2. Restaurant
-    const insertRest = db.prepare(`
-      INSERT INTO restaurants (
-        name, slug, subdomain, custom_domain, cuisine_type, logo_url,
-        primary_color, secondary_color, status, address, city, phone, email,
-        currency, orders_count, total_volume, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, '#1E293B', ?, ?, ?, ?, ?, 'PHP', 0, 0, ?, ?)
-    `);
+      // 3. Link owner
+      db.prepare(`
+        INSERT INTO restaurant_users (restaurant_id, user_id, role, created_at)
+        VALUES (?, ?, 'owner', ?)
+      `).run(newRestaurantId, resolvedOwnerId, now);
 
-    insertRest.run(
-      name.trim(),
-      cleanSlug,
-      cleanSubdomain,
-      custom_domain ? custom_domain.trim().toLowerCase() : null,
-      cuisine_type || 'General Dining',
-      `https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80`,
-      primary_color,
-      status,
-      address || '',
-      city || 'Metro Manila',
-      phone || owner_phone || '',
-      email || owner_email,
-      now,
-      now
-    );
-    const restaurantId = db.prepare('SELECT last_insert_rowid() as id').get().id;
+      // 4. Subscription
+      const plan = db.prepare('SELECT * FROM subscription_plans WHERE id = ?').get(plan_id) || db.prepare('SELECT * FROM subscription_plans LIMIT 1').get();
+      db.prepare(`
+        INSERT INTO subscriptions (
+          restaurant_id, plan_id, status, billing_cycle,
+          current_period_start, current_period_end, trial_ends_at, auto_renew,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(
+        newRestaurantId,
+        plan.id,
+        status === 'trialing' ? 'trialing' : 'active',
+        billing_cycle,
+        now,
+        nextPeriod,
+        trialEnds,
+        now,
+        now
+      );
 
-    // 3. Link owner
-    db.prepare(`
-      INSERT INTO restaurant_users (restaurant_id, user_id, role, created_at)
-      VALUES (?, ?, 'owner', ?)
-    `).run(restaurantId, ownerId, now);
+      // 5. Initial Invoice
+      const invAmount = billing_cycle === 'yearly' ? plan.price_yearly : plan.price_monthly;
+      db.prepare(`
+        INSERT INTO invoices (
+          invoice_number, restaurant_id, plan_id, amount, currency, status,
+          billing_period, due_date, paid_at, payment_method, created_at
+        ) VALUES (?, ?, ?, ?, 'PHP', ?, ?, ?, ?, 'Provisioning Invoice', ?)
+      `).run(
+        `INV-2026-${1000 + newRestaurantId}`,
+        newRestaurantId,
+        plan.id,
+        invAmount,
+        status === 'trialing' ? 'pending' : 'paid',
+        `Initial Onboarding (${billing_cycle})`,
+        nextPeriod,
+        status === 'trialing' ? null : now,
+        now
+      );
 
-    // 4. Subscription
-    const selectedPlan = db.prepare('SELECT * FROM subscription_plans WHERE id = ?').get(plan_id) || db.prepare('SELECT * FROM subscription_plans LIMIT 1').get();
-    db.prepare(`
-      INSERT INTO subscriptions (
-        restaurant_id, plan_id, status, billing_cycle,
-        current_period_start, current_period_end, trial_ends_at, auto_renew,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-    `).run(
-      restaurantId,
-      selectedPlan.id,
-      status === 'trialing' ? 'trialing' : 'active',
-      billing_cycle,
-      now,
-      nextPeriod,
-      trialEnds,
-      now,
-      now
-    );
-
-    // 5. Initial Invoice
-    const invAmount = billing_cycle === 'yearly' ? selectedPlan.price_yearly : selectedPlan.price_monthly;
-    db.prepare(`
-      INSERT INTO invoices (
-        invoice_number, restaurant_id, plan_id, amount, currency, status,
-        billing_period, due_date, paid_at, payment_method, created_at
-      ) VALUES (?, ?, ?, ?, 'PHP', ?, ?, ?, ?, 'Provisioning Invoice', ?)
-    `).run(
-      `INV-2026-${1000 + restaurantId}`,
-      restaurantId,
-      selectedPlan.id,
-      invAmount,
-      status === 'trialing' ? 'pending' : 'paid',
-      `Initial Onboarding (${billing_cycle})`,
-      nextPeriod,
-      status === 'trialing' ? null : now,
-      now
-    );
+      return { restaurantId: newRestaurantId, ownerId: resolvedOwnerId, selectedPlan: plan };
+    });
 
     logAudit(
-      req.body?.admin_name || 'Alexandre Vance',
+      req.body?.admin_name || 'Super Admin',
       'superadmin',
       'PROVISION_TENANT',
       'restaurant',
@@ -283,14 +288,16 @@ router.post('/', (req, res) => {
       `Provisioned restaurant '${name}' (${cleanSlug}) on plan '${selectedPlan.name}' with owner ${owner_email}`
     );
 
-    let tenantDbInfo = { db_name: `tenant_${cleanSlug}.db`, db_path: `data/tenants/tenant_${cleanSlug}.db` };
+    let tenantDbInfo = { db_name: `tenant_${cleanSlug}.db`, db_path: `data/tenants/tenant_${cleanSlug}.db`, upload_dir: `uploads/tenants/${cleanSlug}`, upload_url: `/uploads/tenants/${cleanSlug}` };
     try {
       if (typeof getTenantDb === 'function') {
         const tCtx = getTenantDb(db, restaurantId);
         if (tCtx) {
           tenantDbInfo = {
             db_name: tCtx.dbName,
-            db_path: tCtx.dbPath
+            db_path: tCtx.dbPath,
+            upload_dir: tCtx.uploadDir,
+            upload_url: tCtx.uploadUrl
           };
         }
       }
@@ -300,7 +307,7 @@ router.post('/', (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: `Restaurant tenant provisioned with isolated database: ${tenantDbInfo.db_name}!`,
+      message: `Restaurant tenant provisioned with isolated database: ${tenantDbInfo.db_name} and media folder: ${tenantDbInfo.upload_dir}!`,
       data: {
         id: restaurantId,
         name,
@@ -308,6 +315,8 @@ router.post('/', (req, res) => {
         subdomain: cleanSubdomain,
         db_name: tenantDbInfo.db_name,
         db_path: tenantDbInfo.db_path,
+        upload_dir: tenantDbInfo.upload_dir,
+        upload_url: tenantDbInfo.upload_url,
         storefront_url: `http://${cleanSubdomain}.localhost:5173`,
         path_url: `http://localhost:5173/store/${cleanSlug}`
       }
@@ -440,10 +449,15 @@ router.delete('/:id', (req, res) => {
     const tenant = db.prepare('SELECT name FROM restaurants WHERE id = ?').get(tenantId);
     if (!tenant) return res.status(404).json({ success: false, error: 'Restaurant not found' });
 
-    db.prepare('DELETE FROM restaurants WHERE id = ?').run(tenantId);
+    withTransaction(db, () => {
+      db.prepare('DELETE FROM restaurant_users WHERE restaurant_id = ?').run(tenantId);
+      db.prepare('DELETE FROM subscriptions WHERE restaurant_id = ?').run(tenantId);
+      db.prepare('DELETE FROM invoices WHERE restaurant_id = ?').run(tenantId);
+      db.prepare('DELETE FROM restaurants WHERE id = ?').run(tenantId);
+    });
 
     logAudit(
-      req.body?.admin_name || 'Alexandre Vance',
+      req.body?.admin_name || 'Super Admin',
       'superadmin',
       'DELETE_TENANT',
       'restaurant',

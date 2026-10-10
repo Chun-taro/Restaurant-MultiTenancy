@@ -20,8 +20,8 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
   }));
 
   const colorMap = {
-    starter: '#0EA5E9',
-    growth: '#FF5A1F',
+    starter: '#0D9488',
+    growth: '#E05A2B',
     pro: '#10B981',
     enterprise: '#F59E0B'
   };
@@ -31,7 +31,7 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
       {/* Top KPI Stat Cards */}
       <div className="kpi-grid">
         {/* KPI 1 */}
-        <div className="kpi-card" style={{ '--card-accent': '#FF5A1F', '--kpi-icon-bg': 'rgba(255, 90, 31, 0.12)', '--kpi-icon-color': '#FF8552' }}>
+        <div className="kpi-card" style={{ '--card-accent': '#E05A2B', '--kpi-icon-bg': 'rgba(224, 90, 43, 0.12)', '--kpi-icon-color': '#F08358' }}>
           <div className="kpi-top">
             <span className="kpi-label">Monthly Recurring Revenue</span>
             <div className="kpi-icon"><i className="ri-money-dollar-circle-line"></i></div>
@@ -79,44 +79,44 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
           </div>
           <div className="kpi-value">{kpi.totalUsers}</div>
           <div className="kpi-footer">
-            <span className="kpi-trend trend-up"><i className="ri-shield-user-line"></i> 2 Superadmins</span>
-            <span className="trend-subtext">· {kpi.totalTenants} Owners</span>
+            <span className="kpi-trend trend-up"><i className="ri-shield-user-line"></i> {kpi.superAdminCount != null ? kpi.superAdminCount : 1} Superadmins</span>
+            <span className="trend-subtext">· {kpi.ownerCount != null ? kpi.ownerCount : kpi.totalTenants} Owners</span>
           </div>
         </div>
       </div>
 
       {/* Enterprise Architecture Banner */}
       <div style={{
-        background: 'linear-gradient(90deg, rgba(255, 90, 31, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%)',
-        border: '1px solid rgba(255, 90, 31, 0.25)',
+        background: '#141924',
+        border: '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-lg)',
-        padding: '18px 24px',
-        marginBottom: '28px',
+        padding: '16px 20px',
+        marginBottom: '24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '14px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: '50%',
+            width: '38px',
+            height: '38px',
+            borderRadius: 'var(--radius-md)',
             background: 'var(--primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#fff',
-            fontSize: '20px',
-            boxShadow: '0 4px 12px var(--primary-glow)'
+            fontSize: '18px',
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <i className="ri-database-2-fill"></i>
           </div>
           <div>
-            <h4 style={{ color: '#fff', fontSize: '15px', fontWeight: 700 }}>Multi-Tenant Enterprise Engine Active</h4>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '12.5px' }}>
-              Full Tenant Isolation · Automated Subdomain Routing · Instant Table QR & Ordering Rails Active
+            <h4 style={{ color: '#fff', fontSize: '14px', fontWeight: 700 }}>Multi-Tenant Architecture Active</h4>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+              Subdomain Routing · Table QR Engine · POS & Kitchen Integrations
             </p>
           </div>
         </div>

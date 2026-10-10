@@ -5,7 +5,7 @@ const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Alexandre',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Superadmin',
   'https://api.dicebear.com/7.x/avataaars/svg?seed=Executive',
   'https://api.dicebear.com/7.x/avataaars/svg?seed=MasterAdmin'
 ];
@@ -147,7 +147,7 @@ export default function ProfileModal({ isOpen, onClose, user, onUpdateProfile })
                   type="text"
                   className="form-control"
                   required
-                  placeholder="e.g. Alexandre Vance"
+                  placeholder="e.g. Maria Santos"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />

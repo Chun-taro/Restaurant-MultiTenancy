@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
 
 const SUGAR_LEVELS = ['0%', '25%', '50%', '75%', '100%'];
@@ -22,26 +22,138 @@ export default function CustomerStorefrontView({
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Available Add-ons from Tenant Database or Fallback Defaults
+  const availableAddons = useMemo(() => {
+    if (data?.addons && Array.isArray(data.addons) && data.addons.length > 0) {
+      return data.addons;
+    }
+    return ADDON_OPTIONS;
+  }, [data?.addons]);
+
   // Dynamic Storefront Theme Tokens based on restaurant customized branding
-  const primaryBrand = data?.restaurant?.primary_color || '#2A9D9A';
-  const secondaryBrand = data?.restaurant?.secondary_color || '#1E293B';
+  const themeConfig = useMemo(() => {
+    let conf = {};
+    if (data?.restaurant?.theme_config) {
+      try {
+        conf = typeof data.restaurant.theme_config === 'string'
+          ? JSON.parse(data.restaurant.theme_config)
+          : data.restaurant.theme_config;
+      } catch (e) {
+        console.warn('Failed to parse storefront theme_config', e);
+      }
+    }
+    return {
+      preset: conf.preset || 'emerald_clean',
+      primary_color: conf.primary_color || data?.restaurant?.primary_color || '#2A9D9A',
+      secondary_color: conf.secondary_color || data?.restaurant?.secondary_color || '#1E293B',
+      accent_color: conf.accent_color || '#F59E0B',
+      bg_style: conf.bg_style || 'slate_clean',
+      font_family: conf.font_family || 'Plus Jakarta Sans',
+      border_radius: conf.border_radius || 'smooth',
+      hero_style: conf.hero_style || 'cinematic',
+      card_density: conf.card_density || 'grid_spacious'
+    };
+  }, [data?.restaurant]);
+
+  const primaryBrand = themeConfig.primary_color;
+  const secondaryBrand = themeConfig.secondary_color;
+  const accentBrand = themeConfig.accent_color;
+  const isDarkMode = themeConfig.bg_style === 'midnight_dark';
+
+  // Compute background & contrast palette
+  const themePalette = useMemo(() => {
+    switch (themeConfig.bg_style) {
+      case 'midnight_dark':
+        return {
+          bg: '#0F172A',
+          card: '#1E293B',
+          cardSoft: '#334155',
+          text: '#F8FAFC',
+          mutedText: '#94A3B8',
+          border: '#334155',
+          navBg: 'rgba(15, 23, 42, 0.94)'
+        };
+      case 'warm_cream':
+        return {
+          bg: '#FAF7F2',
+          card: '#FFFFFF',
+          cardSoft: '#F4EFE6',
+          text: '#292524',
+          mutedText: '#78716C',
+          border: '#E7E5E4',
+          navBg: 'rgba(250, 247, 242, 0.94)'
+        };
+      case 'matcha_soft':
+        return {
+          bg: '#F0FDF4',
+          card: '#FFFFFF',
+          cardSoft: '#DCFCE7',
+          text: '#064E3B',
+          mutedText: '#047857',
+          border: '#DCFCE7',
+          navBg: 'rgba(240, 253, 244, 0.94)'
+        };
+      case 'rose_blush':
+        return {
+          bg: '#FFF1F2',
+          card: '#FFFFFF',
+          cardSoft: '#FFE4E6',
+          text: '#4C0519',
+          mutedText: '#9F1239',
+          border: '#FFE4E6',
+          navBg: 'rgba(255, 241, 242, 0.94)'
+        };
+      case 'pure_white':
+        return {
+          bg: '#FFFFFF',
+          card: '#FAFAFA',
+          cardSoft: '#F4F4F5',
+          text: '#09090B',
+          mutedText: '#71717A',
+          border: '#E4E4E7',
+          navBg: 'rgba(255, 255, 255, 0.96)'
+        };
+      case 'slate_clean':
+      default:
+        return {
+          bg: '#F8FAFC',
+          card: '#FFFFFF',
+          cardSoft: '#F1F5F9',
+          text: '#1E293B',
+          mutedText: '#64748B',
+          border: '#E2E8F0',
+          navBg: 'rgba(255, 255, 255, 0.94)'
+        };
+    }
+  }, [themeConfig.bg_style]);
+
+  // Corner Shape Tokens
+  const radius = themeConfig.border_radius === 'sharp' ? '6px' : themeConfig.border_radius === 'rounded' ? '24px' : '16px';
+  const pillRadius = themeConfig.border_radius === 'sharp' ? '6px' : themeConfig.border_radius === 'rounded' ? '28px' : '14px';
+  const fontFamilyStr = `'${themeConfig.font_family}', -apple-system, BlinkMacSystemFont, sans-serif`;
 
   const DINE_THEME = {
-    pink: '#F1F5F9',        // Clean slate-100 neutral (replaces pastel pink)
-    pinkLight: '#F1F5F9',   // Clean slate-100 neutral (replaces pastel pink)
-    pinkSoft: '#F8FAFC',    // Modern slate-50 page background (replaces pastel pink)
-    bgSoft: '#F8FAFC',
-    bgMuted: '#F1F5F9',
+    pink: themePalette.cardSoft,
+    pinkLight: themePalette.cardSoft,
+    pinkSoft: themePalette.bg,
+    bgSoft: themePalette.bg,
+    bgMuted: themePalette.cardSoft,
+    cardBg: themePalette.card,
     teal: primaryBrand,
     tealDark: primaryBrand,
     tealLight: `${primaryBrand}18`,
     tealGlow: `${primaryBrand}33`,
-    dark: secondaryBrand,
-    slate: '#64748B',
-    border: '#E2E8F0',
-    borderDark: '#CBD5E1',
-    white: '#FFFFFF',
-    gold: '#F59E0B'
+    dark: isDarkMode ? themePalette.text : secondaryBrand,
+    slate: themePalette.mutedText,
+    border: themePalette.border,
+    borderDark: themePalette.border,
+    white: themePalette.card,
+    gold: accentBrand,
+    radius,
+    pillRadius,
+    fontFamily: fontFamilyStr,
+    navBg: themePalette.navBg,
+    isDark: isDarkMode
   };
 
   const [activeCategory, setActiveCategory] = useState('All');
@@ -51,6 +163,8 @@ export default function CustomerStorefrontView({
   const [diningMode, setDiningMode] = useState('dine_in'); // 'dine_in' | 'takeaway'
   const [selectedTable, setSelectedTable] = useState(initialTable || 'Table 1');
   const [selectedArrival, setSelectedArrival] = useState('ASAP');
+  const [includeUtensils, setIncludeUtensils] = useState(true);
+  const [takeoutNotes, setTakeoutNotes] = useState('');
 
   // Product Customizer Modal
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -92,6 +206,27 @@ export default function CustomerStorefrontView({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
 
+  // Customer Account Dropdown Menu State
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const customerDropdownRef = useRef(null);
+
+  // Close customer dropdown on outside clicks
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target)) {
+        setIsCustomerDropdownOpen(false);
+      }
+    };
+    if (isCustomerDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isCustomerDropdownOpen]);
+
   // Sync customer details to checkout when customerUser updates
   useEffect(() => {
     if (customerUser) {
@@ -130,12 +265,12 @@ export default function CustomerStorefrontView({
       localStorage.setItem(`dine_customer_${slug}`, JSON.stringify(cust));
       if (cust.name) setCustomerName(cust.name);
       if (cust.phone) setCustomerPhone(cust.phone);
-      showToast?.(`Account created! Welcome to ${restaurant?.name || 'our restaurant'}, ${cust.name}! 🎉`, 'success');
+      showToast?.(`Account created! Welcome to ${restaurant?.name || 'our restaurant'}, ${cust.name}!`, 'success');
       setIsAuthModalOpen(false);
       setRegName('');
       setRegPhone('');
       setRegEmail('');
-      setRegPassword('password123');
+      setRegPassword('');
     } catch (err) {
       setAuthError(err.message || 'Account registration failed');
     } finally {
@@ -188,15 +323,37 @@ export default function CustomerStorefrontView({
 
   const handleCustomerLogout = () => {
     localStorage.removeItem(`dine_customer_${slug}`);
+    localStorage.removeItem(`dine_order_history_${slug}`);
+    localStorage.removeItem(`dine_active_order_${slug}`);
     setCustomerUser(null);
+    setOrderHistory([]);
+    setActiveOrder(null);
     showToast?.('Signed out', 'info');
   };
 
   // Active Live Order Tracking
-  const [activeOrder, setActiveOrder] = useState(null);
-  const [orderHistory, setOrderHistory] = useState([]);
+  const [activeOrder, setActiveOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`dine_active_order_${slug}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [orderHistory, setOrderHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`dine_order_history_${slug}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [suspendedData, setSuspendedData] = useState(null);
+
+  // Completed Order Celebration & Next Order Confirmation Modal
+  const [isOrderCompletedModalOpen, setIsOrderCompletedModalOpen] = useState(false);
+  const [completedOrderConfirmedId, setCompletedOrderConfirmedId] = useState(null);
 
   // Load Storefront Data from Tenant's Isolated DB
   const loadStorefront = async () => {
@@ -228,6 +385,23 @@ export default function CustomerStorefrontView({
     loadStorefront();
   }, [slug]);
 
+  // Load customer order history on mount or when customer profile changes
+  useEffect(() => {
+    const fetchCustomerHistory = async () => {
+      const phone = customerUser?.phone || customerPhone;
+      const name = customerUser?.name || customerName;
+      if (!phone && !name) return;
+      try {
+        const res = await api.storefront.customerOrders(slug, { phone, name });
+        if (res.data && Array.isArray(res.data)) {
+          setOrderHistory(res.data);
+          localStorage.setItem(`dine_order_history_${slug}`, JSON.stringify(res.data));
+        }
+      } catch (e) {}
+    };
+    fetchCustomerHistory();
+  }, [slug, customerUser?.phone, customerUser?.name]);
+
   // Real-time Order Tracking Polling
   useEffect(() => {
     if (!activeOrder?.order_number) return;
@@ -243,6 +417,37 @@ export default function CustomerStorefrontView({
     }, 3500);
     return () => clearInterval(interval);
   }, [activeOrder?.order_number, slug]);
+
+  // Prompt completion popup immediately whenever active order finishes
+  useEffect(() => {
+    if (activeOrder && activeOrder.status === 'completed' && completedOrderConfirmedId !== activeOrder.order_number) {
+      setIsOrderCompletedModalOpen(true);
+    }
+  }, [activeOrder?.status, activeOrder?.order_number, completedOrderConfirmedId]);
+
+  // Customer confirms completed order to refresh table/session for next order
+  const handleConfirmCompletedOrder = () => {
+    if (!activeOrder) return;
+    const finalOrder = { ...activeOrder, status: 'completed' };
+    setCompletedOrderConfirmedId(finalOrder.order_number);
+    setIsOrderCompletedModalOpen(false);
+
+    // Ensure order is safely recorded in customer's order history
+    setOrderHistory(prev => {
+      const exists = prev.some(o => o.order_number === finalOrder.order_number);
+      const updated = exists
+        ? prev.map(o => o.order_number === finalOrder.order_number ? finalOrder : o)
+        : [finalOrder, ...prev];
+      localStorage.setItem(`dine_order_history_${slug}`, JSON.stringify(updated));
+      return updated;
+    });
+
+    // Clear active live order state & localStorage so diner can place a new order
+    setActiveOrder(null);
+    localStorage.removeItem(`dine_active_order_${slug}`);
+
+    showToast?.('Order completed & confirmed! Ready for your next order.', 'success');
+  };
 
   const restaurant = data?.restaurant;
   const categories = data?.categories || [];
@@ -278,8 +483,8 @@ export default function CustomerStorefrontView({
     let base = selectedProduct.price;
     if (modalSize === 'Large (16oz)') base += 30;
     const addonsTotal = modalAddons.reduce((sum, addId) => {
-      const opt = ADDON_OPTIONS.find(o => o.id === addId);
-      return sum + (opt ? opt.price : 0);
+      const opt = availableAddons.find(o => String(o.id) === String(addId));
+      return sum + (opt ? Number(opt.price || 0) : 0);
     }, 0);
     return (base + addonsTotal) * modalQty;
   };
@@ -304,10 +509,10 @@ export default function CustomerStorefrontView({
       id: selectedProduct.id,
       name: selectedProduct.name,
       basePrice: selectedProduct.price,
-      price: selectedProduct.price + (modalSize === 'Large (16oz)' ? 30 : 0) + modalAddons.reduce((s, id) => s + (ADDON_OPTIONS.find(o => o.id === id)?.price || 0), 0),
+      price: selectedProduct.price + (modalSize === 'Large (16oz)' ? 30 : 0) + modalAddons.reduce((s, id) => s + (availableAddons.find(o => String(o.id) === String(id))?.price || 0), 0),
       size: modalSize,
       sugar: isDrink ? modalSugar : null,
-      addons: modalAddons.map(id => ADDON_OPTIONS.find(o => o.id === id)?.name).filter(Boolean),
+      addons: modalAddons.map(id => availableAddons.find(o => String(o.id) === String(id))?.name).filter(Boolean),
       instructions: modalNotes.trim(),
       quantity: modalQty,
       img: selectedProduct.image_url,
@@ -357,10 +562,17 @@ export default function CustomerStorefrontView({
       const payload = {
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
+        customer_email: customerUser?.email || '',
+        customer_id: customerUser?.id || null,
         order_type: diningMode,
         table_number: diningMode === 'dine_in' ? selectedTable : 'Takeaway',
         payment_method: paymentMethod.toLowerCase().replace(/\s+/g, '_'),
-        notes: `Arrival: ${selectedArrival}. ${cart.map(it => it.instructions ? `[${it.name}: ${it.instructions}]` : '').filter(Boolean).join(' ')}`.trim(),
+        notes: [
+          diningMode === 'takeaway'
+            ? `[TAKEOUT • Pickup: ${selectedArrival} • Utensils: ${includeUtensils ? 'Yes' : 'No'}${takeoutNotes ? ` • Note: ${takeoutNotes}` : ''}]`
+            : `[DINE-IN • Table: ${selectedTable}]`,
+          cart.map(it => it.instructions ? `[${it.name}: ${it.instructions}]` : '').filter(Boolean).join(' ')
+        ].filter(Boolean).join(' ').trim(),
         items: cart.map(it => ({
           id: it.id,
           quantity: it.quantity,
@@ -381,14 +593,25 @@ export default function CustomerStorefrontView({
         ...createdOrder,
         arrivalTime: selectedArrival,
         tableNo: diningMode === 'dine_in' ? selectedTable : 'Takeaway',
+        order_type: diningMode,
         placedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
       setActiveOrder(enrichedOrder);
-      setOrderHistory(prev => [enrichedOrder, ...prev]);
+      localStorage.setItem(`dine_active_order_${slug}`, JSON.stringify(enrichedOrder));
+      setOrderHistory(prev => {
+        const updated = [enrichedOrder, ...prev.filter(o => o.order_number !== enrichedOrder.order_number)];
+        localStorage.setItem(`dine_order_history_${slug}`, JSON.stringify(updated));
+        return updated;
+      });
       setCart([]);
       setIsCartOpen(false);
-      showToast?.(`Order #${createdOrder.order_number} confirmed! Saved into ${createdOrder.database_file || 'tenant DB'}`, 'success');
+      showToast?.(
+        diningMode === 'takeaway'
+          ? `Takeout Order #${createdOrder.order_number} confirmed! We will prepare it for counter pickup.`
+          : `Dine-In Order #${createdOrder.order_number} confirmed! Sent to the kitchen for ${selectedTable}.`,
+        'success'
+      );
     } catch (err) {
       showToast?.(err.message || 'Failed to place order', 'error');
     } finally {
@@ -406,12 +629,18 @@ export default function CustomerStorefrontView({
     return 1; // 'pending' or 'received' or 'new'
   };
 
-  const TRACKING_STEPS = [
+  const TRACKING_STEPS = diningMode === 'takeaway' ? [
     { label: 'Order Received', icon: 'ri-file-list-3-line', desc: 'Sent to restaurant kitchen' },
-    { label: 'Confirmed', icon: 'ri-checkbox-circle-line', desc: 'Accepted by staff' },
-    { label: 'Preparing', icon: 'ri-fire-line', desc: 'Chefs crafting your meal' },
-    { label: 'Ready for Dine-In', icon: 'ri-notification-3-line', desc: 'Fresh at your table' },
-    { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your meal!' }
+    { label: 'Confirmed', icon: 'ri-checkbox-circle-line', desc: 'Accepted by kitchen staff' },
+    { label: 'Cooking & Packing', icon: 'ri-fire-line', desc: 'Chefs cooking & packing to-go' },
+    { label: 'Ready for Pickup', icon: 'ri-shopping-bag-3-line', desc: 'Hot & ready at front counter' },
+    { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your takeout meal!' }
+  ] : [
+    { label: 'Order Received', icon: 'ri-file-list-3-line', desc: 'Sent to restaurant kitchen' },
+    { label: 'Confirmed', icon: 'ri-checkbox-circle-line', desc: 'Accepted by table staff' },
+    { label: 'Cooking Fresh', icon: 'ri-fire-line', desc: 'Chefs crafting your meal' },
+    { label: 'Serving to Table', icon: 'ri-restaurant-2-line', desc: `Served fresh to ${activeOrder?.table_number || selectedTable}` },
+    { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your dine-in experience!' }
   ];
 
   if (suspendedData) {
@@ -560,27 +789,27 @@ export default function CustomerStorefrontView({
   const currentStep = getTrackingStepIndex(activeOrder?.status);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: DINE_THEME.pinkSoft, color: DINE_THEME.dark, fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div style={{ minHeight: '100vh', backgroundColor: DINE_THEME.pinkSoft, color: DINE_THEME.dark, fontFamily: DINE_THEME.fontFamily }}>
 
       {/* ─── TOP WEB APP BAR ────────────────────────────────────────────── */}
       <header style={{
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        backgroundColor: 'rgba(255, 255, 255, 0.94)',
+        backgroundColor: DINE_THEME.navBg,
         backdropFilter: 'blur(12px)',
         borderBottom: `1px solid ${DINE_THEME.border}`,
         boxShadow: '0 4px 20px rgba(38, 50, 56, 0.04)'
       }}>
-        <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+        <div className="storefront-header-inner">
 
           {/* Logo & Brand Identity */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div className="storefront-brand-section">
             <div style={{ position: 'relative' }}>
               <img
                 src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
                 alt={restaurant?.name || 'DINE'}
-                style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
+                style={{ width: '46px', height: '46px', borderRadius: DINE_THEME.radius, objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
               />
               <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid #FFF' }} />
             </div>
@@ -602,62 +831,131 @@ export default function CustomerStorefrontView({
             </div>
           </div>
 
-          {/* Dining Mode & Table Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ display: 'flex', backgroundColor: DINE_THEME.pinkLight, borderRadius: '12px', padding: '3px', border: `1px solid ${DINE_THEME.border}` }}>
+          {/* Dining Mode & Table / Pickup Selector */}
+          <div className="storefront-dining-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              display: 'flex',
+              backgroundColor: '#F1F5F9',
+              borderRadius: '14px',
+              padding: '3px',
+              border: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+              boxShadow: diningMode === 'dine_in' ? '0 2px 10px rgba(16, 185, 129, 0.15)' : '0 2px 10px rgba(234, 88, 12, 0.15)',
+              transition: 'all 0.25s ease'
+            }}>
               <button
                 type="button"
                 onClick={() => setDiningMode('dine_in')}
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: '9px',
+                  padding: '7px 16px',
+                  borderRadius: '11px',
                   fontSize: '12px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   border: 'none',
                   cursor: 'pointer',
-                  backgroundColor: diningMode === 'dine_in' ? DINE_THEME.teal : 'transparent',
-                  color: diningMode === 'dine_in' ? '#FFF' : DINE_THEME.dark,
+                  background: diningMode === 'dine_in' ? 'linear-gradient(135deg, #059669 0%, #10B981 100%)' : 'transparent',
+                  color: diningMode === 'dine_in' ? '#FFF' : '#475569',
+                  boxShadow: diningMode === 'dine_in' ? '0 3px 10px rgba(5, 150, 105, 0.35)' : 'none',
                   transition: 'all 0.2s ease',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}
               >
-                <i className="ri-restaurant-line" /> Dine-In
+                <i className="ri-restaurant-2-fill" style={{ fontSize: '14px' }} />
+                <span>Dine-In</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDiningMode('takeaway')}
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: '9px',
+                  padding: '7px 16px',
+                  borderRadius: '11px',
                   fontSize: '12px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   border: 'none',
                   cursor: 'pointer',
-                  backgroundColor: diningMode === 'takeaway' ? DINE_THEME.teal : 'transparent',
-                  color: diningMode === 'takeaway' ? '#FFF' : DINE_THEME.dark,
+                  background: diningMode === 'takeaway' ? 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)' : 'transparent',
+                  color: diningMode === 'takeaway' ? '#FFF' : '#475569',
+                  boxShadow: diningMode === 'takeaway' ? '0 3px 10px rgba(234, 88, 12, 0.35)' : 'none',
                   transition: 'all 0.2s ease',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}
               >
-                <i className="ri-takeaway-line" /> Takeout
+                <i className="ri-takeaway-fill" style={{ fontSize: '14px' }} />
+                <span>Takeout</span>
               </button>
             </div>
 
-            {diningMode === 'dine_in' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFF', padding: '5px 12px', borderRadius: '10px', border: `1px solid ${DINE_THEME.border}`, fontSize: '13px', fontWeight: 600 }}>
-                <i className="ri-qr-code-line" style={{ color: DINE_THEME.teal }} />
+            {/* Sub-selector customized for the chosen mode */}
+            {diningMode === 'dine_in' ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#F0FDF4',
+                padding: '6px 12px',
+                borderRadius: '12px',
+                border: '1.5px solid #86EFAC',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#065F46',
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.1)'
+              }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+                <i className="ri-qr-code-line" style={{ color: '#059669', fontSize: '14px' }} />
                 <span>Table:</span>
                 <select
                   value={selectedTable}
                   onChange={e => setSelectedTable(e.target.value)}
-                  style={{ border: 'none', outline: 'none', fontWeight: 700, color: DINE_THEME.tealDark, backgroundColor: 'transparent', cursor: 'pointer' }}
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    fontWeight: 800,
+                    color: '#065F46',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
                 >
                   {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'Table 5' }, { table_number: 'Table 6' }, { table_number: 'VIP Table' }]).map(t => (
                     <option key={t.table_number} value={t.table_number}>{t.table_number}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#FFF7ED',
+                padding: '6px 12px',
+                borderRadius: '12px',
+                border: '1.5px solid #FDBA74',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#9A3412',
+                boxShadow: '0 2px 6px rgba(234, 88, 12, 0.1)'
+              }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EA580C', display: 'inline-block' }} />
+                <i className="ri-time-line" style={{ color: '#EA580C', fontSize: '14px' }} />
+                <span>Pickup:</span>
+                <select
+                  value={selectedArrival}
+                  onChange={e => setSelectedArrival(e.target.value)}
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    fontWeight: 800,
+                    color: '#9A3412',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  {ARRIVAL_TIMES.map(t => (
+                    <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
               </div>
@@ -665,7 +963,7 @@ export default function CustomerStorefrontView({
           </div>
 
           {/* Quick Actions (Admin switcher, Order Tracking Pill, Cart Trigger) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="storefront-actions-section">
             {activeOrder && (
               <button
                 type="button"
@@ -689,54 +987,257 @@ export default function CustomerStorefrontView({
               </button>
             )}
 
-            {/* Customer / Account Button & Visible Log Out Button */}
+            {/* Customer / Account Dropdown Menu */}
             {customerUser ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="customer-user-dropdown-container" ref={customerDropdownRef} style={{ position: 'relative' }}>
                 <button
                   type="button"
-                  onClick={() => setIsAuthModalOpen(true)}
+                  onClick={() => setIsCustomerDropdownOpen(prev => !prev)}
+                  className="customer-account-btn"
+                  aria-expanded={isCustomerDropdownOpen}
                   style={{
-                    backgroundColor: DINE_THEME.pinkLight,
+                    backgroundColor: isCustomerDropdownOpen ? DINE_THEME.tealLight : DINE_THEME.pinkLight,
                     color: DINE_THEME.dark,
-                    border: `1px solid ${DINE_THEME.border}`,
-                    padding: '7px 14px',
-                    borderRadius: '12px',
+                    border: `1.5px solid ${isCustomerDropdownOpen ? DINE_THEME.teal : DINE_THEME.border}`,
+                    padding: '5px 12px 5px 6px',
+                    borderRadius: '24px',
                     fontSize: '12px',
                     fontWeight: 700,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: isCustomerDropdownOpen ? `0 0 0 3px ${DINE_THEME.tealLight}` : 'none'
                   }}
-                  title="View your customer profile and orders"
+                  title="Customer Account Menu"
                 >
-                  <i className="ri-user-smile-line" style={{ color: DINE_THEME.teal, fontSize: '16px' }} />
-                  <span>{customerUser.name}</span>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <img
+                      src={customerUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(customerUser.name || 'Customer')}`}
+                      alt=""
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        backgroundColor: '#FFF',
+                        border: `1.5px solid ${DINE_THEME.teal}`,
+                        objectFit: 'cover'
+                      }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: -1,
+                        right: -1,
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#10B981',
+                        border: '1.5px solid #FFF'
+                      }}
+                      title="Logged In"
+                    />
+                  </div>
+                  <span className="customer-name-display" style={{ maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {customerUser.name}
+                  </span>
+                  <i
+                    className="ri-arrow-down-s-line"
+                    style={{
+                      fontSize: '15px',
+                      color: DINE_THEME.slate,
+                      transition: 'transform 0.2s ease',
+                      transform: isCustomerDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  />
                 </button>
-                <button
-                  type="button"
-                  onClick={handleCustomerLogout}
-                  style={{
-                    backgroundColor: '#FEF2F2',
-                    color: '#DC2626',
-                    border: '1px solid #FECACA',
-                    padding: '7px 12px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.1)',
-                    transition: 'all 0.2s ease'
-                  }}
-                  title="Sign out of your customer account"
-                >
-                  <i className="ri-logout-box-r-line" style={{ fontSize: '14px' }} />
-                  <span>Log Out</span>
-                </button>
+
+                {isCustomerDropdownOpen && (
+                  <div
+                    className="customer-dropdown-menu"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: '270px',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '16px',
+                      boxShadow: '0 14px 40px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.06)',
+                      border: `1px solid ${DINE_THEME.border}`,
+                      padding: '8px',
+                      zIndex: 1100,
+                      animation: 'fadeInSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}
+                  >
+                    {/* Profile Header */}
+                    <div
+                      style={{
+                        padding: '12px',
+                        borderRadius: '12px',
+                        backgroundColor: DINE_THEME.pinkLight,
+                        marginBottom: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img
+                          src={customerUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(customerUser.name || 'Customer')}`}
+                          alt=""
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            backgroundColor: '#FFF',
+                            border: `2px solid ${DINE_THEME.teal}`,
+                            objectFit: 'cover'
+                          }}
+                        />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: DINE_THEME.dark, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {customerUser.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: DINE_THEME.slate, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '1px' }}>
+                            {customerUser.email || customerUser.phone || 'Customer Account'}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16A34A' }} />
+                          Active Session
+                        </span>
+                        <span style={{ fontSize: '11px', color: DINE_THEME.slate, fontWeight: 600 }}>
+                          {diningMode === 'dine_in' ? selectedTable : 'Takeout'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dropdown Options */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <button
+                        type="button"
+                        className="customer-dropdown-item"
+                        onClick={() => {
+                          setIsCustomerDropdownOpen(false);
+                          setIsHistoryOpen(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: DINE_THEME.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <i className="ri-history-line" style={{ color: DINE_THEME.teal, fontSize: '16px' }} />
+                        <span>My Orders & History</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="customer-dropdown-item"
+                        onClick={() => {
+                          setIsCustomerDropdownOpen(false);
+                          setIsAuthModalOpen(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: DINE_THEME.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <i className="ri-user-settings-line" style={{ color: DINE_THEME.teal, fontSize: '16px' }} />
+                        <span>Profile & Switch Account</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="customer-dropdown-item"
+                        onClick={() => {
+                          setIsCustomerDropdownOpen(false);
+                          setIsCartOpen(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: DINE_THEME.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <i className="ri-shopping-bag-3-line" style={{ color: DINE_THEME.teal, fontSize: '16px' }} />
+                          <span>View Current Cart</span>
+                        </div>
+                        {cart.length > 0 && (
+                          <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', backgroundColor: DINE_THEME.teal, color: '#FFF' }}>
+                            {cart.reduce((s, i) => s + (i.qty || 1), 0)}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+
+                    <div style={{ height: '1px', backgroundColor: DINE_THEME.border, margin: '6px 4px' }} />
+
+                    {/* Logout Button */}
+                    <button
+                      type="button"
+                      className="customer-dropdown-item customer-logout-btn"
+                      onClick={() => {
+                        setIsCustomerDropdownOpen(false);
+                        handleCustomerLogout();
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: '#FEF2F2',
+                        color: '#DC2626',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <i className="ri-logout-box-r-line" style={{ fontSize: '16px', color: '#DC2626' }} />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -804,51 +1305,66 @@ export default function CustomerStorefrontView({
       {/* ─── HERO & ARRIVAL TIME ANNOUNCEMENT ────────────────────────────── */}
       <div style={{
         position: 'relative',
-        background: restaurant?.banner_url
-          ? `linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.75)), url(${restaurant.banner_url}) center/cover no-repeat`
-          : `linear-gradient(135deg, ${DINE_THEME.pink} 0%, #FFFFFF 100%)`,
+        background: themeConfig.hero_style === 'minimal'
+          ? DINE_THEME.white
+          : (restaurant?.banner_url
+              ? `linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.75)), url(${restaurant.banner_url}) center/cover no-repeat`
+              : `linear-gradient(135deg, ${DINE_THEME.pink} 0%, ${DINE_THEME.white} 100%)`),
         borderBottom: `1px solid ${DINE_THEME.border}`,
-        padding: restaurant?.banner_url ? '40px 20px 32px' : '24px 20px 20px',
-        color: restaurant?.banner_url ? '#FFFFFF' : DINE_THEME.dark,
+        padding: themeConfig.hero_style === 'minimal'
+          ? '24px 20px 20px'
+          : (themeConfig.hero_style === 'glass' ? '36px 20px' : (restaurant?.banner_url ? '44px 20px 36px' : '28px 20px 24px')),
+        color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FFFFFF' : DINE_THEME.dark,
         transition: 'all 0.3s ease'
       }}>
-        <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
+        <div style={{
+          maxWidth: '1240px',
+          margin: '0 auto',
+          ...(themeConfig.hero_style === 'glass' && restaurant?.banner_url ? {
+            backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.72)' : 'rgba(255, 255, 255, 0.82)',
+            backdropFilter: 'blur(16px)',
+            borderRadius: DINE_THEME.radius,
+            padding: '24px 28px',
+            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.6)'}`,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          } : {})
+        }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
             <div>
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                backgroundColor: restaurant?.banner_url ? 'rgba(255,255,255,0.2)' : '#FFF',
-                backdropFilter: restaurant?.banner_url ? 'blur(8px)' : 'none',
+                backgroundColor: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? 'rgba(255,255,255,0.2)' : DINE_THEME.white,
+                backdropFilter: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? 'blur(8px)' : 'none',
                 padding: '4px 12px',
-                borderRadius: '20px',
-                border: restaurant?.banner_url ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${DINE_THEME.border}`,
+                borderRadius: DINE_THEME.pillRadius,
+                border: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${DINE_THEME.border}`,
                 fontSize: '11px',
                 fontWeight: 800,
-                color: restaurant?.banner_url ? '#FFF' : (restaurant?.primary_color || DINE_THEME.tealDark),
+                color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FFF' : DINE_THEME.teal,
                 marginBottom: '8px'
               }}>
-                <i className="ri-sparkling-fill" style={{ color: restaurant?.banner_url ? '#FCD34D' : (restaurant?.primary_color || DINE_THEME.teal) }} />
+                <i className="ri-store-2-line" style={{ color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FCD34D' : DINE_THEME.teal }} />
                 <span>{restaurant?.cuisine_type ? `${restaurant.cuisine_type.toUpperCase()} • DIGITAL STOREFRONT` : 'AUTHENTIC RESTAURANT STOREFRONT'}</span>
               </div>
               <h2 style={{
                 margin: '0 0 6px 0',
                 fontSize: '28px',
                 fontWeight: 800,
-                color: restaurant?.banner_url ? '#FFFFFF' : DINE_THEME.dark,
+                color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FFFFFF' : DINE_THEME.dark,
                 letterSpacing: '-0.5px',
-                textShadow: restaurant?.banner_url ? '0 2px 10px rgba(0,0,0,0.5)' : 'none'
+                textShadow: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '0 2px 10px rgba(0,0,0,0.5)' : 'none'
               }}>
                 {restaurant?.name ? `Welcome to ${restaurant.name}` : 'Crave It? Tap, Customize & Dine.'}
               </h2>
               <p style={{
                 margin: 0,
                 fontSize: '14px',
-                color: restaurant?.banner_url ? 'rgba(255,255,255,0.9)' : DINE_THEME.slate,
+                color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? 'rgba(255,255,255,0.9)' : DINE_THEME.slate,
                 maxWidth: '580px',
                 lineHeight: 1.5,
-                textShadow: restaurant?.banner_url ? '0 1px 4px rgba(0,0,0,0.4)' : 'none'
+                textShadow: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '0 1px 4px rgba(0,0,0,0.4)' : 'none'
               }}>
                 {restaurant?.cuisine_type
                   ? `Freshly prepared ${restaurant.cuisine_type.toLowerCase()} specialties made to order. Direct kitchen dispatch.`
@@ -856,18 +1372,31 @@ export default function CustomerStorefrontView({
               </p>
             </div>
 
-            {/* Arrival Time Selector Pills */}
+            {/* Mode-Tailored Arrival & Service Indicator */}
             <div style={{
-              backgroundColor: '#FFF',
-              padding: '12px 16px',
+              backgroundColor: diningMode === 'dine_in' ? '#F0FDF4' : '#FFF7ED',
+              padding: '14px 18px',
               borderRadius: '16px',
-              border: `1px solid ${DINE_THEME.border}`,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-              color: DINE_THEME.dark
+              border: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+              boxShadow: diningMode === 'dine_in' ? '0 4px 16px rgba(16, 185, 129, 0.1)' : '0 4px 16px rgba(234, 88, 12, 0.1)',
+              color: DINE_THEME.dark,
+              minWidth: '280px'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: DINE_THEME.dark, marginBottom: '8px' }}>
-                <i className="ri-time-line" style={{ color: restaurant?.primary_color || DINE_THEME.teal }} />
-                <span>Estimated Arrival / Dine-In Time:</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: diningMode === 'dine_in' ? '#065F46' : '#9A3412' }}>
+                  <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-time-fill'} style={{ color: diningMode === 'dine_in' ? '#059669' : '#EA580C', fontSize: '15px' }} />
+                  <span>{diningMode === 'dine_in' ? 'Dine-In Arrival & Seating:' : 'Takeout Pickup Window:'}</span>
+                </div>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  backgroundColor: diningMode === 'dine_in' ? '#DCFCE7' : '#FFEDD5',
+                  color: diningMode === 'dine_in' ? '#15803D' : '#C2410C'
+                }}>
+                  {diningMode === 'dine_in' ? `Table ${selectedTable}` : 'Counter Pickup'}
+                </span>
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {ARRIVAL_TIMES.map(t => {
@@ -882,11 +1411,16 @@ export default function CustomerStorefrontView({
                         borderRadius: '8px',
                         fontSize: '12px',
                         fontWeight: 700,
-                        border: isSelected ? `1px solid ${restaurant?.primary_color || DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
-                        backgroundColor: isSelected ? (restaurant?.primary_color ? `${restaurant.primary_color}18` : DINE_THEME.tealLight) : '#FFF',
-                        color: isSelected ? (restaurant?.primary_color || DINE_THEME.tealDark) : DINE_THEME.slate,
+                        border: isSelected
+                          ? `1.5px solid ${diningMode === 'dine_in' ? '#059669' : '#EA580C'}`
+                          : '1px solid #CBD5E1',
+                        backgroundColor: isSelected
+                          ? (diningMode === 'dine_in' ? '#059669' : '#EA580C')
+                          : '#FFF',
+                        color: isSelected ? '#FFF' : '#475569',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease'
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.1)' : 'none'
                       }}
                     >
                       {t}
@@ -897,6 +1431,166 @@ export default function CustomerStorefrontView({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ─── DEDICATED DINING EXPERIENCE BANNER (Dine-In vs Takeout Identity) ─── */}
+      <div style={{
+        maxWidth: '1240px',
+        margin: '18px auto 0',
+        padding: '0 20px'
+      }}>
+        {diningMode === 'dine_in' ? (
+          <div style={{
+            background: 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 55%, #ECFDF5 100%)',
+            border: '1.5px solid #86EFAC',
+            borderRadius: '18px',
+            padding: '16px 22px',
+            boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '300px' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                color: '#FFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '22px',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                flexShrink: 0
+              }}>
+                <i className="ri-restaurant-2-fill" />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#065F46' }}>
+                    Table Service Experience
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0' }}>
+                    Assigned: {selectedTable}
+                  </span>
+                </div>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#047857' }}>
+                  Take a seat! Dishes are freshly cooked and delivered directly to your table with dining tableware.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Table Switcher Chips */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#065F46', marginRight: '4px' }}>
+                Quick Switch Table:
+              </span>
+              {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'VIP Table' }]).slice(0, 6).map(t => (
+                <button
+                  key={t.table_number}
+                  type="button"
+                  onClick={() => setSelectedTable(t.table_number)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: selectedTable === t.table_number ? '2px solid #059669' : '1px solid #CBD5E1',
+                    backgroundColor: selectedTable === t.table_number ? '#059669' : '#FFF',
+                    color: selectedTable === t.table_number ? '#FFF' : '#334155',
+                    transition: 'all 0.15s ease',
+                    boxShadow: selectedTable === t.table_number ? '0 2px 6px rgba(5, 150, 105, 0.25)' : 'none'
+                  }}
+                >
+                  {t.table_number}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 55%, #FFEDD5 100%)',
+            border: '1.5px solid #FDBA74',
+            borderRadius: '18px',
+            padding: '16px 22px',
+            boxShadow: '0 4px 18px rgba(234, 88, 12, 0.08)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '300px' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)',
+                color: '#FFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '22px',
+                boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)',
+                flexShrink: 0
+              }}>
+                <i className="ri-takeaway-fill" />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#9A3412' }}>
+                    Takeout & To-Go Express
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', backgroundColor: '#FFEDD5', color: '#C2410C', border: '1px solid #FED7AA' }}>
+                    Ready in: {selectedArrival}
+                  </span>
+                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '10px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                    Front Counter #1
+                  </span>
+                </div>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#C2410C' }}>
+                  Fast pickup at counter. Sealed in tamper-evident thermal boxes with eco-friendly utensils.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Pickup Window Chips */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#9A3412', marginRight: '4px' }}>
+                Pickup Timing:
+              </span>
+              {ARRIVAL_TIMES.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setSelectedArrival(t)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: selectedArrival === t ? '2px solid #EA580C' : '1px solid #CBD5E1',
+                    backgroundColor: selectedArrival === t ? '#EA580C' : '#FFF',
+                    color: selectedArrival === t ? '#FFF' : '#334155',
+                    transition: 'all 0.15s ease',
+                    boxShadow: selectedArrival === t ? '0 2px 6px rgba(234, 88, 12, 0.25)' : 'none'
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── LIVE ORDER TRACKER BANNER (If Active Order) ───────────────── */}
@@ -1051,13 +1745,13 @@ export default function CustomerStorefrontView({
                 onClick={() => setActiveCategory(catName)}
                 style={{
                   padding: '8px 18px',
-                  borderRadius: '24px',
+                  borderRadius: DINE_THEME.pillRadius,
                   fontSize: '13px',
                   fontWeight: 700,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
                   border: isCatActive ? `1px solid ${DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
-                  backgroundColor: isCatActive ? DINE_THEME.teal : '#FFF',
+                  backgroundColor: isCatActive ? DINE_THEME.teal : DINE_THEME.white,
                   color: isCatActive ? '#FFF' : DINE_THEME.dark,
                   boxShadow: isCatActive ? `0 4px 12px ${DINE_THEME.tealGlow}` : 'none',
                   transition: 'all 0.15s ease'
@@ -1069,9 +1763,9 @@ export default function CustomerStorefrontView({
           })}
         </div>
 
-        {/* ─── RESPONSIVE MENU CARDS GRID ─────────────────────────────────── */}
+        {/* ─── RESPONSIVE MENU CARDS GRID / COMPACT LIST ─────────────────── */}
         {allItems.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '64px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${DINE_THEME.border}`, maxWidth: '600px', margin: '30px auto' }}>
+          <div style={{ textAlign: 'center', padding: '64px 20px', backgroundColor: DINE_THEME.white, borderRadius: DINE_THEME.radius, border: `1px solid ${DINE_THEME.border}`, maxWidth: '600px', margin: '30px auto' }}>
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: DINE_THEME.tealLight, color: DINE_THEME.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', margin: '0 auto 16px' }}>
               <i className="ri-restaurant-line" />
             </div>
@@ -1088,7 +1782,7 @@ export default function CustomerStorefrontView({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '10px 20px',
-                borderRadius: '10px',
+                borderRadius: DINE_THEME.pillRadius,
                 backgroundColor: DINE_THEME.teal,
                 color: '#FFF',
                 fontWeight: 700,
@@ -1101,12 +1795,113 @@ export default function CustomerStorefrontView({
             </a>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${DINE_THEME.border}` }}>
+          <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: DINE_THEME.white, borderRadius: DINE_THEME.radius, border: `1px solid ${DINE_THEME.border}` }}>
             <i className="ri-search-2-line" style={{ fontSize: '42px', color: DINE_THEME.slate, display: 'block', marginBottom: '10px' }} />
             <h4 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 700, color: DINE_THEME.dark }}>No dishes found</h4>
             <p style={{ margin: 0, color: DINE_THEME.slate, fontSize: '14px' }}>Try searching for a different item or switch category filters.</p>
           </div>
+        ) : themeConfig.card_density === 'compact_list' ? (
+          /* Compact Bistro List View */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {filteredItems.map(item => (
+              <div
+                key={item.id}
+                style={{
+                  backgroundColor: DINE_THEME.white,
+                  borderRadius: DINE_THEME.radius,
+                  border: `1px solid ${DINE_THEME.border}`,
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                  cursor: 'pointer'
+                }}
+                onClick={() => openProductModal(item)}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = `0 6px 18px ${DINE_THEME.tealLight}`;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.03)';
+                }}
+              >
+                <img
+                  src={item.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80'}
+                  alt={item.name}
+                  style={{ width: '84px', height: '84px', borderRadius: DINE_THEME.radius, objectFit: 'cover', flexShrink: 0 }}
+                  loading="lazy"
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: DINE_THEME.dark }}>
+                      {item.name}
+                    </h3>
+                    {item.badge && (
+                      <span style={{
+                        backgroundColor: item.badge === 'Bestseller' ? DINE_THEME.teal : DINE_THEME.gold,
+                        color: '#FFF',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: DINE_THEME.pillRadius
+                      }}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{
+                    margin: '0 0 6px 0',
+                    fontSize: '12px',
+                    color: DINE_THEME.slate,
+                    lineHeight: 1.4,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 1,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {item.description || 'Prepared fresh with high quality ingredients.'}
+                  </p>
+                  <span style={{ fontSize: '11px', color: DINE_THEME.slate, fontWeight: 600 }}>
+                    {item.categoryName}
+                  </span>
+                </div>
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  <span style={{ fontSize: '17px', fontWeight: 800, color: DINE_THEME.dark }}>
+                    ₱{item.price.toFixed(0)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openProductModal(item);
+                    }}
+                    style={{
+                      backgroundColor: DINE_THEME.teal,
+                      color: '#FFF',
+                      border: 'none',
+                      padding: '6px 14px',
+                      borderRadius: DINE_THEME.pillRadius,
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      boxShadow: `0 2px 8px ${DINE_THEME.tealLight}`
+                    }}
+                  >
+                    <i className="ri-add-line" style={{ fontWeight: 800 }} />
+                    <span>Add</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
+          /* Spacious Visual Grid View */
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))',
@@ -1116,8 +1911,8 @@ export default function CustomerStorefrontView({
               <div
                 key={item.id}
                 style={{
-                  backgroundColor: '#FFF',
-                  borderRadius: '16px',
+                  backgroundColor: DINE_THEME.white,
+                  borderRadius: DINE_THEME.radius,
                   border: `1px solid ${DINE_THEME.border}`,
                   overflow: 'hidden',
                   display: 'flex',
@@ -1149,17 +1944,38 @@ export default function CustomerStorefrontView({
                       position: 'absolute',
                       top: '10px',
                       left: '10px',
-                      backgroundColor: item.badge === 'Bestseller' ? DINE_THEME.teal : '#E11D48',
+                      backgroundColor: item.badge === 'Bestseller' ? DINE_THEME.teal : DINE_THEME.gold,
                       color: '#FFF',
                       fontSize: '11px',
                       fontWeight: 800,
                       padding: '3px 8px',
-                      borderRadius: '8px',
+                      borderRadius: DINE_THEME.pillRadius,
                       boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
                     }}>
                       {item.badge}
                     </span>
                   )}
+                  {/* Mode badge on card photo */}
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '10px',
+                    left: '10px',
+                    backgroundColor: diningMode === 'dine_in' ? 'rgba(5, 150, 105, 0.92)' : 'rgba(234, 88, 12, 0.92)',
+                    backdropFilter: 'blur(4px)',
+                    color: '#FFF',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: DINE_THEME.pillRadius,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                  }}>
+                    <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-takeaway-fill'} />
+                    <span>{diningMode === 'dine_in' ? 'Dine-In' : 'To-Go'}</span>
+                  </span>
+
                   <span style={{
                     position: 'absolute',
                     bottom: '10px',
@@ -1170,7 +1986,7 @@ export default function CustomerStorefrontView({
                     fontSize: '11px',
                     fontWeight: 700,
                     padding: '2px 8px',
-                    borderRadius: '6px'
+                    borderRadius: DINE_THEME.pillRadius
                   }}>
                     {item.categoryName}
                   </span>
@@ -1212,21 +2028,22 @@ export default function CustomerStorefrontView({
                         openProductModal(item);
                       }}
                       style={{
-                        backgroundColor: DINE_THEME.tealLight,
-                        color: DINE_THEME.tealDark,
-                        border: `1px solid ${DINE_THEME.teal}`,
+                        backgroundColor: diningMode === 'dine_in' ? '#F0FDF4' : '#FFF7ED',
+                        color: diningMode === 'dine_in' ? '#065F46' : '#9A3412',
+                        border: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
                         padding: '6px 14px',
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        fontWeight: 700,
+                        borderRadius: DINE_THEME.pillRadius,
+                        fontSize: '12px',
+                        fontWeight: 800,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px',
+                        gap: '5px',
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <i className="ri-add-line" style={{ fontWeight: 800 }} /> Customize
+                      <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-line' : 'ri-takeaway-line'} style={{ fontWeight: 800 }} />
+                      <span>{diningMode === 'dine_in' ? 'Order for Table' : 'Order To-Go'}</span>
                     </button>
                   </div>
                 </div>
@@ -1385,7 +2202,7 @@ export default function CustomerStorefrontView({
                   Customize & Add-ons
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {ADDON_OPTIONS.map(addon => {
+                  {availableAddons.map(addon => {
                     const isChecked = modalAddons.includes(addon.id);
                     return (
                       <label
@@ -1541,6 +2358,84 @@ export default function CustomerStorefrontView({
               </button>
             </div>
 
+            {/* Cart Mode Banner */}
+            <div style={{
+              padding: '12px 18px',
+              backgroundColor: diningMode === 'dine_in' ? '#F0FDF4' : '#FFF7ED',
+              borderBottom: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
+                  backgroundColor: diningMode === 'dine_in' ? '#059669' : '#EA580C',
+                  color: '#FFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  flexShrink: 0
+                }}>
+                  <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-takeaway-fill'} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: diningMode === 'dine_in' ? '#065F46' : '#9A3412' }}>
+                    {diningMode === 'dine_in' ? `Dine-In • Table Service` : `Takeout / To-Go Express`}
+                  </div>
+                  <div style={{ fontSize: '11px', color: diningMode === 'dine_in' ? '#047857' : '#C2410C' }}>
+                    {diningMode === 'dine_in'
+                      ? `Served fresh to ${selectedTable}`
+                      : `Pick up at counter • Est: ${selectedArrival}`}
+                  </div>
+                </div>
+              </div>
+
+              {diningMode === 'dine_in' ? (
+                <select
+                  value={selectedTable}
+                  onChange={e => setSelectedTable(e.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #86EFAC',
+                    backgroundColor: '#FFF',
+                    color: '#065F46',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'VIP Table' }]).map(t => (
+                    <option key={t.table_number} value={t.table_number}>{t.table_number}</option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={selectedArrival}
+                  onChange={e => setSelectedArrival(e.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #FDBA74',
+                    backgroundColor: '#FFF',
+                    color: '#9A3412',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {ARRIVAL_TIMES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             {/* Cart Body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
               {cart.length === 0 ? (
@@ -1620,10 +2515,48 @@ export default function CustomerStorefrontView({
                     </div>
                   ))}
 
+                  {/* Takeout Specific Options (Cutlery & Packaging Notes) */}
+                  {diningMode === 'takeaway' && (
+                    <div style={{
+                      backgroundColor: '#FFF7ED',
+                      border: '1.5px solid #FED7AA',
+                      borderRadius: '12px',
+                      padding: '12px 14px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#9A3412', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={includeUtensils}
+                            onChange={e => setIncludeUtensils(e.target.checked)}
+                            style={{ width: '16px', height: '16px', accentColor: '#EA580C', cursor: 'pointer' }}
+                          />
+                          <span>Include disposable cutlery, napkins & straws</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Special packaging notes (e.g. separate sauce, double bag)"
+                        value={takeoutNotes}
+                        onChange={e => setTakeoutNotes(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid #FDBA74',
+                          backgroundColor: '#FFF',
+                          fontSize: '11px',
+                          color: '#334155',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* Customer Information Form */}
                   <div style={{ marginTop: '14px', paddingTop: '16px', borderTop: `1px solid ${DINE_THEME.border}` }}>
                     <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 800, color: DINE_THEME.dark }}>
-                      Diner Details
+                      {diningMode === 'dine_in' ? 'Diner Table Information' : 'Pickup Customer Information'}
                     </h4>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1642,7 +2575,7 @@ export default function CustomerStorefrontView({
 
                       <div>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '4px' }}>
-                          Mobile Number (Optional, for SMS update)
+                          Mobile Number ({diningMode === 'takeaway' ? 'Required for pickup SMS alert' : 'Optional'})
                         </label>
                         <input
                           type="tel"
@@ -1664,7 +2597,12 @@ export default function CustomerStorefrontView({
                       {[
                         { id: 'GCash', label: 'GCash', icon: 'ri-wallet-3-line', color: '#007DFE' },
                         { id: 'Maya', label: 'Maya', icon: 'ri-bank-card-line', color: '#00C853' },
-                        { id: 'Cash on Dine', label: 'Cash', icon: 'ri-money-dollar-circle-line', color: '#F59E0B' }
+                        {
+                          id: 'Cash on Dine',
+                          label: diningMode === 'dine_in' ? 'Pay at Table' : 'Pay at Counter',
+                          icon: 'ri-money-dollar-circle-line',
+                          color: '#F59E0B'
+                        }
                       ].map(pay => (
                         <button
                           key={pay.id}
@@ -1707,12 +2645,12 @@ export default function CustomerStorefrontView({
                   <span>₱{cartSubtotal.toFixed(0)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: DINE_THEME.slate, marginBottom: '8px' }}>
-                  <span>VAT & Service (Included)</span>
+                  <span>VAT & Packaging ({diningMode === 'takeaway' ? 'Eco-Box Included' : 'Included'})</span>
                   <span>₱0.00</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 800, color: DINE_THEME.dark, marginBottom: '14px' }}>
                   <span>Total Amount</span>
-                  <span style={{ color: DINE_THEME.tealDark }}>₱{cartSubtotal.toFixed(0)}</span>
+                  <span style={{ color: diningMode === 'dine_in' ? '#059669' : '#EA580C' }}>₱{cartSubtotal.toFixed(0)}</span>
                 </div>
 
                 <button
@@ -1721,30 +2659,41 @@ export default function CustomerStorefrontView({
                   onClick={handleCheckout}
                   style={{
                     width: '100%',
-                    backgroundColor: isPlacingOrder ? DINE_THEME.slate : DINE_THEME.teal,
+                    background: isPlacingOrder
+                      ? DINE_THEME.slate
+                      : (diningMode === 'dine_in'
+                          ? 'linear-gradient(135deg, #059669 0%, #10B981 100%)'
+                          : 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)'),
                     color: '#FFF',
                     border: 'none',
                     padding: '14px',
                     borderRadius: '12px',
-                    fontSize: '15px',
+                    fontSize: '14px',
                     fontWeight: 800,
                     cursor: isPlacingOrder ? 'not-allowed' : 'pointer',
-                    boxShadow: `0 6px 18px ${DINE_THEME.tealGlow}`,
+                    boxShadow: diningMode === 'dine_in'
+                      ? '0 6px 18px rgba(16, 185, 129, 0.35)'
+                      : '0 6px 18px rgba(234, 88, 12, 0.35)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   {isPlacingOrder ? (
                     <>
                       <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }} />
-                      <span>Writing to {restaurant?.name || 'Tenant'} DB...</span>
+                      <span>Placing Your Order...</span>
                     </>
                   ) : (
                     <>
-                      <i className="ri-check-line" style={{ fontWeight: 800 }} />
-                      <span>Place Order • ₱{cartSubtotal.toFixed(0)}</span>
+                      <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-takeaway-fill'} style={{ fontSize: '16px' }} />
+                      <span>
+                        {diningMode === 'dine_in'
+                          ? `Place Dine-In Order (${selectedTable}) • ₱${cartSubtotal.toFixed(0)}`
+                          : `Place Takeout Order (${selectedArrival}) • ₱${cartSubtotal.toFixed(0)}`}
+                      </span>
                     </>
                   )}
                 </button>
@@ -1816,16 +2765,49 @@ export default function CustomerStorefrontView({
                 marginBottom: '16px'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 800, color: DINE_THEME.dark }}>
-                    Order #{activeOrder.order_number}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: DINE_THEME.dark }}>
+                      Order #{activeOrder.order_number}
+                    </span>
+                    {activeOrder.order_type === 'takeaway' ? (
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        backgroundColor: '#FFEDD5',
+                        color: '#C2410C',
+                        border: '1px solid #FED7AA',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}>
+                        <i className="ri-takeaway-fill" /> Takeout Express
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '10px',
+                        backgroundColor: '#DCFCE7',
+                        color: '#15803D',
+                        border: '1px solid #BBF7D0',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}>
+                        <i className="ri-restaurant-2-fill" /> Dine-In Table Service
+                      </span>
+                    )}
+                  </div>
                   <span style={{
                     fontSize: '12px',
                     fontWeight: 800,
                     textTransform: 'uppercase',
                     padding: '3px 8px',
                     borderRadius: '6px',
-                    backgroundColor: currentStep === 5 ? '#10B981' : DINE_THEME.teal,
+                    backgroundColor: currentStep === 5 ? '#10B981' : (activeOrder.order_type === 'takeaway' ? '#EA580C' : DINE_THEME.teal),
                     color: '#FFF'
                   }}>
                     {activeOrder.status}
@@ -1833,14 +2815,39 @@ export default function CustomerStorefrontView({
                 </div>
 
                 <div style={{ fontSize: '12px', color: DINE_THEME.slate, marginBottom: '12px' }}>
-                  Diner: <strong>{activeOrder.customer_name}</strong> • Table: <strong>{activeOrder.table_number || selectedTable}</strong> • Method: <strong>{activeOrder.payment_method}</strong>
+                  Diner: <strong>{activeOrder.customer_name}</strong> •{' '}
+                  {activeOrder.order_type === 'takeaway' ? (
+                    <span>Pickup: <strong style={{ color: '#C2410C' }}>Counter #1 ({activeOrder.arrivalTime || 'ASAP'})</strong></span>
+                  ) : (
+                    <span>Table: <strong style={{ color: '#15803D' }}>{activeOrder.table_number || selectedTable}</strong></span>
+                  )}{' '}
+                  • Method: <strong>{activeOrder.payment_method}</strong>
                 </div>
 
-                <div style={{ backgroundColor: '#FFF', borderRadius: '10px', padding: '10px 12px', border: `1px solid ${DINE_THEME.border}` }}>
+                <div style={{ backgroundColor: '#FFF', borderRadius: '12px', padding: '10px 12px', border: `1px solid ${DINE_THEME.border}` }}>
                   {(activeOrder.items || []).map((it, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '4px 0', borderBottom: idx < activeOrder.items.length - 1 ? '1px dashed #F1F5F9' : 'none' }}>
-                      <span>{it.quantity}x {it.item_name} {it.instructions ? `(${it.instructions})` : ''}</span>
-                      <span style={{ fontWeight: 700 }}>₱{(it.subtotal || it.price * it.quantity).toFixed(0)}</span>
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '6px 0', borderBottom: idx < (activeOrder.items || []).length - 1 ? '1px dashed #F1F5F9' : 'none', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <img
+                          src={it.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'}
+                          alt={it.item_name}
+                          style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover', border: `1px solid ${DINE_THEME.border}`, flexShrink: 0 }}
+                          onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'; }}
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontWeight: 700, color: DINE_THEME.dark, display: 'block' }}>
+                            <span style={{ color: DINE_THEME.tealDark, fontWeight: 800 }}>{it.quantity}x</span> {it.item_name}
+                          </span>
+                          {it.instructions && (
+                            <span style={{ fontSize: '11px', color: DINE_THEME.slate, display: 'block', marginTop: '1px' }}>
+                              ({it.instructions})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: 800, color: DINE_THEME.tealDark, flexShrink: 0 }}>
+                        ₱{(it.subtotal || it.price * it.quantity).toFixed(0)}
+                      </span>
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 800, paddingTop: '8px', marginTop: '6px', borderTop: '1px solid #E2E8F0' }}>
@@ -1850,6 +2857,99 @@ export default function CustomerStorefrontView({
                 </div>
               </div>
             )}
+
+            {/* Past Orders History List */}
+            <div style={{ marginTop: activeOrder ? '16px' : '0', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: DINE_THEME.dark }}>
+                  Orders & Purchase History ({orderHistory.length})
+                </h4>
+                {customerUser && (
+                  <span style={{ fontSize: '11px', color: DINE_THEME.teal, fontWeight: 700 }}>
+                    {customerUser.name}
+                  </span>
+                )}
+              </div>
+
+              {orderHistory.length === 0 && !activeOrder ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '24px 16px',
+                  backgroundColor: DINE_THEME.pinkLight,
+                  borderRadius: '12px',
+                  border: `1px dashed ${DINE_THEME.border}`
+                }}>
+                  <i className="ri-shopping-bag-line" style={{ fontSize: '30px', color: DINE_THEME.slate, display: 'block', marginBottom: '6px' }} />
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: DINE_THEME.dark }}>No Past Orders Found</div>
+                  <span style={{ fontSize: '11px', color: DINE_THEME.slate }}>
+                    Your placed orders will show up here with item breakdowns and status.
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto' }}>
+                  {orderHistory.map(ord => {
+                    const isSelected = activeOrder?.order_number === ord.order_number;
+                    return (
+                      <div
+                        key={ord.id || ord.order_number}
+                        onClick={() => setActiveOrder(ord)}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: '10px',
+                          backgroundColor: isSelected ? '#F0FDFA' : '#FFF',
+                          border: `1px solid ${isSelected ? DINE_THEME.teal : DINE_THEME.border}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <strong style={{ fontSize: '12px', color: DINE_THEME.dark }}>#{ord.order_number}</strong>
+                            <span style={{
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              padding: '2px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: ord.status === 'completed' ? '#D1FAE5' : (ord.status === 'ready' ? '#FEF3C7' : DINE_THEME.tealLight),
+                              color: ord.status === 'completed' ? '#065F46' : (ord.status === 'ready' ? '#92400E' : DINE_THEME.tealDark)
+                            }}>
+                              {ord.status}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: ord.order_type === 'takeaway' ? '#FFEDD5' : '#DCFCE7',
+                              color: ord.order_type === 'takeaway' ? '#C2410C' : '#15803D'
+                            }}>
+                              {ord.order_type === 'takeaway' ? 'Takeout' : (ord.table_number || 'Dine-in')}
+                            </span>
+                            <span style={{ fontSize: '11px', color: DINE_THEME.slate }}>
+                              {new Date(ord.created_at || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <strong style={{ fontSize: '13px', color: DINE_THEME.tealDark, display: 'block' }}>
+                            ₱{Number(ord.total || 0).toFixed(0)}
+                          </strong>
+                          <span style={{ fontSize: '10px', color: DINE_THEME.slate }}>
+                            {(ord.items || []).length} item{(ord.items || []).length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -2522,6 +3622,144 @@ export default function CustomerStorefrontView({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ORDER COMPLETED CELEBRATION & CONFIRMATION MODAL ───────────── */}
+      {isOrderCompletedModalOpen && activeOrder && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 120,
+          padding: '20px',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '32px 26px',
+            textAlign: 'center',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+            border: '2px solid #86EFAC',
+            position: 'relative'
+          }}>
+            {/* Celebration Icon */}
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+              color: '#FFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '44px',
+              margin: '0 auto 18px',
+              boxShadow: '0 10px 25px rgba(16, 185, 129, 0.35)'
+            }}>
+              <i className="ri-checkbox-circle-fill" />
+            </div>
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#DCFCE7', color: '#166534', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>
+              <i className="ri-checkbox-circle-fill" style={{ color: '#15803D' }} />
+              <span>Order Completed</span>
+            </div>
+
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 800, color: DINE_THEME.dark, letterSpacing: '-0.3px' }}>
+              {activeOrder.order_type === 'takeaway' ? 'Your Takeout is Ready!' : 'Hope You Enjoyed Your Meal!'}
+            </h3>
+
+            <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: DINE_THEME.slate, lineHeight: 1.5 }}>
+              Order <strong style={{ color: DINE_THEME.dark }}>#{activeOrder.order_number}</strong> has been completed.
+              {activeOrder.order_type === 'takeaway'
+                ? ' Thank you for ordering with us. Please pick up your food at the front counter.'
+                : ` Thank you for dining at ${restaurant?.name || 'our restaurant'}! Dishes have been served to Table ${activeOrder.table_number || selectedTable}.`}
+            </p>
+
+            {/* Order Recap Card */}
+            <div style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '16px',
+              padding: '16px',
+              border: `1px solid ${DINE_THEME.border}`,
+              marginBottom: '20px',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: `1px solid ${DINE_THEME.border}` }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: DINE_THEME.dark }}>
+                  {activeOrder.order_type === 'takeaway' ? 'Takeout Order' : `Table Service (${activeOrder.table_number || selectedTable})`}
+                </span>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#059669' }}>
+                  ₱{Number(activeOrder.total || 0).toFixed(0)}
+                </span>
+              </div>
+
+              {/* Items summary */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
+                {(activeOrder.items || []).map((it, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                    <span style={{ color: DINE_THEME.dark, fontWeight: 600 }}>
+                      <strong style={{ color: '#059669' }}>{it.quantity}x</strong> {it.item_name}
+                    </span>
+                    <span style={{ color: DINE_THEME.slate, fontWeight: 700 }}>
+                      ₱{(it.subtotal || it.price * it.quantity || 0).toFixed(0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Prompt banner */}
+            <div style={{
+              backgroundColor: '#ECFDF5',
+              border: '1px solid #A7F3D0',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              marginBottom: '20px',
+              fontSize: '12px',
+              color: '#065F46',
+              fontWeight: 600
+            }}>
+              <i className="ri-information-line" style={{ marginRight: '6px' }} />
+              Confirm this order to complete your current session so you are ready to order again anytime.
+            </div>
+
+            {/* Confirm & Ready Button */}
+            <button
+              type="button"
+              onClick={handleConfirmCompletedOrder}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                color: '#FFF',
+                border: 'none',
+                padding: '14px 20px',
+                borderRadius: '14px',
+                fontSize: '15px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 8px 20px rgba(5, 150, 105, 0.35)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <i className="ri-check-double-line" style={{ fontSize: '18px' }} />
+              <span>Confirm & Ready for Another Order</span>
+            </button>
           </div>
         </div>
       )}

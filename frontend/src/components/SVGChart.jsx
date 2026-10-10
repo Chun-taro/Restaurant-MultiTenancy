@@ -42,8 +42,8 @@ export default function SVGChart({ data = [], height = 220 }) {
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
       <defs>
         <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#FF5A1F" stopOpacity="0.38" />
-          <stop offset="100%" stopColor="#FF5A1F" stopOpacity="0.0" />
+          <stop offset="0%" stopColor="#E05A2B" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#E05A2B" stopOpacity="0.0" />
         </linearGradient>
       </defs>
 
@@ -54,13 +54,13 @@ export default function SVGChart({ data = [], height = 220 }) {
             y1={g.y}
             x2={width - padding.right}
             y2={g.y}
-            stroke="rgba(255,255,255,0.06)"
+            stroke="rgba(255,255,255,0.05)"
             strokeDasharray="4"
           />
           <text
             x={padding.left - 10}
             y={g.y + 4}
-            fill="#6B7280"
+            fill="#78716C"
             fontSize="11"
             textAnchor="end"
             fontFamily="'JetBrains Mono', monospace"
@@ -71,16 +71,16 @@ export default function SVGChart({ data = [], height = 220 }) {
       ))}
 
       <path d={areaD} fill="url(#chartGradient)" />
-      <path d={pathD} fill="none" stroke="#FF5A1F" strokeWidth="3.5" strokeLinecap="round" />
+      <path d={pathD} fill="none" stroke="#E05A2B" strokeWidth="2.5" strokeLinecap="round" />
 
       {points.map((p, idx) => (
         <circle
           key={idx}
           cx={p.x}
           cy={p.y}
-          r="5"
-          fill="#FF5A1F"
-          stroke="#FFFFFF"
+          r="4"
+          fill="#E05A2B"
+          stroke="#15171B"
           strokeWidth="2"
         >
           <title>{p.label}: ₱{p.value.toLocaleString()}</title>

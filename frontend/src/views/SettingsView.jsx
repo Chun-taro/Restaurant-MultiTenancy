@@ -54,20 +54,20 @@ export default function SettingsView({ settings = {}, onSave, adminUser, onOpenP
 
       {/* ─── ACTIVE SUPERADMIN PROFILE OVERVIEW CARD ──────────────────── */}
       {adminUser && (
-        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(255,90,31,0.08) 0%, rgba(15,17,22,0.95) 100%)', borderColor: 'rgba(255,90,31,0.25)' }}>
+        <div className="card" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-card)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <img
                 src={adminUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${adminUser.name}`}
                 alt="Superadmin"
-                style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-light)', background: '#1E293B' }}
+                style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-subtle)', background: '#1A2232' }}
               />
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <h3 style={{ margin: 0, color: '#FFF', fontSize: '18px', fontWeight: 800 }}>
+                  <h3 style={{ margin: 0, color: '#FFF', fontSize: '17px', fontWeight: 700 }}>
                     {adminUser.name}
                   </h3>
-                  <span className="badge" style={{ background: 'rgba(255,90,31,0.2)', color: 'var(--primary-light)', border: '1px solid rgba(255,90,31,0.4)', fontSize: '11px' }}>
+                  <span className="badge" style={{ background: 'rgba(224,90,43,0.12)', color: 'var(--primary-light)', border: '1px solid rgba(224,90,43,0.25)', fontSize: '11px' }}>
                     <i className="ri-shield-star-fill"></i> ACTIVE SUPERADMIN
                   </span>
                 </div>

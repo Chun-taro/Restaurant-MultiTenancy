@@ -113,7 +113,7 @@ export default function LandingPageView({
   ];
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-body)', color: 'var(--text-main)', fontFamily: 'var(--font-sans)' }}>
+    <div className="landing-page-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent', color: 'var(--text-main)', fontFamily: 'var(--font-sans)', position: 'relative', zIndex: 1 }}>
       {/* Top Navigation */}
       <nav style={{
         height: '76px',
@@ -128,26 +128,26 @@ export default function LandingPageView({
         top: 0,
         zIndex: 100
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '42px',
-            height: '42px',
+            width: '38px',
+            height: '38px',
             borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, var(--primary) 0%, #EA580C 50%, #DC2626 100%)',
+            background: 'var(--primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#fff',
-            fontSize: '22px',
-            boxShadow: '0 4px 14px var(--primary-glow)'
+            fontSize: '20px',
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <i className="ri-store-3-fill"></i>
           </div>
           <div>
-            <div style={{ fontSize: '19px', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              RestoSaaS <span className="brand-badge" style={{ background: 'rgba(255,90,31,0.15)', color: '#FF8552', border: '1px solid rgba(255,90,31,0.35)', fontSize: '10.5px' }}>ENTERPRISE</span>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              RestoSaaS <span className="brand-badge" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--primary-light)', border: '1px solid rgba(59,130,246,0.25)', fontSize: '10px' }}>ENTERPRISE</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Multi-Tenant Restaurant Operating System</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Multi-Tenant Restaurant Platform</div>
           </div>
         </div>
 
@@ -161,14 +161,14 @@ export default function LandingPageView({
 
         {/* Right Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div className="system-status-pill" style={{ padding: '6px 12px', fontSize: '12px' }}>
+          <div className="system-status-pill" style={{ padding: '5px 12px', fontSize: '12px' }}>
             <span className="pulse-dot"></span>
             <span>Cloud Network Operational</span>
           </div>
 
           <button
             className="btn btn-primary"
-            style={{ padding: '9px 20px', fontSize: '13.5px', fontWeight: 700 }}
+            style={{ padding: '8px 18px', fontSize: '13px', fontWeight: 600 }}
             onClick={isAuthenticated ? onGoToConsole : onGoToLogin}
           >
             <i className={isAuthenticated ? "ri-dashboard-line" : "ri-shield-keyhole-line"}></i>
@@ -184,54 +184,36 @@ export default function LandingPageView({
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Ambient background glow */}
-        <div style={{
-          position: 'absolute',
-          top: '-180px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '800px',
-          height: '600px',
-          background: 'radial-gradient(circle, rgba(255, 90, 31, 0.22) 0%, rgba(245, 158, 11, 0.1) 45%, transparent 70%)',
-          pointerEvents: 'none'
-        }}></div>
-
         <div style={{ maxWidth: '920px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'rgba(255, 90, 31, 0.12)',
-            border: '1px solid rgba(255, 90, 31, 0.35)',
-            padding: '7px 18px',
+            background: 'rgba(224, 90, 43, 0.12)',
+            border: '1px solid rgba(224, 90, 43, 0.25)',
+            padding: '6px 16px',
             borderRadius: 'var(--radius-pill)',
-            color: '#FF8552',
-            fontSize: '12.5px',
-            fontWeight: 700,
-            letterSpacing: '0.03em',
+            color: 'var(--primary-light)',
+            fontSize: '12px',
+            fontWeight: 600,
+            letterSpacing: '0.02em',
             textTransform: 'uppercase',
-            marginBottom: '26px'
+            marginBottom: '24px'
           }}>
-            <i className="ri-sparkling-fill" style={{ color: '#FBBF24' }}></i> Next-Generation Multi-Tenant Restaurant Platform
+            <i className="ri-fire-fill" style={{ color: 'var(--primary)' }}></i> Multi-Tenant Restaurant Cloud Platform
           </div>
 
           <h1 style={{
-            fontSize: '56px',
-            fontWeight: 900,
+            fontSize: '52px',
+            fontWeight: 800,
             lineHeight: 1.15,
             letterSpacing: '-0.03em',
             marginBottom: '24px',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 55%, #94A3B8 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
+            color: '#FFFFFF'
           }}>
             One Unified Platform.
             <br />
-            <span style={{
-              background: 'linear-gradient(135deg, #FF8552 0%, #FF5A1F 45%, #F59E0B 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
-            }}>
+            <span style={{ color: '#F08358' }}>
               Infinite Branded Restaurant Stores.
             </span>
           </h1>

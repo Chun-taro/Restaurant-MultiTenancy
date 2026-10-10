@@ -42,10 +42,10 @@ export default function UsersView({
 
       {/* KPI stats */}
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
-        <div className="kpi-card" style={{ '--card-accent': '#FF5A1F' }}>
+        <div className="kpi-card" style={{ '--card-accent': '#E05A2B' }}>
           <div className="kpi-top">
             <span className="kpi-label">Super Administrators</span>
-            <div className="kpi-icon"><i className="ri-shield-user-fill"></i></div>
+            <div className="kpi-icon" style={{ background: 'rgba(224,90,43,0.12)', color: 'var(--primary-light)', borderColor: 'rgba(224,90,43,0.25)' }}><i className="ri-shield-user-fill"></i></div>
           </div>
           <div className="kpi-value">{superadmins.length}</div>
           <div className="trend-subtext">Root platform access & credentials</div>
@@ -154,7 +154,7 @@ export default function UsersView({
                             <i className="ri-lock-star-fill"></i> SYSTEM DEV (PROTECTED)
                           </span>
                         ) : u.role === 'superadmin' ? (
-                          <span className="badge" style={{ background: 'rgba(255,90,31,0.18)', color: 'var(--primary-light)', border: '1px solid rgba(255,90,31,0.35)' }}>
+                          <span className="badge" style={{ background: 'rgba(224,90,43,0.12)', color: 'var(--primary-light)', border: '1px solid rgba(224,90,43,0.25)' }}>
                             <i className="ri-shield-check-fill"></i> SUPERADMIN
                           </span>
                         ) : (

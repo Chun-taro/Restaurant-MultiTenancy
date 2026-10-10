@@ -36,60 +36,48 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
   };
 
   return (
-    <div style={{
+    <div className="admin-login-wrapper" style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
       position: 'relative',
-      zIndex: 10
+      zIndex: 10,
+      backgroundColor: 'var(--bg-body)'
     }}>
-      {/* Background ambient lighting */}
-      <div style={{
-        position: 'absolute',
-        width: '450px',
-        height: '450px',
-        background: 'radial-gradient(circle, rgba(255, 90, 31, 0.18) 0%, rgba(245, 158, 11, 0.08) 50%, transparent 70%)',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        pointerEvents: 'none'
-      }}></div>
-
       <div style={{
         width: '100%',
-        maxWidth: '440px',
-        background: 'rgba(22, 25, 33, 0.88)',
+        maxWidth: '420px',
+        background: 'var(--bg-card)',
         border: '1px solid var(--border-card)',
         borderRadius: 'var(--radius-xl)',
-        backdropFilter: 'blur(20px)',
         padding: '36px 32px',
-        boxShadow: 'var(--shadow-lg), 0 0 35px rgba(255, 90, 31, 0.2)',
+        boxShadow: 'var(--shadow-lg)',
         position: 'relative'
       }}>
         {/* Brand header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
-            width: '54px',
-            height: '54px',
+            width: '48px',
+            height: '48px',
             margin: '0 auto 16px',
             borderRadius: 'var(--radius-lg)',
-            background: 'linear-gradient(135deg, var(--primary) 0%, #EA580C 50%, #DC2626 100%)',
+            background: 'var(--primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#fff',
-            fontSize: '26px',
-            boxShadow: '0 8px 20px var(--primary-glow)'
+            fontSize: '24px',
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <i className="ri-store-3-fill"></i>
           </div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>
             RestoSaaS Platform
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Super Admin & Developer Authentication Portal
+            Super Admin & Operations Console
           </p>
         </div>
 

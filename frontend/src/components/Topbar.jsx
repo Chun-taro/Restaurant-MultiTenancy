@@ -18,13 +18,24 @@ export default function Topbar({
   onGoToLanding,
   onSignOut,
   adminUser,
-  onOpenProfile
+  onOpenProfile,
+  onToggleMobileSidebar
 }) {
   const meta = routeTitles[currentRoute] || { title: 'Super Admin', subtitle: '' };
 
   return (
     <header className="topbar">
       <div className="topbar-left">
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={onToggleMobileSidebar}
+          aria-label="Toggle navigation menu"
+          title="Open Menu"
+        >
+          <i className="ri-menu-2-line"></i>
+        </button>
+
         <div className="page-title-group">
           <h1 id="page-header-title">{meta.title}</h1>
           <p id="page-header-subtitle">{meta.subtitle}</p>
@@ -46,56 +57,43 @@ export default function Topbar({
         {adminUser && (
           <button
             type="button"
+            className="topbar-profile-btn"
             onClick={onOpenProfile}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '9px',
-              padding: '4px 12px 4px 6px',
-              borderRadius: '24px',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              cursor: 'pointer',
-              color: '#FFF',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 90, 31, 0.12)';
-              e.currentTarget.style.borderColor = 'rgba(255, 90, 31, 0.3)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-            }}
             title="Customize Superadmin Profile & Credentials"
           >
             <img
               src={adminUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${adminUser.name}`}
               alt=""
-              style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', background: '#1E293B', border: '1px solid var(--primary-light)' }}
+              className="topbar-profile-avatar"
             />
-            <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#FFF' }}>
+            <div className="topbar-profile-meta">
+              <div className="topbar-profile-name">
                 {adminUser.name}
               </div>
-              <div style={{ fontSize: '10px', color: 'var(--primary-light)', fontWeight: 600 }}>
+              <div className="topbar-profile-role">
                 SUPERADMIN
               </div>
             </div>
-            <i className="ri-settings-4-line" style={{ fontSize: '13px', color: 'var(--text-muted)', marginLeft: '2px' }} />
+            <i className="ri-settings-4-line topbar-profile-icon" />
           </button>
         )}
 
         <button
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm topbar-action-btn"
           onClick={onGoToLanding}
           title="View Public Landing Page"
         >
-          <i className="ri-external-link-line"></i> Landing Page
+          <i className="ri-external-link-line"></i>
+          <span className="topbar-btn-text">Landing Page</span>
         </button>
 
-        <button className="btn btn-primary btn-sm" onClick={onOpenProvision}>
-          <i className="ri-add-line"></i> Provision Tenant
+        <button 
+          className="btn btn-primary btn-sm topbar-action-btn" 
+          onClick={onOpenProvision}
+          title="Provision New Tenant"
+        >
+          <i className="ri-add-line"></i>
+          <span className="topbar-btn-text">Provision Tenant</span>
         </button>
 
         <button

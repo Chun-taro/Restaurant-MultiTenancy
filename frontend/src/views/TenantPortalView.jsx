@@ -1,5 +1,159 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
+
+export const THEME_PRESETS = [
+  {
+    id: 'emerald_clean',
+    name: 'Emerald Botanical',
+    icon: 'ri-leaf-line',
+    primary: '#10B981',
+    secondary: '#064E3B',
+    accent: '#F59E0B',
+    bgStyle: 'matcha_soft',
+    font: 'Outfit',
+    radius: 'smooth',
+    hero: 'cinematic',
+    desc: 'Fresh organic greens & warm amber accents'
+  },
+  {
+    id: 'tokyo_midnight',
+    name: 'Tokyo Midnight Dark',
+    icon: 'ri-moon-clear-line',
+    primary: '#8B5CF6',
+    secondary: '#F8FAFC',
+    accent: '#EC4899',
+    bgStyle: 'midnight_dark',
+    font: 'Space Grotesk',
+    radius: 'smooth',
+    hero: 'glass',
+    desc: 'Sleek dark mode with electric violet & neon rose'
+  },
+  {
+    id: 'warm_bistro',
+    name: 'Warm Roast & Cafe',
+    icon: 'ri-cup-line',
+    primary: '#D97706',
+    secondary: '#451A03',
+    accent: '#F59E0B',
+    bgStyle: 'warm_cream',
+    font: 'Playfair Display',
+    radius: 'rounded',
+    hero: 'cinematic',
+    desc: 'Cozy bakery & roastery with warm cream background'
+  },
+  {
+    id: 'fine_dining',
+    name: 'Fine Dining Bistro',
+    icon: 'ri-goblet-line',
+    primary: '#BE123C',
+    secondary: '#1C1917',
+    accent: '#D97706',
+    bgStyle: 'warm_cream',
+    font: 'Playfair Display',
+    radius: 'smooth',
+    hero: 'glass',
+    desc: 'Burgundy wine luxury with gold editorial serif'
+  },
+  {
+    id: 'ocean_breeze',
+    name: 'Ocean Coastal',
+    icon: 'ri-water-flash-line',
+    primary: '#0284C7',
+    secondary: '#0F172A',
+    accent: '#06B6D4',
+    bgStyle: 'slate_clean',
+    font: 'Plus Jakarta Sans',
+    radius: 'smooth',
+    hero: 'cinematic',
+    desc: 'Deep marine azure with cyan accents for seafood & poke'
+  },
+  {
+    id: 'pastel_bloom',
+    name: 'Pastel Bloom & Boba',
+    icon: 'ri-heart-3-line',
+    primary: '#EC4899',
+    secondary: '#4A044E',
+    accent: '#F43F5E',
+    bgStyle: 'rose_blush',
+    font: 'Outfit',
+    radius: 'rounded',
+    hero: 'glass',
+    desc: 'Sweet sakura blush with rounded pill styling'
+  },
+  {
+    id: 'smash_grill',
+    name: 'Smash & Grill BBQ',
+    icon: 'ri-fire-line',
+    primary: '#EA580C',
+    secondary: '#18181B',
+    accent: '#FBBF24',
+    bgStyle: 'slate_clean',
+    font: 'Space Grotesk',
+    radius: 'sharp',
+    hero: 'cinematic',
+    desc: 'High-octane fiery orange & crisp sharp borders'
+  },
+  {
+    id: 'obsidian_luxury',
+    name: 'Obsidian Omakase',
+    icon: 'ri-vip-crown-line',
+    primary: '#F59E0B',
+    secondary: '#F8FAFC',
+    accent: '#E2E8F0',
+    bgStyle: 'midnight_dark',
+    font: 'Playfair Display',
+    radius: 'smooth',
+    hero: 'cinematic',
+    desc: 'Prestige gold & midnight obsidian luxury dining'
+  },
+  {
+    id: 'modern_minimal',
+    name: 'Modernist Clean',
+    icon: 'ri-layout-masonry-line',
+    primary: '#2563EB',
+    secondary: '#0F172A',
+    accent: '#3B82F6',
+    bgStyle: 'pure_white',
+    font: 'Inter',
+    radius: 'sharp',
+    hero: 'minimal',
+    desc: 'Stark white precision with crisp typography'
+  }
+];
+
+export const THEME_BG_STYLES = [
+  { id: 'slate_clean', label: 'Clean Slate', bg: '#F8FAFC', card: '#FFFFFF', text: '#1E293B', border: '#E2E8F0', tag: 'Balanced Slate' },
+  { id: 'warm_cream', label: 'Bistro Cream', bg: '#FAF7F2', card: '#FFFFFF', text: '#292524', border: '#E7E5E4', tag: 'Warm & Cozy' },
+  { id: 'midnight_dark', label: 'Midnight Dark', bg: '#0F172A', card: '#1E293B', text: '#F8FAFC', border: '#334155', isDark: true, tag: 'Dark Mode' },
+  { id: 'matcha_soft', label: 'Matcha Botanical', bg: '#F0FDF4', card: '#FFFFFF', text: '#064E3B', border: '#DCFCE7', tag: 'Fresh Green' },
+  { id: 'rose_blush', label: 'Sakura Blush', bg: '#FFF1F2', card: '#FFFFFF', text: '#4C0519', border: '#FFE4E6', tag: 'Soft Pastel' },
+  { id: 'pure_white', label: 'Pure Minimal', bg: '#FFFFFF', card: '#FAFAFA', text: '#09090B', border: '#E4E4E7', tag: 'Stark Crisp' }
+];
+
+export const THEME_FONTS = [
+  { id: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans', style: 'Modern & Balanced', font: "'Plus Jakarta Sans', sans-serif" },
+  { id: 'Playfair Display', label: 'Playfair Display', style: 'Luxury Serif & Bistro', font: "'Playfair Display', serif" },
+  { id: 'Outfit', label: 'Outfit', style: 'Friendly Geometric & Bubble', font: "'Outfit', sans-serif" },
+  { id: 'Inter', label: 'Inter', style: 'Precision Swiss Minimal', font: "'Inter', sans-serif" },
+  { id: 'Space Grotesk', label: 'Space Grotesk', style: 'Punchy Urban & Grill', font: "'Space Grotesk', sans-serif" }
+];
+
+export const THEME_RADII = [
+  { id: 'sharp', label: 'Sharp Crisp', radius: '6px', pill: '8px', desc: 'Minimalist 6px architectural corners' },
+  { id: 'smooth', label: 'Smooth Curved', radius: '16px', pill: '14px', desc: 'Natural balanced 16px curves' },
+  { id: 'rounded', label: 'Ultra Rounded', radius: '26px', pill: '28px', desc: 'Playful 26px pill aesthetic' }
+];
+
+export const THEME_HEROES = [
+  { id: 'cinematic', label: 'Cinematic Cover', icon: 'ri-image-2-line', desc: 'Rich full banner with atmospheric contrast overlay' },
+  { id: 'glass', label: 'Floating Glassmorphism', icon: 'ri-contrast-drop-line', desc: 'Frosted translucent floating card over backdrop' },
+  { id: 'minimal', label: 'Compact Minimalist', icon: 'ri-layout-top-line', desc: 'Fast, compact header focusing straight on the menu' }
+];
+
+export const THEME_DENSITIES = [
+  { id: 'grid_spacious', label: 'Spacious Photo Grid', icon: 'ri-layout-grid-line', desc: 'Large appetizing photo cards in responsive grid' },
+  { id: 'compact_list', label: 'Bistro Compact List', icon: 'ri-list-check-2', desc: 'Streamlined rows with side thumbnail for fast ordering' }
+];
 
 export default function TenantPortalView({
   tenantId,
@@ -19,9 +173,30 @@ export default function TenantPortalView({
 
   // Navigation: overview | orders | menu | staff | customers | reports | tables | subscription | settings
   const [activeTab, setActiveTab] = useState(getInitialPortalTab);
+  const [isMobileTenantSidebarOpen, setIsMobileTenantSidebarOpen] = useState(false);
+  const [isTenantUserDropdownOpen, setIsTenantUserDropdownOpen] = useState(false);
+  const tenantUserDropdownRef = useRef(null);
+
+  // Close tenant user dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (tenantUserDropdownRef.current && !tenantUserDropdownRef.current.contains(event.target)) {
+        setIsTenantUserDropdownOpen(false);
+      }
+    };
+    if (isTenantUserDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isTenantUserDropdownOpen]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
+    setIsMobileTenantSidebarOpen(false);
     localStorage.setItem(`dine_portal_tab_${tenantSlug}`, tabId);
     if (window.location.pathname.startsWith('/portal')) {
       window.history.replaceState(null, '', `/portal/${tenantSlug}#${tabId}`);
@@ -48,12 +223,51 @@ export default function TenantPortalView({
     phone: '',
     address: '',
     city: '',
-    email: ''
+    email: '',
+    theme_config: {
+      preset: 'emerald_clean',
+      primary_color: '#2A9D9A',
+      secondary_color: '#263238',
+      accent_color: '#F59E0B',
+      bg_style: 'slate_clean',
+      font_family: 'Plus Jakarta Sans',
+      border_radius: 'smooth',
+      hero_style: 'cinematic',
+      card_density: 'grid_spacious'
+    }
   });
 
+  const updateThemeConfig = (updates) => {
+    setSettingsForm(prev => {
+      const currentTheme = prev.theme_config || {};
+      const nextTheme = { ...currentTheme, ...updates };
+      return {
+        ...prev,
+        primary_color: updates.primary_color || nextTheme.primary_color || prev.primary_color,
+        secondary_color: updates.secondary_color || nextTheme.secondary_color || prev.secondary_color,
+        theme_config: nextTheme
+      };
+    });
+  };
+
+  const applyThemePreset = (preset) => {
+    updateThemeConfig({
+      preset: preset.id,
+      primary_color: preset.primary,
+      secondary_color: preset.secondary,
+      accent_color: preset.accent,
+      bg_style: preset.bgStyle,
+      font_family: preset.font,
+      border_radius: preset.radius,
+      hero_style: preset.hero
+    });
+  };
+
   // Dynamic Theme Tokens that adapt to the restaurant's active color theme
-  const primaryBrandColor = settingsForm?.primary_color || overview?.restaurant?.primary_color || '#2A9D9A';
-  const secondaryBrandColor = settingsForm?.secondary_color || overview?.restaurant?.secondary_color || '#1E293B';
+  const activeThemeConfig = settingsForm?.theme_config || {};
+  const primaryBrandColor = activeThemeConfig.primary_color || settingsForm?.primary_color || overview?.restaurant?.primary_color || '#2A9D9A';
+  const secondaryBrandColor = activeThemeConfig.secondary_color || settingsForm?.secondary_color || overview?.restaurant?.secondary_color || '#1E293B';
+  const accentBrandColor = activeThemeConfig.accent_color || '#F59E0B';
 
   const C = {
     white: '#FFFFFF',
@@ -72,12 +286,59 @@ export default function TenantPortalView({
     border: '#E2E8F0',
     borderDark: '#CBD5E1',
     grayBorder: '#E2E8F0',
-    gold: '#F59E0B'
+    gold: accentBrandColor
   };
   // Selected Category filter in Menu tab
   const [selectedMenuCat, setSelectedMenuCat] = useState('all');
+  const [menuSubTab, setMenuSubTab] = useState('items'); // 'items' | 'addons'
+
+  // Add-ons Management state
+  const [addons, setAddons] = useState([]);
+  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false);
+  const [editingAddon, setEditingAddon] = useState(null);
+  const [addonForm, setAddonForm] = useState({
+    name: '',
+    price: '',
+    type: 'food',
+    is_available: 1
+  });
+
+  // Instruction badges parser
+  const renderInstructionBadges = (instructionsStr) => {
+    if (!instructionsStr) return null;
+    const parts = instructionsStr.split('|').map(s => s.trim()).filter(Boolean);
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+        {parts.map((p, pIdx) => {
+          const isAddon = p.includes('Extra') || p.includes('Egg') || p.includes('Cheese') || p.includes('Shot') || p.includes('Milk') || p.includes('+') || p.includes('Rice') || p.includes('Sauce') || p.includes('Dip') || p.includes('Syrup');
+          return (
+            <span
+              key={pIdx}
+              style={{
+                fontSize: '11px',
+                fontWeight: isAddon ? 700 : 500,
+                padding: '2px 7px',
+                borderRadius: '6px',
+                backgroundColor: isAddon ? '#FEF3C7' : '#F1F5F9',
+                color: isAddon ? '#92400E' : '#334155',
+                border: `1px solid ${isAddon ? '#FDE68A' : '#E2E8F0'}`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+                lineHeight: 1.3
+              }}
+            >
+              {isAddon && <i className="ri-add-circle-fill" style={{ fontSize: '10px', color: '#D97706' }} />}
+              {p}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
 
   // Modals state
+  const [selectedOrderModal, setSelectedOrderModal] = useState(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [itemForm, setItemForm] = useState({
@@ -295,20 +556,41 @@ export default function TenantPortalView({
       setOverview(overRes.data);
       setOrders(ordersRes.data);
       setMenuData(menuRes.data);
+      setAddons(menuRes.data?.addons || []);
       setTables(tablesRes.data);
 
       if (overRes.data?.restaurant) {
         const r = overRes.data.restaurant;
+        let parsedTheme = {};
+        if (r.theme_config) {
+          try {
+            parsedTheme = typeof r.theme_config === 'string' ? JSON.parse(r.theme_config) : r.theme_config;
+          } catch (e) {
+            console.warn('Could not parse theme_config', e);
+          }
+        }
         setSettingsForm({
           name: r.name || '',
           cuisine_type: r.cuisine_type || '',
-          primary_color: r.primary_color || '#2A9D9A',
-          secondary_color: r.secondary_color || '#263238',
+          primary_color: parsedTheme.primary_color || r.primary_color || '#2A9D9A',
+          secondary_color: parsedTheme.secondary_color || r.secondary_color || '#263238',
           logo_url: r.logo_url || '',
           banner_url: r.banner_url || '',
           phone: r.phone || '',
           address: r.address || '',
-          city: r.city || ''
+          city: r.city || '',
+          email: r.email || '',
+          theme_config: {
+            preset: parsedTheme.preset || 'emerald_clean',
+            primary_color: parsedTheme.primary_color || r.primary_color || '#2A9D9A',
+            secondary_color: parsedTheme.secondary_color || r.secondary_color || '#263238',
+            accent_color: parsedTheme.accent_color || '#F59E0B',
+            bg_style: parsedTheme.bg_style || 'slate_clean',
+            font_family: parsedTheme.font_family || 'Plus Jakarta Sans',
+            border_radius: parsedTheme.border_radius || 'smooth',
+            hero_style: parsedTheme.hero_style || 'cinematic',
+            card_density: parsedTheme.card_density || 'grid_spacious'
+          }
         });
       }
 
@@ -355,8 +637,18 @@ export default function TenantPortalView({
   // Order status advancement
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
-      await api.tenantPortal.updateOrderStatus(tenantId, orderId, newStatus);
-      showToast?.(`Order updated to '${newStatus.toUpperCase()}' in tenant database!`, 'success');
+      const updateRes = await api.tenantPortal.updateOrderStatus(tenantId, orderId, newStatus);
+      const friendlyLabels = {
+        pending: 'Pending',
+        new: 'New Order',
+        confirmed: 'Confirmed',
+        preparing: 'Cooking',
+        ready: 'Ready for Pickup',
+        completed: 'Completed',
+        cancelled: 'Cancelled'
+      };
+      const label = friendlyLabels[newStatus] || newStatus;
+      showToast?.(updateRes?.message || `Order status updated to ${label}!`, 'success');
       const res = await api.tenantPortal.orders(tenantId);
       setOrders(res.data);
       const overRes = await api.tenantPortal.overview(tenantId);
@@ -372,11 +664,19 @@ export default function TenantPortalView({
   const handleSaveItem = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...itemForm,
+        category_id: itemForm.category_id || menuData.categories[0]?.id
+      };
+      if (!payload.category_id) {
+        showToast?.('Please create or select a category first.', 'error');
+        return;
+      }
       if (editingItem) {
-        await api.tenantPortal.updateItem(tenantId, editingItem.id, itemForm);
+        await api.tenantPortal.updateItem(tenantId, editingItem.id, payload);
         showToast?.('Menu item updated!');
       } else {
-        await api.tenantPortal.createItem(tenantId, itemForm);
+        await api.tenantPortal.createItem(tenantId, payload);
         showToast?.('Menu item added!');
       }
       setIsItemModalOpen(false);
@@ -433,7 +733,66 @@ export default function TenantPortalView({
       showToast?.(`Category "${catName}" deleted!`);
       const res = await api.tenantPortal.menu(tenantId);
       setMenuData(res.data);
+      if (res.data?.addons) setAddons(res.data.addons);
       if (selectedMenuCat === catId) setSelectedMenuCat('all');
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  // Add-on CRUD Handlers
+  const handleSaveAddon = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: addonForm.name.trim(),
+        price: parseFloat(addonForm.price) || 0,
+        type: addonForm.type || 'food',
+        is_available: addonForm.is_available ? 1 : 0
+      };
+      if (!payload.name) {
+        showToast?.('Add-on name is required', 'error');
+        return;
+      }
+      if (editingAddon) {
+        await api.tenantPortal.updateAddon(tenantId, editingAddon.id, payload);
+        showToast?.('Add-on updated successfully!', 'success');
+      } else {
+        await api.tenantPortal.createAddon(tenantId, payload);
+        showToast?.('New add-on added to menu catalog!', 'success');
+      }
+      setIsAddonModalOpen(false);
+      setEditingAddon(null);
+      setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+      const mRes = await api.tenantPortal.menu(tenantId);
+      setMenuData(mRes.data);
+      setAddons(mRes.data?.addons || []);
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  const handleToggleAddonStock = async (addon) => {
+    try {
+      const nextStatus = addon.is_available ? 0 : 1;
+      await api.tenantPortal.updateAddon(tenantId, addon.id, { is_available: nextStatus });
+      showToast?.(`Add-on "${addon.name}" is now ${nextStatus ? 'In Stock' : 'Sold Out'}`);
+      const mRes = await api.tenantPortal.menu(tenantId);
+      setMenuData(mRes.data);
+      setAddons(mRes.data?.addons || []);
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  const handleDeleteAddon = async (addonId, addonName) => {
+    if (!window.confirm(`Delete add-on "${addonName}" from this restaurant catalog?`)) return;
+    try {
+      await api.tenantPortal.deleteAddon(tenantId, addonId);
+      showToast?.(`Add-on "${addonName}" deleted`);
+      const mRes = await api.tenantPortal.menu(tenantId);
+      setMenuData(mRes.data);
+      setAddons(mRes.data?.addons || []);
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -471,12 +830,61 @@ export default function TenantPortalView({
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     try {
-      await api.tenantPortal.updateSettings(tenantId, settingsForm);
-      showToast?.('Restaurant branding settings saved!', 'success');
+      const payload = {
+        ...settingsForm,
+        primary_color: settingsForm.theme_config?.primary_color || settingsForm.primary_color,
+        secondary_color: settingsForm.theme_config?.secondary_color || settingsForm.secondary_color
+      };
+      await api.tenantPortal.updateSettings(tenantId, payload);
+      showToast?.('Restaurant branding & theme customization saved!', 'success');
       const overRes = await api.tenantPortal.overview(tenantId);
       setOverview(overRes.data);
     } catch (err) {
       showToast?.(err.message, 'error');
+    }
+  };
+
+  // Upload Custom Media directly into Tenant's Dedicated Folder
+  const [uploadingField, setUploadingField] = useState(null);
+  const handleFileUpload = async (file, targetField, folder = 'general') => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast?.('Please upload a valid image file (PNG, JPG, WEBP, GIF, SVG)', 'error');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast?.('Image file exceeds 10MB limit', 'error');
+      return;
+    }
+
+    setUploadingField(targetField);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const res = await api.tenantPortal.uploadImage(tenantId, {
+            file: reader.result,
+            fileName: file.name,
+            folder
+          });
+          if (targetField === 'logo') {
+            setSettingsForm(prev => ({ ...prev, logo_url: res.url }));
+          } else if (targetField === 'banner') {
+            setSettingsForm(prev => ({ ...prev, banner_url: res.url }));
+          } else if (targetField === 'menu_item') {
+            setItemForm(prev => ({ ...prev, image_url: res.url }));
+          }
+          showToast?.(res.message || 'Image uploaded to restaurant directory!', 'success');
+        } catch (err) {
+          showToast?.(err.message || 'Failed to upload image', 'error');
+        } finally {
+          setUploadingField(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setUploadingField(null);
+      showToast?.('Failed to process image file', 'error');
     }
   };
 
@@ -768,9 +1176,9 @@ export default function TenantPortalView({
                   </label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
                     {[
-                      { id: 'customer', label: '👤 Diner / Cust' },
-                      { id: 'staff', label: '🍳 Kitchen Staff' },
-                      { id: 'admin', label: '👑 Admin / Mgr' }
+                      { id: 'customer', label: 'Diner / Cust' },
+                      { id: 'staff', label: 'Kitchen Staff' },
+                      { id: 'admin', label: 'Admin / Mgr' }
                     ].map(type => (
                       <button
                         key={type.id}
@@ -943,20 +1351,30 @@ export default function TenantPortalView({
   return (
     <div style={{ minHeight: '100vh', display: 'flex', backgroundColor: C.pinkSoft, color: C.dark, fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" }}>
 
+      {/* ─── MOBILE BACKDROP OVERLAY ────────────────────────────────────── */}
+      <div
+        className={`tenant-sidebar-backdrop ${isMobileTenantSidebarOpen ? 'active' : ''}`}
+        onClick={() => setIsMobileTenantSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* ─── TENANT ADMIN SIDEBAR NAVIGATION ────────────────────────────── */}
-      <aside style={{
-        width: '260px',
-        flexShrink: 0,
-        backgroundColor: '#FFFFFF',
-        borderRight: `1px solid ${C.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        zIndex: 40,
-        boxShadow: '2px 0 16px rgba(0,0,0,0.02)'
-      }}>
+      <aside
+        className={`tenant-sidebar ${isMobileTenantSidebarOpen ? 'is-mobile-open' : ''}`}
+        style={{
+          width: '260px',
+          flexShrink: 0,
+          backgroundColor: '#FFFFFF',
+          borderRight: `1px solid ${C.border}`,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          zIndex: 40,
+          boxShadow: '2px 0 16px rgba(0,0,0,0.02)'
+        }}
+      >
         {/* Brand Area */}
         <div style={{ padding: '20px 18px 16px', borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
@@ -980,9 +1398,19 @@ export default function TenantPortalView({
                 color: staffUser?.role === 'admin' ? '#92400E' : C.tealDark,
                 border: staffUser?.role === 'admin' ? '1px solid #FDE68A' : 'none'
               }}>
-                {staffUser?.role === 'admin' ? '👑 OWNER ADMIN' : '🍳 STAFF PORTAL'}
+                {staffUser?.role === 'admin' ? 'OWNER ADMIN' : 'STAFF PORTAL'}
               </span>
             </div>
+
+            <button
+              type="button"
+              className="tenant-sidebar-close-btn"
+              onClick={() => setIsMobileTenantSidebarOpen(false)}
+              title="Close sidebar"
+              aria-label="Close menu"
+            >
+              <i className="ri-close-line" />
+            </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: C.slate, backgroundColor: C.pinkLight, padding: '8px 10px', borderRadius: '8px' }}>
@@ -1078,45 +1506,19 @@ export default function TenantPortalView({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              padding: '8px 12px',
-              borderRadius: '9px',
+              padding: '9px 12px',
+              borderRadius: '10px',
               backgroundColor: C.tealLight,
               color: C.tealDark,
               border: `1px solid ${C.teal}`,
               fontSize: '12px',
               fontWeight: 700,
-              textDecoration: 'none'
+              textDecoration: 'none',
+              transition: 'all 0.15s ease'
             }}
           >
             <i className="ri-external-link-line" /> Open Web Storefront ↗
           </a>
-
-          {staffUser && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '6px 10px',
-              borderRadius: '8px',
-              backgroundColor: staffUser.role === 'admin' ? '#FEF3C7' : C.pinkLight,
-              border: staffUser.role === 'admin' ? '1px solid #FDE68A' : `1px solid ${C.border}`
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#10B981', flexShrink: 0 }} />
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: C.dark, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {staffUser.name || 'Staff'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleStaffSignOut}
-                title="Sign out of portal"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444', fontSize: '13px', padding: 0 }}
-              >
-                <i className="ri-logout-box-r-line" />
-              </button>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -1124,34 +1526,352 @@ export default function TenantPortalView({
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
 
         {/* Top Header Bar */}
-        <header style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 30,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(10px)',
-          borderBottom: `1px solid ${C.border}`,
-          padding: '14px 28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
-        }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark, letterSpacing: '-0.3px' }}>
-              {currentTabMeta.title}
-            </h1>
-            <p style={{ margin: 0, fontSize: '12.5px', color: C.slate }}>
-              {currentTabMeta.subtitle}
-            </p>
+        <header className="tenant-header">
+          <div className="tenant-header-left">
+            <button
+              type="button"
+              className="tenant-burger-btn"
+              onClick={() => setIsMobileTenantSidebarOpen(prev => !prev)}
+              aria-label="Toggle navigation menu"
+              title="Open Navigation Menu"
+            >
+              <i className="ri-menu-2-line" />
+            </button>
+
+            <div className="tenant-header-titles">
+              <h1 style={{ margin: 0, fontWeight: 800, color: C.dark, letterSpacing: '-0.3px' }}>
+                {currentTabMeta.title}
+              </h1>
+              <p style={{ margin: 0, fontSize: '12.5px', color: C.slate }}>
+                {currentTabMeta.subtitle}
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: C.slate, backgroundColor: C.pinkLight, padding: '6px 12px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
+          <div className="tenant-header-right">
+            {/* Live Clock Pill (hidden on very small mobile) */}
+            <div className="tenant-time-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: C.slate, backgroundColor: C.pinkLight, padding: '6px 12px', borderRadius: '10px', border: `1px solid ${C.border}` }}>
               <i className="ri-time-line" style={{ color: C.teal }} />
               <strong style={{ color: C.dark }}>{currentTime}</strong>
             </div>
+
+            {/* Quick Storefront Link */}
+            <a
+              href={`/store/${tenantSlug}`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-secondary btn-sm tenant-store-btn"
+              title="View Public Storefront"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '10px',
+                backgroundColor: '#FFF',
+                border: `1px solid ${C.border}`,
+                color: C.dark,
+                fontSize: '12px',
+                fontWeight: 700,
+                textDecoration: 'none'
+              }}
+            >
+              <i className="ri-external-link-line" style={{ color: C.teal }} />
+              <span className="tenant-btn-text">Storefront</span>
+            </a>
+
+            {/* ─── UPPER RIGHT TENANT / STAFF USER DROPDOWN ──────────────── */}
+            {staffUser && (
+              <div className="tenant-user-dropdown-container" ref={tenantUserDropdownRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsTenantUserDropdownOpen(prev => !prev)}
+                  className="tenant-user-btn"
+                  aria-expanded={isTenantUserDropdownOpen}
+                  style={{
+                    backgroundColor: isTenantUserDropdownOpen ? C.tealLight : C.pinkLight,
+                    color: C.dark,
+                    border: `1.5px solid ${isTenantUserDropdownOpen ? C.teal : C.border}`,
+                    padding: '4px 12px 4px 6px',
+                    borderRadius: '24px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isTenantUserDropdownOpen ? `0 0 0 3px ${C.tealLight}` : 'none'
+                  }}
+                  title="User Account & Navigation"
+                >
+                  <div className="tenant-user-avatar-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <img
+                      src={staffUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(staffUser.name || 'Staff')}`}
+                      alt=""
+                      style={{
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                        backgroundColor: '#FFF',
+                        border: `1.5px solid ${staffUser.role === 'admin' ? '#F59E0B' : C.teal}`,
+                        objectFit: 'cover'
+                      }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: -1,
+                        right: -1,
+                        width: '9px',
+                        height: '9px',
+                        borderRadius: '50%',
+                        backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#10B981',
+                        border: '1.5px solid #FFF'
+                      }}
+                      title="Active"
+                    />
+                  </div>
+                  <div className="tenant-user-meta" style={{ textAlign: 'left', lineHeight: 1.15 }}>
+                    <div className="tenant-user-name" style={{ fontSize: '12px', fontWeight: 800, color: C.dark, maxWidth: '110px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {staffUser.name}
+                    </div>
+                    <div className="tenant-user-role" style={{ fontSize: '9.5px', fontWeight: 800, color: staffUser.role === 'admin' ? '#D97706' : C.tealDark, letterSpacing: '0.3px' }}>
+                      {staffUser.role === 'admin' ? 'OWNER' : 'STAFF'}
+                    </div>
+                  </div>
+                  <i
+                    className="ri-arrow-down-s-line tenant-user-caret"
+                    style={{
+                      fontSize: '15px',
+                      color: C.slate,
+                      transition: 'transform 0.2s ease',
+                      transform: isTenantUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  />
+                </button>
+
+                {isTenantUserDropdownOpen && (
+                  <div
+                    className="tenant-dropdown-menu"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: '280px',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '16px',
+                      boxShadow: '0 16px 42px rgba(0, 0, 0, 0.14), 0 4px 14px rgba(0, 0, 0, 0.06)',
+                      border: `1px solid ${C.border}`,
+                      padding: '8px',
+                      zIndex: 1100,
+                      animation: 'fadeInSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}
+                  >
+                    {/* User Header Profile */}
+                    <div
+                      style={{
+                        padding: '12px',
+                        borderRadius: '12px',
+                        backgroundColor: staffUser.role === 'admin' ? '#FFFBEB' : C.pinkLight,
+                        border: staffUser.role === 'admin' ? '1px solid #FDE68A' : `1px solid ${C.border}`,
+                        marginBottom: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img
+                          src={staffUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(staffUser.name || 'Staff')}`}
+                          alt=""
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '50%',
+                            backgroundColor: '#FFF',
+                            border: `2px solid ${staffUser.role === 'admin' ? '#F59E0B' : C.teal}`,
+                            objectFit: 'cover'
+                          }}
+                        />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 800, color: C.dark, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {staffUser.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: C.slate, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '1px' }}>
+                            {staffUser.email || (staffUser.role === 'staff' ? 'Staff PIN Session' : 'Restaurant Admin')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: '9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          backgroundColor: staffUser.role === 'admin' ? '#FEF3C7' : '#DCFCE7',
+                          color: staffUser.role === 'admin' ? '#92400E' : '#15803D'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#16A34A' }} />
+                          {staffUser.role === 'admin' ? 'OWNER ADMIN' : 'KITCHEN STAFF'}
+                        </span>
+                        <span style={{ fontSize: '11px', color: C.slate, fontWeight: 600 }}>
+                          {restaurant.name || tenantSlug}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Portal Nav Items */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <button
+                        type="button"
+                        className="tenant-dropdown-item"
+                        onClick={() => {
+                          setIsTenantUserDropdownOpen(false);
+                          handleTabChange('settings');
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: C.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <i className="ri-settings-3-line" style={{ color: C.teal, fontSize: '16px' }} />
+                        <span>Store Settings & Branding</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="tenant-dropdown-item"
+                        onClick={() => {
+                          setIsTenantUserDropdownOpen(false);
+                          handleTabChange('subscription');
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: C.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <i className="ri-vip-crown-line" style={{ color: '#D97706', fontSize: '16px' }} />
+                        <span>Subscription & Plan</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="tenant-dropdown-item"
+                        onClick={() => {
+                          setIsTenantUserDropdownOpen(false);
+                          handleTabChange('staff');
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: C.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <i className="ri-team-line" style={{ color: C.teal, fontSize: '16px' }} />
+                        <span>Team Roster & PINs</span>
+                      </button>
+
+                      <a
+                        href={`/store/${tenantSlug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="tenant-dropdown-item"
+                        onClick={() => setIsTenantUserDropdownOpen(false)}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '9px 12px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          color: C.dark,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          textDecoration: 'none',
+                          boxSizing: 'border-box',
+                          transition: 'background-color 0.15s'
+                        }}
+                      >
+                        <i className="ri-external-link-line" style={{ color: C.teal, fontSize: '16px' }} />
+                        <span>View Live Storefront ↗</span>
+                      </a>
+                    </div>
+
+                    <div style={{ height: '1px', backgroundColor: C.border, margin: '6px 4px' }} />
+
+                    {/* Sign Out Button */}
+                    <button
+                      type="button"
+                      className="tenant-dropdown-item tenant-logout-btn"
+                      onClick={() => {
+                        setIsTenantUserDropdownOpen(false);
+                        handleStaffSignOut();
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: '#FEF2F2',
+                        color: '#DC2626',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <i className="ri-logout-box-r-line" style={{ fontSize: '16px', color: '#DC2626' }} />
+                      <span>Log Out of Portal</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 
@@ -1173,7 +1893,7 @@ export default function TenantPortalView({
               </div>
               <div>
                 <div style={{ fontSize: '14px', fontWeight: 800, color: '#991B1B' }}>
-                  ⚠️ Restaurant Storefront Suspended by Superadmin
+                  Restaurant Storefront Suspended by Superadmin
                 </div>
                 <div style={{ fontSize: '12.5px', color: '#B91C1C', marginTop: '2px' }}>
                   Reason: <strong>{restaurant.suspended_reason || 'Account under administrative review or past due billing'}</strong>. Customer online ordering is currently blocked.
@@ -1240,17 +1960,60 @@ export default function TenantPortalView({
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').slice(0, 5).map(o => (
-                      <div key={o.id} style={{ padding: '14px', borderRadius: '12px', border: `1px solid ${C.border}`, backgroundColor: C.pinkLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>Order #{o.order_number}</span>
-                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FFF', color: C.tealDark }}>
+                      <div key={o.id} style={{ padding: '14px', borderRadius: '12px', border: `1px solid ${C.border}`, backgroundColor: C.pinkLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ flex: '1 1 240px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '16px', fontWeight: 800, color: C.dark }}>{o.customer_name}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FFF', color: C.tealDark, border: `1px solid ${C.border}` }}>
                               {o.table_number || 'Dine In'}
                             </span>
                           </div>
                           <div style={{ fontSize: '12px', color: C.slate }}>
-                            Diner: <strong>{o.customer_name}</strong> • ₱{o.total} • Status: <strong>{o.status.toUpperCase()}</strong>
+                            Order <strong style={{ color: C.tealDark, fontFamily: 'monospace' }}>#{o.order_number}</strong> • ₱{o.total} • Status: <strong style={{ textTransform: 'uppercase' }}>{o.status}</strong>
                           </div>
+
+                          {/* Food Items with Thumbnails (Max 3, Clickable for full popup) */}
+                          {(o.items || []).length > 0 && (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px', alignItems: 'center' }}>
+                              {(o.items || []).slice(0, 3).map((it, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => setSelectedOrderModal(o)}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFF', padding: '3px 8px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '11px', cursor: 'pointer' }}
+                                  title="Click to view full order"
+                                >
+                                  <img
+                                    src={it.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'}
+                                    alt={it.item_name}
+                                    style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }}
+                                    onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'; }}
+                                  />
+                                  <span><strong style={{ color: C.tealDark }}>{it.quantity}x</strong> {it.item_name}</span>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrderModal(o)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  backgroundColor: C.tealLight,
+                                  color: C.tealDark,
+                                  padding: '4px 9px',
+                                  borderRadius: '8px',
+                                  border: `1px solid ${C.tealDark}33`,
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  cursor: 'pointer'
+                                }}
+                                title="View full order details & add-ons"
+                              >
+                                <i className="ri-fullscreen-line" />
+                                <span>{(o.items || []).length > 3 ? `+${(o.items || []).length - 3} more` : 'Details ↗'}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Progression Action */}
@@ -1288,7 +2051,7 @@ export default function TenantPortalView({
                               onClick={() => handleUpdateStatus(o.id, 'completed')}
                               style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: C.dark, color: '#FFF', border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                             >
-                              Complete ✔
+                              Complete
                             </button>
                           )}
                         </div>
@@ -1377,19 +2140,20 @@ export default function TenantPortalView({
                 <div key={order.id} style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '18px', boxShadow: '0 4px 16px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
                     {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: C.dark }}>
-                            #{order.order_number}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                          <h4 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark, letterSpacing: '-0.2px' }}>
+                            {order.customer_name}
                           </h4>
-                          <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: C.pinkLight, color: C.tealDark }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: C.pinkLight, color: C.tealDark, border: `1px solid ${C.border}` }}>
                             {order.table_number || 'Dine-In'}
                           </span>
                         </div>
-                        <span style={{ fontSize: '12px', color: C.slate }}>
-                          Diner: <strong>{order.customer_name}</strong> {order.customer_phone ? `(${order.customer_phone})` : ''}
-                        </span>
+                        <div style={{ fontSize: '12px', color: C.slate, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>Order <strong style={{ color: C.tealDark, fontFamily: 'monospace' }}>#{order.order_number}</strong></span>
+                          {order.customer_phone && <span>• {order.customer_phone}</span>}
+                        </div>
                       </div>
 
                       <span style={{
@@ -1405,17 +2169,90 @@ export default function TenantPortalView({
                       </span>
                     </div>
 
-                    {/* Items List */}
-                    <div style={{ backgroundColor: C.pinkSoft, borderRadius: '10px', padding: '10px', marginBottom: '12px', border: `1px solid ${C.border}` }}>
-                      {(order.items || []).map((it, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0' }}>
-                          <span><strong>{it.quantity}x</strong> {it.item_name} {it.instructions ? <span style={{ color: C.slate }}>({it.instructions})</span> : ''}</span>
-                          <span style={{ fontWeight: 700 }}>₱{(it.subtotal || it.price * it.quantity).toFixed(0)}</span>
+                    {/* Items List with Food Images (Clickable for full popup) */}
+                    <div
+                      onClick={() => setSelectedOrderModal(order)}
+                      style={{
+                        backgroundColor: C.pinkSoft,
+                        borderRadius: '12px',
+                        padding: '10px 12px',
+                        marginBottom: '14px',
+                        border: `1px solid ${C.border}`,
+                        cursor: 'pointer',
+                        transition: 'border-color 0.15s ease'
+                      }}
+                      title="Click to view full order details & add-ons"
+                    >
+                      {(order.items || []).slice(0, 3).map((it, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            fontSize: '12px',
+                            padding: '6px 0',
+                            borderBottom: idx < Math.min(3, (order.items || []).length) - 1 ? `1px dashed ${C.border}` : 'none',
+                            gap: '10px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0, flex: 1 }}>
+                            <img
+                              src={it.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'}
+                              alt={it.item_name}
+                              style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0, marginTop: '2px' }}
+                              onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'; }}
+                            />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <span style={{ fontWeight: 800, color: C.dark, display: 'block' }}>
+                                <span style={{ color: C.tealDark, fontWeight: 800 }}>{it.quantity}x</span> {it.item_name}
+                              </span>
+                              {renderInstructionBadges(it.instructions)}
+                            </div>
+                          </div>
+                          <span style={{ fontWeight: 800, color: C.tealDark, flexShrink: 0, paddingTop: '2px' }}>
+                            ₱{(it.subtotal || it.price * it.quantity).toFixed(0)}
+                          </span>
                         </div>
                       ))}
+
+                      {/* Always show View Details & Add-ons Button for all orders */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOrderModal(order);
+                        }}
+                        style={{
+                          width: '100%',
+                          marginTop: '8px',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          backgroundColor: C.tealLight,
+                          color: C.tealDark,
+                          border: `1px solid ${C.tealDark}33`,
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <i className="ri-fullscreen-line" style={{ fontSize: '13px' }} />
+                        <span>
+                          {(order.items || []).length > 3
+                            ? `+${(order.items || []).length - 3} more item${((order.items || []).length - 3) === 1 ? '' : 's'} • View all items & add-ons ↗`
+                            : `View full order & add-ons details ↗`}
+                        </span>
+                      </button>
+
                       {order.notes && (
-                        <div style={{ fontSize: '11px', color: '#92400E', backgroundColor: '#FEF3C7', padding: '4px 8px', borderRadius: '6px', marginTop: '6px' }}>
-                          Note: {order.notes}
+                        <div style={{ fontSize: '11px', color: '#92400E', backgroundColor: '#FEF3C7', padding: '6px 10px', borderRadius: '8px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <i className="ri-information-line" />
+                          <span><strong>Note:</strong> {order.notes}</span>
                         </div>
                       )}
                     </div>
@@ -1468,106 +2305,348 @@ export default function TenantPortalView({
         {/* 3. MENU MANAGEMENT TAB */}
         {activeTab === 'menu' && (
           <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedMenuCat('all')}
-                  style={{
-                    padding: '7px 14px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    border: selectedMenuCat === 'all' ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                    backgroundColor: selectedMenuCat === 'all' ? C.teal : '#FFF',
-                    color: selectedMenuCat === 'all' ? '#FFF' : C.dark,
-                    cursor: 'pointer'
-                  }}
-                >
-                  All Categories ({menuData.categories.length})
-                </button>
-                {menuData.categories.map(cat => (
-                  <div
-                    key={cat.id}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      border: selectedMenuCat === cat.id ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                      backgroundColor: selectedMenuCat === cat.id ? C.teal : '#FFF'
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMenuCat(cat.id)}
-                      style={{
-                        padding: '7px 12px',
-                        border: 'none',
-                        background: 'transparent',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: selectedMenuCat === cat.id ? '#FFF' : C.dark,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {cat.name} ({cat.items?.length || 0})
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete category"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCategory(cat.id, cat.name);
-                      }}
-                      style={{
-                        padding: '7px 8px 7px 0',
-                        border: 'none',
-                        background: 'transparent',
-                        fontSize: '11px',
-                        color: selectedMenuCat === cat.id ? 'rgba(255,255,255,0.7)' : C.slate,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <i className="ri-close-line" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
+            {/* Sub-tab navigation: Dishes & Items vs Add-ons & Extras */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '20px', borderBottom: `1px solid ${C.border}`, paddingBottom: '14px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
-                    setIsCatModalOpen(true);
+                  onClick={() => setMenuSubTab('items')}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    border: menuSubTab === 'items' ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
+                    backgroundColor: menuSubTab === 'items' ? C.teal : '#FFF',
+                    color: menuSubTab === 'items' ? '#FFF' : C.dark,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
                   }}
-                  style={{ backgroundColor: '#FFF', color: C.dark, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <i className="ri-folder-add-line" style={{ color: C.teal }} /> + Add Category
+                  <i className="ri-restaurant-line" />
+                  <span>Dishes & Items ({menuData.categories?.reduce((acc, c) => acc + (c.items?.length || 0), 0) || 0})</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setItemForm({
-                      name: '',
-                      category_id: menuData.categories[0]?.id || '',
-                      price: '',
-                      description: '',
-                      image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80',
-                      preparation_time: 15,
-                      badge: '',
-                      is_featured: false
-                    });
-                    setEditingItem(null);
-                    setIsItemModalOpen(true);
+                  onClick={() => setMenuSubTab('addons')}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    border: menuSubTab === 'addons' ? '1px solid #D97706' : `1px solid ${C.border}`,
+                    backgroundColor: menuSubTab === 'addons' ? '#D97706' : '#FFF',
+                    color: menuSubTab === 'addons' ? '#FFF' : '#B45309',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
                   }}
-                  style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <i className="ri-add-line" /> + Add New Item
+                  <i className="ri-price-tag-3-fill" style={{ color: menuSubTab === 'addons' ? '#FFF' : '#F59E0B' }} />
+                  <span>Add-ons & Extras Catalog ({addons.length})</span>
                 </button>
               </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingAddon(null);
+                    setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+                    setIsAddonModalOpen(true);
+                  }}
+                  style={{
+                    backgroundColor: '#FEF3C7',
+                    color: '#92400E',
+                    border: '1px solid #FDE68A',
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <i className="ri-add-line" style={{ color: '#D97706' }} /> + Add Add-on
+                </button>
+                {menuSubTab === 'items' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
+                        setIsCatModalOpen(true);
+                      }}
+                      style={{ backgroundColor: '#FFF', color: C.dark, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <i className="ri-folder-add-line" style={{ color: C.teal }} /> + Add Category
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setItemForm({
+                          name: '',
+                          category_id: menuData.categories[0]?.id || '',
+                          price: '',
+                          description: '',
+                          image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80',
+                          preparation_time: 15,
+                          badge: '',
+                          is_featured: false
+                        });
+                        setEditingItem(null);
+                        setIsItemModalOpen(true);
+                      }}
+                      style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <i className="ri-add-line" /> + Add New Item
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+
+            {menuSubTab === 'addons' ? (
+              <div>
+                <div style={{ backgroundColor: '#FFF', borderRadius: '14px', padding: '16px 20px', border: `1px solid ${C.border}`, marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>
+                      Restaurant Add-ons & Customization Extras
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '12px', color: C.slate }}>
+                      Configure add-on options that customers can attach to dishes and drinks in the storefront (e.g. extra rice, egg, cheese, dips, extra shots, oat milk).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAddon(null);
+                      setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+                      setIsAddonModalOpen(true);
+                    }}
+                    style={{
+                      backgroundColor: '#D97706',
+                      color: '#FFF',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <i className="ri-add-line" /> + New Add-on
+                  </button>
+                </div>
+
+                {addons.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
+                    <i className="ri-price-tag-3-line" style={{ fontSize: '42px', color: '#D97706', display: 'block', marginBottom: '12px' }} />
+                    <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>No Add-ons Configured Yet</h3>
+                    <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: C.slate, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+                      Add delicious extras like Extra Rice, Melted Cheese, Sunny-Side Egg, or Oat Milk Upgrade for your customers.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingAddon(null);
+                        setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+                        setIsAddonModalOpen(true);
+                      }}
+                      style={{ backgroundColor: '#D97706', color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      + Add First Add-on
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+                    {addons.map(addon => (
+                      <div
+                        key={addon.id}
+                        style={{
+                          backgroundColor: '#FFF',
+                          borderRadius: '14px',
+                          border: `1px solid ${addon.is_available ? C.border : '#EF444433'}`,
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                          opacity: addon.is_available ? 1 : 0.75
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                backgroundColor: addon.type === 'drink' ? '#EFF6FF' : (addon.type === 'both' ? '#F5F3FF' : '#FEF3C7'),
+                                color: addon.type === 'drink' ? '#2563EB' : (addon.type === 'both' ? '#7C3AED' : '#D97706'),
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '16px'
+                              }}>
+                                <i className={addon.type === 'drink' ? 'ri-cup-line' : (addon.type === 'both' ? 'ri-apps-2-line' : 'ri-restaurant-line')} />
+                              </div>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: C.dark }}>{addon.name}</h4>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  backgroundColor: addon.type === 'drink' ? '#DBEAFE' : (addon.type === 'both' ? '#EDE9FE' : '#FDE68A'),
+                                  color: addon.type === 'drink' ? '#1E40AF' : (addon.type === 'both' ? '#5B21B6' : '#92400E'),
+                                  display: 'inline-block',
+                                  marginTop: '2px'
+                                }}>
+                                  {addon.type === 'drink' ? 'Beverage Extra' : (addon.type === 'both' ? 'Universal' : 'Food Extra')}
+                                </span>
+                              </div>
+                            </div>
+
+                            <span style={{ fontSize: '15px', fontWeight: 800, color: C.tealDark }}>
+                              ₱{Number(addon.price || 0).toFixed(0)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
+                          {/* Availability Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAddonStock(addon)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '4px 9px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: 'none',
+                              backgroundColor: addon.is_available ? '#D1FAE5' : '#FEE2E2',
+                              color: addon.is_available ? '#065F46' : '#991B1B'
+                            }}
+                            title="Click to toggle availability"
+                          >
+                            <i className={addon.is_available ? 'ri-checkbox-circle-fill' : 'ri-close-circle-fill'} />
+                            <span>{addon.is_available ? 'In Stock' : 'Sold Out'}</span>
+                          </button>
+
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAddon(addon);
+                                setAddonForm({
+                                  name: addon.name,
+                                  price: addon.price,
+                                  type: addon.type || 'food',
+                                  is_available: addon.is_available ? 1 : 0
+                                });
+                                setIsAddonModalOpen(true);
+                              }}
+                              style={{ border: 'none', background: 'none', color: C.tealDark, fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              <i className="ri-edit-line" /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAddon(addon.id, addon.name)}
+                              style={{ border: 'none', background: 'none', color: '#EF4444', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              <i className="ri-delete-bin-line" /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                {/* Categories Bar */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '20px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMenuCat('all')}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: selectedMenuCat === 'all' ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
+                      backgroundColor: selectedMenuCat === 'all' ? C.teal : '#FFF',
+                      color: selectedMenuCat === 'all' ? '#FFF' : C.dark,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    All Categories ({menuData.categories.length})
+                  </button>
+                  {menuData.categories.map(cat => (
+                    <div
+                      key={cat.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: selectedMenuCat === cat.id ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
+                        backgroundColor: selectedMenuCat === cat.id ? C.teal : '#FFF'
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMenuCat(cat.id)}
+                        style={{
+                          padding: '7px 12px',
+                          border: 'none',
+                          background: 'transparent',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: selectedMenuCat === cat.id ? '#FFF' : C.dark,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {cat.name} ({cat.items?.length || 0})
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete category"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCategory(cat.id, cat.name);
+                        }}
+                        style={{
+                          padding: '7px 8px 7px 0',
+                          border: 'none',
+                          background: 'transparent',
+                          fontSize: '11px',
+                          color: selectedMenuCat === cat.id ? 'rgba(255,255,255,0.7)' : C.slate,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <i className="ri-close-line" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
 
             {/* Empty State when no categories exist */}
             {menuData.categories.length === 0 ? (
@@ -1704,6 +2783,8 @@ export default function TenantPortalView({
                   </div>
                 );
               })()
+            )}
+              </div>
             )}
           </div>
         )}
@@ -1863,7 +2944,7 @@ export default function TenantPortalView({
                               color: isAdmin ? '#92400E' : (member.role === 'kitchen' ? '#C2410C' : C.tealDark),
                               border: isAdmin ? '1px solid #FDE68A' : 'none'
                             }}>
-                              {member.role === 'admin' ? '👑 Admin' : (member.role === 'manager' ? '💼 Manager' : (member.role === 'kitchen' ? '🍳 Kitchen' : (member.role === 'cashier' ? '💳 Cashier' : '🍳 Staff')))}
+                              {member.role === 'admin' ? 'Admin' : (member.role === 'manager' ? 'Manager' : (member.role === 'kitchen' ? 'Kitchen' : (member.role === 'cashier' ? 'Cashier' : 'Staff')))}
                             </span>
                           </td>
 
@@ -2028,7 +3109,7 @@ export default function TenantPortalView({
                 <div>
                   <strong style={{ color: C.dark, fontSize: '13px', display: 'block' }}>
                     {subscriptionData?.subscription?.has_advanced_analytics
-                      ? `⭐ Advanced Analytics Active (${subscriptionData?.subscription?.plan_name})`
+                      ? `Advanced Analytics Active (${subscriptionData?.subscription?.plan_name})`
                       : `Standard Sales Reports (${subscriptionData?.subscription?.plan_name || 'Starter'})`}
                   </strong>
                   <span style={{ fontSize: '12px', color: C.slate }}>
@@ -2398,7 +3479,7 @@ export default function TenantPortalView({
                           fontWeight: 800,
                           fontSize: '13px'
                         }}>
-                          ✔ Active Current Plan
+                          Active Current Plan
                         </div>
                       ) : (
                         <button
@@ -2501,80 +3582,436 @@ export default function TenantPortalView({
                 </div>
               </div>
 
-              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* 1. COLOR THEME SECTION */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '8px' }}>
-                    🎨 Primary Brand Color
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-                    <input
-                      type="color"
-                      value={settingsForm.primary_color || '#2A9D9A'}
-                      onChange={e => setSettingsForm({ ...settingsForm, primary_color: e.target.value })}
-                      style={{ width: '48px', height: '44px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
-                    />
-                    <input
-                      type="text"
-                      value={settingsForm.primary_color || '#2A9D9A'}
-                      onChange={e => setSettingsForm({ ...settingsForm, primary_color: e.target.value })}
-                      style={{ width: '130px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, fontFamily: 'monospace' }}
-                    />
-                    <div style={{ flex: 1, height: '40px', borderRadius: '8px', backgroundColor: settingsForm.primary_color || '#2A9D9A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 800, fontSize: '12px', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-                      Brand Accent
+              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                {/* ─── 1. CURATED 1-CLICK THEME PRESETS ────────────────────────── */}
+                <div style={{ backgroundColor: C.pinkSoft, padding: '18px', borderRadius: '14px', border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '13px', fontWeight: 800, color: C.dark, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>1-Click Curated Designer Themes</span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', backgroundColor: C.tealLight, color: C.tealDark }}>Instant Setup</span>
+                      </label>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: C.slate }}>
+                        Select a curated designer theme to instantly apply harmonious colors, typography & styling
+                      </p>
                     </div>
                   </div>
 
-                  {/* Curated Color Presets */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                    {THEME_PRESETS.map(preset => {
+                      const isSelected = activeThemeConfig.preset === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyThemePreset(preset)}
+                          style={{
+                            padding: '12px',
+                            borderRadius: '12px',
+                            border: isSelected ? `2px solid ${preset.primary}` : `1px solid ${C.border}`,
+                            backgroundColor: isSelected ? '#FFF' : '#FFF',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            position: 'relative',
+                            boxShadow: isSelected ? `0 4px 14px ${preset.primary}33` : '0 1px 4px rgba(0,0,0,0.03)',
+                            transition: 'all 0.18s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ width: '24px', height: '24px', borderRadius: '6px', backgroundColor: `${preset.primary}18`, color: preset.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
+                                <i className={preset.icon} />
+                              </div>
+                              <span style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>{preset.name}</span>
+                            </div>
+                            {isSelected && (
+                              <i className="ri-checkbox-circle-fill" style={{ color: preset.primary, fontSize: '16px' }} />
+                            )}
+                          </div>
+
+                          {/* Color Palette Chips */}
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: preset.primary, border: '1px solid rgba(0,0,0,0.1)' }} title="Primary" />
+                            <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: preset.secondary, border: '1px solid rgba(0,0,0,0.1)' }} title="Secondary" />
+                            <span style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: preset.accent, border: '1px solid rgba(0,0,0,0.1)' }} title="Accent" />
+                            <span style={{ fontSize: '10px', color: C.slate, fontWeight: 700, marginLeft: '4px' }}>{preset.font}</span>
+                          </div>
+
+                          <p style={{ margin: 0, fontSize: '10px', color: C.slate, lineHeight: 1.35 }}>
+                            {preset.desc}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ─── 2. COLOR PALETTE STUDIO ───────────────────────────────────── */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <label style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
+                      Color Palette Studio
+                    </label>
+                    <span style={{ fontSize: '11px', color: C.slate, fontWeight: 600 }}>Click swatch or enter hex codes</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+                    {/* Primary Brand Color */}
+                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: '#FFF' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: C.slate, textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Primary Brand Color
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="color"
+                          value={activeThemeConfig.primary_color || settingsForm.primary_color || '#2A9D9A'}
+                          onChange={e => updateThemeConfig({ primary_color: e.target.value })}
+                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                        />
+                        <input
+                          type="text"
+                          value={activeThemeConfig.primary_color || settingsForm.primary_color || '#2A9D9A'}
+                          onChange={e => updateThemeConfig({ primary_color: e.target.value })}
+                          style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, fontFamily: 'monospace' }}
+                        />
+                      </div>
+                      <span style={{ display: 'block', fontSize: '10px', color: C.slate, marginTop: '4px' }}>Buttons, active category tabs & icons</span>
+                    </div>
+
+                    {/* Secondary / Text Contrast Color */}
+                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: '#FFF' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: C.slate, textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Secondary / Headings
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="color"
+                          value={activeThemeConfig.secondary_color || settingsForm.secondary_color || '#1E293B'}
+                          onChange={e => updateThemeConfig({ secondary_color: e.target.value })}
+                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                        />
+                        <input
+                          type="text"
+                          value={activeThemeConfig.secondary_color || settingsForm.secondary_color || '#1E293B'}
+                          onChange={e => updateThemeConfig({ secondary_color: e.target.value })}
+                          style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, fontFamily: 'monospace' }}
+                        />
+                      </div>
+                      <span style={{ display: 'block', fontSize: '10px', color: C.slate, marginTop: '4px' }}>Titles, header text & dark contrast accents</span>
+                    </div>
+
+                    {/* Accent / Highlight Color */}
+                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: '#FFF' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: C.slate, textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Accent / Ribbon Highlight
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="color"
+                          value={activeThemeConfig.accent_color || '#F59E0B'}
+                          onChange={e => updateThemeConfig({ accent_color: e.target.value })}
+                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                        />
+                        <input
+                          type="text"
+                          value={activeThemeConfig.accent_color || '#F59E0B'}
+                          onChange={e => updateThemeConfig({ accent_color: e.target.value })}
+                          style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, fontFamily: 'monospace' }}
+                        />
+                      </div>
+                      <span style={{ display: 'block', fontSize: '10px', color: C.slate, marginTop: '4px' }}>Bestseller tags, stars & special alerts</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Color Swatches */}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate, marginRight: '4px' }}>Curated Themes:</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate, marginRight: '4px' }}>Quick Swatches:</span>
                     {[
-                      { name: 'Emerald Teal', hex: '#2A9D9A' },
-                      { name: 'Spicy Orange', hex: '#F97316' },
-                      { name: 'Crimson Bistro', hex: '#E11D48' },
-                      { name: 'Espresso Amber', hex: '#D97706' },
-                      { name: 'Royal Indigo', hex: '#6366F1' },
-                      { name: 'Botanical Green', hex: '#10B981' },
-                      { name: 'Minimalist Dark', hex: '#1E293B' }
-                    ].map(preset => (
+                      { name: 'Teal', hex: '#2A9D9A' },
+                      { name: 'Emerald', hex: '#10B981' },
+                      { name: 'Orange', hex: '#F97316' },
+                      { name: 'Amber', hex: '#D97706' },
+                      { name: 'Rose', hex: '#E11D48' },
+                      { name: 'Indigo', hex: '#6366F1' },
+                      { name: 'Violet', hex: '#8B5CF6' },
+                      { name: 'Sky', hex: '#0284C7' },
+                      { name: 'Obsidian', hex: '#1E293B' }
+                    ].map(swatch => (
                       <button
-                        key={preset.hex}
+                        key={swatch.hex}
                         type="button"
-                        onClick={() => setSettingsForm({ ...settingsForm, primary_color: preset.hex })}
+                        onClick={() => updateThemeConfig({ primary_color: swatch.hex })}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          padding: '4px 8px',
+                          gap: '5px',
+                          padding: '3px 8px',
                           borderRadius: '6px',
-                          border: settingsForm.primary_color === preset.hex ? `2px solid ${C.dark}` : `1px solid ${C.border}`,
+                          border: (activeThemeConfig.primary_color === swatch.hex || settingsForm.primary_color === swatch.hex) ? `2px solid ${C.dark}` : `1px solid ${C.border}`,
                           backgroundColor: '#FFF',
                           fontSize: '11px',
                           fontWeight: 700,
                           cursor: 'pointer'
                         }}
                       >
-                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: preset.hex, display: 'inline-block' }} />
-                        {preset.name}
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: swatch.hex }} />
+                        {swatch.name}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* 2. LOGO IMAGE & PRESETS */}
+                {/* ─── 3. BACKGROUND AESTHETIC & THEME AMBIENCE ──────────────────── */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
+                    Aesthetic Background & Ambience
+                  </label>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: C.slate }}>
+                    Choose the visual mood and background styling of your customer digital storefront
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                    {THEME_BG_STYLES.map(bg => {
+                      const isSelected = (activeThemeConfig.bg_style || 'slate_clean') === bg.id;
+                      return (
+                        <button
+                          key={bg.id}
+                          type="button"
+                          onClick={() => updateThemeConfig({ bg_style: bg.id })}
+                          style={{
+                            padding: '12px',
+                            borderRadius: '12px',
+                            border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
+                            backgroundColor: bg.bg,
+                            color: bg.text,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            boxShadow: isSelected ? `0 4px 14px ${C.tealLight}` : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 800 }}>{bg.label}</span>
+                            {isSelected && <i className="ri-check-line" style={{ color: C.teal, fontSize: '16px', fontWeight: 900 }} />}
+                          </div>
+                          <span style={{ fontSize: '10px', opacity: 0.8, fontWeight: 600 }}>{bg.tag}</span>
+                          <div style={{ height: '6px', width: '100%', borderRadius: '4px', backgroundColor: bg.card, border: `1px solid ${bg.border}`, marginTop: '4px' }} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ─── 4. BRAND TYPOGRAPHY (GOOGLE FONTS) ────────────────────────── */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
+                    Brand Typography
+                  </label>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: C.slate }}>
+                    Select the font typeface that reflects your dining atmosphere
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+                    {THEME_FONTS.map(fontItem => {
+                      const isSelected = (activeThemeConfig.font_family || 'Plus Jakarta Sans') === fontItem.id;
+                      return (
+                        <button
+                          key={fontItem.id}
+                          type="button"
+                          onClick={() => updateThemeConfig({ font_family: fontItem.id })}
+                          style={{
+                            padding: '12px',
+                            borderRadius: '12px',
+                            border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
+                            backgroundColor: isSelected ? C.tealLight : '#FFF',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                            fontFamily: fontItem.font,
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>{fontItem.label}</span>
+                            {isSelected && <i className="ri-check-line" style={{ color: C.teal, fontSize: '16px' }} />}
+                          </div>
+                          <span style={{ fontSize: '11px', color: C.slate, fontFamily: 'sans-serif' }}>{fontItem.style}</span>
+                          <span style={{ fontSize: '12px', color: C.tealDark, marginTop: '4px', fontWeight: 700 }}>
+                            Crispy Wagyu Burger • ₱350
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ─── 5. SHAPE LANGUAGE & CORNER RADIUS ────────────────────────── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {/* Corner Radius */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
+                      Corner Shape Language
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {THEME_RADII.map(rad => {
+                        const isSelected = (activeThemeConfig.border_radius || 'smooth') === rad.id;
+                        return (
+                          <button
+                            key={rad.id}
+                            type="button"
+                            onClick={() => updateThemeConfig({ border_radius: rad.id })}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: rad.radius,
+                              border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
+                              backgroundColor: isSelected ? C.tealLight : '#FFF',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>{rad.label}</div>
+                              <div style={{ fontSize: '10px', color: C.slate }}>{rad.desc}</div>
+                            </div>
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: rad.pill,
+                              backgroundColor: C.teal,
+                              color: '#FFF',
+                              fontSize: '11px',
+                              fontWeight: 800
+                            }}>
+                              Preview
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Hero Style */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
+                      Storefront Header Banner
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {THEME_HEROES.map(hero => {
+                        const isSelected = (activeThemeConfig.hero_style || 'cinematic') === hero.id;
+                        return (
+                          <button
+                            key={hero.id}
+                            type="button"
+                            onClick={() => updateThemeConfig({ hero_style: hero.id })}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '12px',
+                              border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
+                              backgroundColor: isSelected ? C.tealLight : '#FFF',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <i className={hero.icon} style={{ fontSize: '16px', color: C.teal }} />
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>{hero.label}</div>
+                                <div style={{ fontSize: '10px', color: C.slate }}>{hero.desc}</div>
+                              </div>
+                            </div>
+                            {isSelected && <i className="ri-check-line" style={{ color: C.teal, fontSize: '16px' }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 6. MENU CARD DISPLAY DENSITY ──────────────────────────────── */}
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
-                    🖼️ Restaurant Logo Image
+                    Menu Item Card Layout
                   </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {THEME_DENSITIES.map(den => {
+                      const isSelected = (activeThemeConfig.card_density || 'grid_spacious') === den.id;
+                      return (
+                        <button
+                          key={den.id}
+                          type="button"
+                          onClick={() => updateThemeConfig({ card_density: den.id })}
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: '12px',
+                            border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
+                            backgroundColor: isSelected ? C.tealLight : '#FFF',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <i className={den.icon} style={{ fontSize: '18px', color: C.teal }} />
+                            <div>
+                              <div style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>{den.label}</div>
+                              <div style={{ fontSize: '10px', color: C.slate }}>{den.desc}</div>
+                            </div>
+                          </div>
+                          {isSelected && <i className="ri-check-line" style={{ color: C.teal, fontSize: '16px' }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ─── 7. LOGO & BANNER IMAGES ─────────────────────────────────── */}
+                <div style={{ paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 800, color: C.dark }}>
+                      Restaurant Logo Image
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', backgroundColor: C.teal, color: '#FFF', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="ri-upload-cloud-2-line" />
+                      {uploadingField === 'logo' ? 'Uploading...' : 'Upload Logo File'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(f, 'logo', 'logo');
+                        }}
+                      />
+                    </label>
+                  </div>
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
                     <img
                       src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
                       alt="Logo preview"
                       style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover', border: `2px solid ${settingsForm.primary_color || C.teal}` }}
+                      onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
                     />
                     <input
                       type="text"
-                      placeholder="https://images.unsplash.com/..."
+                      placeholder="https://... or upload custom file"
                       value={settingsForm.logo_url}
                       onChange={e => setSettingsForm({ ...settingsForm, logo_url: e.target.value })}
                       style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
@@ -2582,13 +4019,13 @@ export default function TenantPortalView({
                   </div>
 
                   {/* Logo Presets */}
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '16px' }}>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: C.slate }}>Logo Presets:</span>
                     {[
-                      { label: '🍜 Ramen / Asian', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80' },
-                      { label: '☕ Cafe & Bakery', url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=160&auto=format&fit=crop&q=80' },
-                      { label: '🍔 Gourmet Burger', url: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=160&auto=format&fit=crop&q=80' },
-                      { label: '🍕 Italian / Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&auto=format&fit=crop&q=80' }
+                      { label: 'Ramen / Asian', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80' },
+                      { label: 'Cafe & Bakery', url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=160&auto=format&fit=crop&q=80' },
+                      { label: 'Gourmet Burger', url: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=160&auto=format&fit=crop&q=80' },
+                      { label: 'Italian / Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&auto=format&fit=crop&q=80' }
                     ].map(p => (
                       <button
                         key={p.label}
@@ -2600,16 +4037,29 @@ export default function TenantPortalView({
                       </button>
                     ))}
                   </div>
-                </div>
 
-                {/* 3. HERO BANNER IMAGE & PRESETS */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: C.dark, marginBottom: '6px' }}>
-                    🌄 Storefront Header Banner Image
-                  </label>
+                  {/* Header Banner */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 800, color: C.dark }}>
+                      Storefront Header Banner Image
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', backgroundColor: C.teal, color: '#FFF', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="ri-upload-cloud-2-line" />
+                      {uploadingField === 'banner' ? 'Uploading...' : 'Upload Banner File'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(f, 'banner', 'banner');
+                        }}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="text"
-                    placeholder="https://images.unsplash.com/..."
+                    placeholder="https://... or upload custom file"
                     value={settingsForm.banner_url}
                     onChange={e => setSettingsForm({ ...settingsForm, banner_url: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }}
@@ -2636,7 +4086,7 @@ export default function TenantPortalView({
                   </div>
                 </div>
 
-                {/* 4. RESTAURANT BASIC DETAILS */}
+                {/* ─── 8. RESTAURANT BASIC DETAILS ─────────────────────────────── */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Restaurant Name</label>
@@ -2696,11 +4146,11 @@ export default function TenantPortalView({
                 <button
                   type="submit"
                   style={{
-                    backgroundColor: settingsForm.primary_color || C.teal,
+                    backgroundColor: activeThemeConfig.primary_color || settingsForm.primary_color || C.teal,
                     color: '#FFF',
                     border: 'none',
-                    padding: '13px 20px',
-                    borderRadius: '10px',
+                    padding: '14px 24px',
+                    borderRadius: activeThemeConfig.border_radius === 'sharp' ? '6px' : activeThemeConfig.border_radius === 'rounded' ? '24px' : '12px',
                     fontSize: '14px',
                     fontWeight: 800,
                     cursor: 'pointer',
@@ -2708,169 +4158,354 @@ export default function TenantPortalView({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.1)'
+                    boxShadow: `0 4px 16px ${(activeThemeConfig.primary_color || C.teal)}44`,
+                    transition: 'transform 0.15s ease'
                   }}
                 >
-                  <i className="ri-save-line" /> Save Theme & Branding
+                  <i className="ri-save-line" style={{ fontSize: '18px' }} />
+                  <span>Save Theme Customization & Brand Settings</span>
                 </button>
               </form>
             </div>
 
             {/* Right: Live Interactive Storefront Preview Card */}
             <div style={{ position: 'sticky', top: '20px' }}>
-              <div style={{
-                backgroundColor: '#FFF',
-                borderRadius: '16px',
-                border: `1px solid ${C.border}`,
-                overflow: 'hidden',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.06)'
-              }}>
-                <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.pinkLight }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#EF4444', display: 'inline-block' }} />
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#F59E0B', display: 'inline-block' }} />
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: C.slate, marginLeft: '6px' }}>Live Storefront Preview</span>
-                  </div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: C.tealDark, backgroundColor: '#FFF', padding: '2px 8px', borderRadius: '6px' }}>
-                    {tenantSlug}.localhost
-                  </span>
-                </div>
+              {(() => {
+                const previewFont = activeThemeConfig.font_family || 'Plus Jakarta Sans';
+                const previewRadius = activeThemeConfig.border_radius === 'sharp' ? '6px' : activeThemeConfig.border_radius === 'rounded' ? '22px' : '14px';
+                const previewPillRadius = activeThemeConfig.border_radius === 'sharp' ? '6px' : activeThemeConfig.border_radius === 'rounded' ? '24px' : '12px';
+                const previewBgStyle = activeThemeConfig.bg_style || 'slate_clean';
+                const isDark = previewBgStyle === 'midnight_dark';
+                const previewBg = isDark ? '#0F172A' : (previewBgStyle === 'warm_cream' ? '#FAF7F2' : previewBgStyle === 'matcha_soft' ? '#F0FDF4' : previewBgStyle === 'rose_blush' ? '#FFF1F2' : previewBgStyle === 'pure_white' ? '#FFFFFF' : '#F8FAFC');
+                const previewCardBg = isDark ? '#1E293B' : '#FFFFFF';
+                const previewTextColor = isDark ? '#F8FAFC' : (activeThemeConfig.secondary_color || '#1E293B');
+                const previewMutedColor = isDark ? '#94A3B8' : '#64748B';
+                const previewBorder = isDark ? '#334155' : (previewBgStyle === 'matcha_soft' ? '#DCFCE7' : previewBgStyle === 'warm_cream' ? '#E7E5E4' : previewBgStyle === 'rose_blush' ? '#FFE4E6' : '#E2E8F0');
+                const previewPrimary = activeThemeConfig.primary_color || settingsForm.primary_color || C.teal;
+                const previewAccent = activeThemeConfig.accent_color || '#F59E0B';
+                const heroStyle = activeThemeConfig.hero_style || 'cinematic';
+                const isCompact = activeThemeConfig.card_density === 'compact_list';
 
-                {/* Simulated Store Banner */}
-                <div style={{
-                  height: '120px',
-                  backgroundColor: settingsForm.primary_color || C.teal,
-                  backgroundImage: settingsForm.banner_url ? `url(${settingsForm.banner_url})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  position: 'relative'
-                }}>
+                return (
                   <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.7))'
-                  }} />
-                  <div style={{ position: 'absolute', bottom: '-20px', left: '16px', display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
-                    <img
-                      src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
-                      alt="Logo"
-                      style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '14px',
-                        objectFit: 'cover',
-                        border: '3px solid #FFF',
-                        boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
-                        backgroundColor: '#FFF'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Simulated Store Info */}
-                <div style={{ padding: '28px 16px 16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: C.dark }}>
-                        {settingsForm.name || 'Your Restaurant'}
-                      </h4>
-                      <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600 }}>
-                        {settingsForm.cuisine_type || 'Specialty Cuisine'} • {settingsForm.city || 'Metro Manila'}
+                    backgroundColor: previewBg,
+                    borderRadius: previewRadius,
+                    border: `1px solid ${previewBorder}`,
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+                    fontFamily: `'${previewFont}', -apple-system, sans-serif`,
+                    transition: 'all 0.25s ease'
+                  }}>
+                    {/* Browser Shell Top Bar */}
+                    <div style={{ padding: '12px 16px', borderBottom: `1px solid ${previewBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#EF4444', display: 'inline-block' }} />
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#F59E0B', display: 'inline-block' }} />
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: previewMutedColor, marginLeft: '6px' }}>Live Storefront Preview</span>
+                      </div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: previewPrimary, backgroundColor: isDark ? '#0F172A' : '#FFF', padding: '2px 8px', borderRadius: '6px', border: `1px solid ${previewBorder}` }}>
+                        {tenantSlug}.localhost
                       </span>
                     </div>
-                    <span style={{
-                      padding: '3px 8px',
-                      borderRadius: '8px',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      backgroundColor: settingsForm.primary_color ? `${settingsForm.primary_color}18` : C.tealLight,
-                      color: settingsForm.primary_color || C.tealDark
-                    }}>
-                      OPEN NOW
-                    </span>
-                  </div>
 
-                  {/* Simulated Category Tabs */}
-                  <div style={{ display: 'flex', gap: '6px', margin: '14px 0 16px', overflowX: 'auto', paddingBottom: '4px' }}>
-                    {['All Menu', 'Signature Bowls', 'Drinks', 'Desserts'].map((tab, idx) => (
-                      <span
-                        key={tab}
+                    {/* Simulated Store Banner / Hero Header */}
+                    {heroStyle === 'minimal' ? (
+                      <div style={{
+                        padding: '16px',
+                        borderBottom: `1px solid ${previewBorder}`,
+                        backgroundColor: previewCardBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        <img
+                          src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
+                          alt="Logo"
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: previewRadius,
+                            objectFit: 'cover',
+                            border: `2px solid ${previewPrimary}`
+                          }}
+                          onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: previewTextColor }}>
+                            {settingsForm.name || 'Your Restaurant'}
+                          </h4>
+                          <span style={{ fontSize: '11px', color: previewMutedColor, fontWeight: 600 }}>
+                            {settingsForm.cuisine_type || 'Specialty Dining'} • {settingsForm.city || 'Metro Manila'}
+                          </span>
+                        </div>
+                        <span style={{ padding: '3px 8px', borderRadius: previewPillRadius, fontSize: '10px', fontWeight: 800, backgroundColor: `${previewPrimary}18`, color: previewPrimary }}>
+                          OPEN
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{
+                        height: heroStyle === 'glass' ? '135px' : '120px',
+                        backgroundColor: previewPrimary,
+                        backgroundImage: settingsForm.banner_url ? `url(${settingsForm.banner_url})` : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        position: 'relative'
+                      }}>
+                        <div style={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: heroStyle === 'glass'
+                            ? 'linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.65))'
+                            : 'linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.8))'
+                        }} />
+
+                        {heroStyle === 'glass' ? (
+                          <div style={{
+                            position: 'absolute',
+                            inset: '12px',
+                            backgroundColor: 'rgba(255,255,255,0.18)',
+                            backdropFilter: 'blur(10px)',
+                            borderRadius: previewRadius,
+                            border: '1px solid rgba(255,255,255,0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '10px 14px',
+                            gap: '12px'
+                          }}>
+                            <img
+                              src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
+                              alt="Logo"
+                              style={{
+                                width: '46px',
+                                height: '46px',
+                                borderRadius: previewRadius,
+                                objectFit: 'cover',
+                                border: '2px solid #FFF',
+                                backgroundColor: '#FFF'
+                              }}
+                              onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
+                            />
+                            <div>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: '#FFF', textShadow: '0 2px 6px rgba(0,0,0,0.4)' }}>
+                                {settingsForm.name || 'Your Restaurant'}
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>
+                                {settingsForm.cuisine_type || 'Specialty Cuisine'}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ position: 'absolute', bottom: '-20px', left: '16px', display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+                            <img
+                              src={settingsForm.logo_url || '/dine/IMG_0162.jpeg'}
+                              alt="Logo"
+                              style={{
+                                width: '56px',
+                                height: '56px',
+                                borderRadius: previewRadius,
+                                objectFit: 'cover',
+                                border: '3px solid #FFF',
+                                boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+                                backgroundColor: '#FFF'
+                              }}
+                              onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Simulated Store Info (for cinematic style) */}
+                    {heroStyle === 'cinematic' && (
+                      <div style={{ padding: '26px 16px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: previewTextColor }}>
+                              {settingsForm.name || 'Your Restaurant'}
+                            </h4>
+                            <span style={{ fontSize: '12px', color: previewMutedColor, fontWeight: 600 }}>
+                              {settingsForm.cuisine_type || 'Specialty Cuisine'} • {settingsForm.city || 'Metro Manila'}
+                            </span>
+                          </div>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: previewPillRadius,
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            backgroundColor: `${previewPrimary}18`,
+                            color: previewPrimary
+                          }}>
+                            OPEN NOW
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Simulated Category Tabs */}
+                    <div style={{ padding: '0 16px 14px' }}>
+                      <div style={{ display: 'flex', gap: '6px', margin: '10px 0 14px', overflowX: 'auto', paddingBottom: '4px' }}>
+                        {['All Menu', 'Signature Bowls', 'Drinks', 'Desserts'].map((tab, idx) => (
+                          <span
+                            key={tab}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: previewPillRadius,
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              backgroundColor: idx === 0 ? previewPrimary : (isDark ? '#334155' : '#E2E8F0'),
+                              color: idx === 0 ? '#FFF' : previewTextColor,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {tab}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Simulated Dish Card (Density Preview: Grid vs Compact List) */}
+                      {isCompact ? (
+                        <div style={{
+                          padding: '10px',
+                          borderRadius: previewRadius,
+                          backgroundColor: previewCardBg,
+                          border: `1px solid ${previewBorder}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          marginBottom: '14px',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+                        }}>
+                          <div style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: previewRadius,
+                            backgroundColor: `${previewPrimary}18`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: previewPrimary,
+                            fontSize: '22px',
+                            flexShrink: 0
+                          }}>
+                            <i className="ri-restaurant-line" />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '12px', fontWeight: 800, color: previewTextColor }}>Chef's Specialty Ramen</div>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: previewPrimary }}>₱290.00</div>
+                          </div>
+                          <button
+                            type="button"
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: previewPillRadius,
+                              border: 'none',
+                              backgroundColor: previewPrimary,
+                              color: '#FFF',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            + Add
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{
+                          borderRadius: previewRadius,
+                          backgroundColor: previewCardBg,
+                          border: `1px solid ${previewBorder}`,
+                          overflow: 'hidden',
+                          marginBottom: '14px',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                        }}>
+                          <div style={{
+                            height: '75px',
+                            backgroundColor: `${previewPrimary}18`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px'
+                          }}>
+                            <span style={{ padding: '2px 7px', borderRadius: previewPillRadius, backgroundColor: previewAccent, color: '#FFF', fontSize: '9px', fontWeight: 800 }}>
+                              BESTSELLER
+                            </span>
+                            <i className="ri-heart-3-line" style={{ color: previewPrimary, fontSize: '16px' }} />
+                          </div>
+                          <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div style={{ fontSize: '12px', fontWeight: 800, color: previewTextColor }}>Specialty Artisan Dish</div>
+                              <div style={{ fontSize: '11px', fontWeight: 800, color: previewPrimary, marginTop: '2px' }}>₱280.00</div>
+                            </div>
+                            <button
+                              type="button"
+                              style={{
+                                padding: '5px 12px',
+                                borderRadius: previewPillRadius,
+                                border: 'none',
+                                backgroundColor: previewPrimary,
+                                color: '#FFF',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              + Add
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Storefront Active Spec Indicators */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '6px',
+                        marginBottom: '12px',
+                        fontSize: '10px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: isDark ? '#1E293B' : '#F1F5F9', color: previewTextColor }}>
+                          <span style={{ display: 'block', color: previewMutedColor, fontWeight: 700 }}>FONT</span>
+                          <strong style={{ fontSize: '10px' }}>{previewFont}</strong>
+                        </div>
+                        <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: isDark ? '#1E293B' : '#F1F5F9', color: previewTextColor }}>
+                          <span style={{ display: 'block', color: previewMutedColor, fontWeight: 700 }}>SHAPE</span>
+                          <strong style={{ fontSize: '10px' }}>{activeThemeConfig.border_radius || 'smooth'}</strong>
+                        </div>
+                        <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: isDark ? '#1E293B' : '#F1F5F9', color: previewTextColor }}>
+                          <span style={{ display: 'block', color: previewMutedColor, fontWeight: 700 }}>AMBIENCE</span>
+                          <strong style={{ fontSize: '10px' }}>{previewBgStyle}</strong>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onOpenStorefront?.(tenantSlug)}
                         style={{
-                          padding: '5px 10px',
-                          borderRadius: '8px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          backgroundColor: idx === 0 ? (settingsForm.primary_color || C.teal) : C.pinkLight,
-                          color: idx === 0 ? '#FFF' : C.dark,
-                          whiteSpace: 'nowrap'
+                          width: '100%',
+                          padding: '11px',
+                          borderRadius: previewPillRadius,
+                          border: `1.5px solid ${previewPrimary}`,
+                          backgroundColor: previewCardBg,
+                          color: previewPrimary,
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
                         }}
                       >
-                        {tab}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Simulated Dish Card */}
-                  <div style={{
-                    padding: '10px',
-                    borderRadius: '10px',
-                    backgroundColor: C.pinkLight,
-                    border: `1px solid ${C.border}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '14px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: settingsForm.primary_color || C.teal, fontSize: '18px' }}>
-                        <i className="ri-restaurant-line" />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>Signature Specialty Dish</div>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: settingsForm.primary_color || C.tealDark }}>₱280.00</div>
-                      </div>
+                        <i className="ri-external-link-line" />
+                        <span>Open Live Customer Storefront</span>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        backgroundColor: settingsForm.primary_color || C.teal,
-                        color: '#FFF',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      + Add
-                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => onOpenStorefront?.(tenantSlug)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '10px',
-                      border: `1px solid ${C.border}`,
-                      backgroundColor: '#FFF',
-                      color: C.dark,
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    Open Live Customer Storefront ↗
-                  </button>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -2923,7 +4558,7 @@ export default function TenantPortalView({
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Category *</label>
                     <select
-                      value={itemForm.category_id}
+                      value={itemForm.category_id || (menuData.categories[0]?.id || '')}
                       required
                       onChange={e => setItemForm({ ...itemForm, category_id: e.target.value })}
                       style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
@@ -2960,14 +4595,37 @@ export default function TenantPortalView({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Image URL</label>
-                  <input
-                    type="text"
-                    placeholder="https://..."
-                    value={itemForm.image_url}
-                    onChange={e => setItemForm({ ...itemForm, image_url: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: C.slate }}>Dish Photo / Image</label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: C.tealDark, fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="ri-upload-cloud-2-line" />
+                      {uploadingField === 'menu_item' ? 'Uploading...' : 'Upload Custom Photo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(f, 'menu_item', 'menu');
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <img
+                      src={itemForm.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'}
+                      alt="Dish preview"
+                      style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0 }}
+                      onError={e => { e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'; }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="https://... or upload custom photo"
+                      value={itemForm.image_url}
+                      onChange={e => setItemForm({ ...itemForm, image_url: e.target.value })}
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                    />
+                  </div>
                   {/* Preset Image Helpers */}
                   <div style={{ marginTop: '6px', display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ fontSize: '10px', color: C.slate }}>Presets:</span>
@@ -3065,6 +4723,139 @@ export default function TenantPortalView({
                 style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}
               >
                 Create Category in DB
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ADD / EDIT ADD-ON MODAL ────────────────────────────────────── */}
+      {isAddonModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
+                  <i className="ri-price-tag-3-fill" />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>
+                  {editingAddon ? 'Edit Add-on' : 'Add New Add-on'}
+                </h3>
+              </div>
+              <button type="button" onClick={() => setIsAddonModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAddon} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Add-on Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Extra Garlic Rice, Melted Cheese, Sunny-Side Egg"
+                  value={addonForm.name}
+                  onChange={e => setAddonForm({ ...addonForm, name: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Extra Price (₱) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    placeholder="25"
+                    value={addonForm.price}
+                    onChange={e => setAddonForm({ ...addonForm, price: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Applicable Category</label>
+                  <select
+                    value={addonForm.type}
+                    onChange={e => setAddonForm({ ...addonForm, type: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box', backgroundColor: '#FFF' }}
+                  >
+                    <option value="food">Food Extra</option>
+                    <option value="drink">Beverage Extra</option>
+                    <option value="both">Universal (Food & Drink)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '6px' }}>Availability Status</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <label style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${addonForm.is_available ? '#10B981' : C.border}`,
+                    backgroundColor: addonForm.is_available ? '#ECFDF5' : '#FFF',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="radio"
+                      name="addon_availability"
+                      checked={!!addonForm.is_available}
+                      onChange={() => setAddonForm({ ...addonForm, is_available: 1 })}
+                      style={{ accentColor: '#10B981' }}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#065F46' }}>In Stock</span>
+                  </label>
+
+                  <label style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${!addonForm.is_available ? '#EF4444' : C.border}`,
+                    backgroundColor: !addonForm.is_available ? '#FEF2F2' : '#FFF',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="radio"
+                      name="addon_availability"
+                      checked={!addonForm.is_available}
+                      onChange={() => setAddonForm({ ...addonForm, is_available: 0 })}
+                      style={{ accentColor: '#EF4444' }}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#991B1B' }}>Sold Out</span>
+                  </label>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                style={{
+                  backgroundColor: '#D97706',
+                  color: '#FFF',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  marginTop: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <i className={editingAddon ? 'ri-save-line' : 'ri-add-line'} />
+                <span>{editingAddon ? 'Save Add-on Changes' : 'Create Add-on'}</span>
               </button>
             </form>
           </div>
@@ -3213,11 +5004,11 @@ export default function TenantPortalView({
                     onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
                   >
-                    <option value="admin">👑 Admin (Full Dashboard)</option>
-                    <option value="manager">💼 Shift Manager</option>
-                    <option value="kitchen">🍳 Kitchen / Chef</option>
-                    <option value="cashier">💳 Cashier / POS</option>
-                    <option value="staff">🍽️ Service Crew / Waiter</option>
+                    <option value="admin">Admin (Full Dashboard)</option>
+                    <option value="manager">Shift Manager</option>
+                    <option value="kitchen">Kitchen / Chef</option>
+                    <option value="cashier">Cashier / POS</option>
+                    <option value="staff">Service Crew / Waiter</option>
                   </select>
                 </div>
 
@@ -3267,6 +5058,232 @@ export default function TenantPortalView({
                 {editingStaff ? 'Update Team Member' : 'Save & Add Team Member'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── FULL ORDER DETAILS POPUP MODAL (For Long Orders) ──────────── */}
+      {selectedOrderModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 110,
+          padding: '16px',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            backgroundColor: '#FFF',
+            borderRadius: '20px',
+            width: '100%',
+            maxWidth: '560px',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+            border: `1px solid ${C.border}`,
+            overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '18px 22px',
+              borderBottom: `1px solid ${C.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: C.pinkLight
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: C.teal,
+                  color: '#FFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px'
+                }}>
+                  <i className="ri-restaurant-2-fill" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: C.dark }}>
+                      Order #{selectedOrderModal.order_number}
+                    </h3>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      padding: '2px 7px',
+                      borderRadius: '6px',
+                      backgroundColor: selectedOrderModal.status === 'completed' ? '#D1FAE5' : (selectedOrderModal.status === 'ready' ? '#FEF3C7' : C.tealLight),
+                      color: selectedOrderModal.status === 'completed' ? '#065F46' : (selectedOrderModal.status === 'ready' ? '#92400E' : C.tealDark)
+                    }}>
+                      {selectedOrderModal.status}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: C.slate, marginTop: '2px' }}>
+                    Customer: <strong style={{ color: C.dark }}>{selectedOrderModal.customer_name}</strong> •{' '}
+                    <span>{selectedOrderModal.table_number || 'Dine-In'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedOrderModal(null)}
+                style={{ border: 'none', background: 'none', fontSize: '22px', cursor: 'pointer', color: C.dark }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            {/* Content Body: All Items List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: C.dark }}>
+                  All Ordered Items ({(selectedOrderModal.items || []).length})
+                </span>
+                <span style={{ fontSize: '12px', color: C.slate }}>
+                  Payment: <strong style={{ color: C.dark }}>{selectedOrderModal.payment_method}</strong>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(selectedOrderModal.items || []).map((it, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      border: `1px solid ${C.border}`,
+                      backgroundColor: '#FFF',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <img
+                        src={it.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'}
+                        alt={it.item_name}
+                        style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0 }}
+                        onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'; }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 800, color: C.dark, fontSize: '13px' }}>
+                          <span style={{ color: C.tealDark, fontWeight: 800, marginRight: '4px' }}>{it.quantity}x</span>
+                          {it.item_name}
+                        </div>
+                        {renderInstructionBadges(it.instructions)}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: C.tealDark }}>
+                        ₱{(it.subtotal || it.price * it.quantity || 0).toFixed(0)}
+                      </span>
+                      <span style={{ display: 'block', fontSize: '10px', color: C.slate }}>
+                        ₱{Number(it.price || 0).toFixed(0)} each
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedOrderModal.notes && (
+                <div style={{ marginTop: '14px', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '10px', padding: '10px 12px', fontSize: '12px', color: '#92400E' }}>
+                  <i className="ri-information-line" style={{ marginRight: '6px' }} />
+                  <strong>Customer Instructions:</strong> {selectedOrderModal.notes}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Summary & Quick Action */}
+            <div style={{
+              padding: '16px 22px',
+              borderTop: `1px solid ${C.border}`,
+              backgroundColor: C.pinkLight,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px'
+            }}>
+              <div>
+                <span style={{ fontSize: '11px', color: C.slate, display: 'block' }}>Total Amount</span>
+                <span style={{ fontSize: '20px', fontWeight: 800, color: C.dark }}>
+                  ₱{Number(selectedOrderModal.total || 0).toFixed(0)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(selectedOrderModal.status === 'pending' || selectedOrderModal.status === 'new') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUpdateStatus(selectedOrderModal.id, 'confirmed');
+                      setSelectedOrderModal(prev => prev ? ({ ...prev, status: 'confirmed' }) : null);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: C.teal, color: '#FFF', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Confirm Order ➔
+                  </button>
+                )}
+                {selectedOrderModal.status === 'confirmed' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUpdateStatus(selectedOrderModal.id, 'preparing');
+                      setSelectedOrderModal(prev => prev ? ({ ...prev, status: 'preparing' }) : null);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: '#F59E0B', color: '#FFF', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Start Cooking ➔
+                  </button>
+                )}
+                {selectedOrderModal.status === 'preparing' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUpdateStatus(selectedOrderModal.id, 'ready');
+                      setSelectedOrderModal(prev => prev ? ({ ...prev, status: 'ready' }) : null);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: '#10B981', color: '#FFF', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Mark Ready ➔
+                  </button>
+                )}
+                {selectedOrderModal.status === 'ready' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUpdateStatus(selectedOrderModal.id, 'completed');
+                      setSelectedOrderModal(prev => prev ? ({ ...prev, status: 'completed' }) : null);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: '#059669', color: '#FFF', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Complete Order ✓
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderModal(null)}
+                  style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: '#FFF', color: C.dark, border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

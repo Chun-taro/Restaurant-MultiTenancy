@@ -6,7 +6,10 @@ export default function Sidebar({
   onGoToLanding,
   onSignOut,
   tenantCount = 0,
-  tenants = []
+  tenants = [],
+  adminUser,
+  isMobileOpen = false,
+  onCloseMobile
 }) {
   const [selectedTenantSlug, setSelectedTenantSlug] = useState('');
 
@@ -21,59 +24,88 @@ export default function Sidebar({
   }, [tenants, selectedTenantSlug]);
 
   const navItems = [
-    { section: 'Platform Intelligence' },
+    { section: 'Hospitality & Brands' },
     { id: 'dashboard', label: 'Dashboard', icon: 'ri-dashboard-3-line' },
     { id: 'tenants', label: 'Restaurants / Tenants', icon: 'ri-restaurant-2-line', badge: tenantCount },
-    { section: 'Monetization & Billing' },
+    { section: 'Subscriptions & Billing' },
     { id: 'plans', label: 'Subscription Plans', icon: 'ri-vip-diamond-line' },
     { id: 'billing', label: 'Billing & Invoices', icon: 'ri-bank-card-line' },
-    { section: 'Governance & System' },
+    { section: 'Governance & Core' },
     { id: 'users', label: 'Identity & Access', icon: 'ri-shield-user-line' },
     { id: 'audit', label: 'Audit Logs', icon: 'ri-history-line' },
     { id: 'settings', label: 'System Settings', icon: 'ri-settings-4-line' }
   ];
 
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <div className="brand-icon">
-          <i className="ri-store-3-fill"></i>
-        </div>
-        <div className="brand-info">
-          <div className="brand-name">
-            RestoSaaS <span className="brand-badge">CORE</span>
-          </div>
-          <div className="brand-subtitle">Super Admin Console</div>
-        </div>
-      </div>
+  const displayName = adminUser?.name || 'Super Admin';
+  const displayRole = adminUser?.role === 'superadmin' ? 'Super Admin' : (adminUser?.role || 'Administrator');
+  const displayAvatar = adminUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
 
-      <nav className="sidebar-nav">
-        {navItems.map((item, idx) => {
-          if (item.section) {
+  const handleNavClick = (routeId) => {
+    onNavigate(routeId);
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
+  return (
+    <>
+      {/* Mobile Backdrop Overlay */}
+      <div 
+        className={`sidebar-backdrop ${isMobileOpen ? 'active' : ''}`}
+        onClick={onCloseMobile}
+        aria-hidden="true"
+      />
+
+      <aside className={`sidebar ${isMobileOpen ? 'is-mobile-open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="brand-icon">
+            <i className="ri-store-3-fill"></i>
+          </div>
+          <div className="brand-info">
+            <div className="brand-name">
+              RestoSaaS <span className="brand-badge">CORE</span>
+            </div>
+            <div className="brand-subtitle">Restaurant SaaS Console</div>
+          </div>
+
+          <button 
+            type="button" 
+            className="sidebar-close-btn" 
+            onClick={onCloseMobile}
+            title="Close sidebar"
+            aria-label="Close menu"
+          >
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+
+        <nav className="sidebar-nav">
+          {navItems.map((item, idx) => {
+            if (item.section) {
+              return (
+                <div key={idx} className="nav-section-title">
+                  {item.section}
+                </div>
+              );
+            }
+            const isActive = currentRoute === item.id;
             return (
-              <div key={idx} className="nav-section-title">
-                {item.section}
-              </div>
+              <a
+                key={item.id}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavClick(item.id);
+                }}
+              >
+                <i className={item.icon}></i>
+                <span>{item.label}</span>
+                {item.badge != null && (
+                  <span className="nav-badge active-badge">{item.badge}</span>
+                )}
+              </a>
             );
-          }
-          const isActive = currentRoute === item.id;
-          return (
-            <a
-              key={item.id}
-              className={`nav-item ${isActive ? 'active' : ''}`}
-              onClick={(e) => {
-                e.preventDefault();
-                onNavigate(item.id);
-              }}
-            >
-              <i className={item.icon}></i>
-              <span>{item.label}</span>
-              {item.badge != null && (
-                <span className="nav-badge active-badge">{item.badge}</span>
-              )}
-            </a>
-          );
-        })}
+          })}
 
         {/* Dynamic Tenant Live Launcher */}
         {tenants && tenants.length > 0 && (
@@ -140,7 +172,7 @@ export default function Sidebar({
                     justifyContent: 'center',
                     textDecoration: 'none'
                   }}
-                  title={`Open Tenant Portal for ${selectedTenantSlug}`}
+                  title={`Open Restaurant Portal for ${selectedTenantSlug}`}
                 >
                   <i className="ri-dashboard-2-line" style={{ color: '#10B981' }}></i> Portal ↗
                 </a>
@@ -154,13 +186,13 @@ export default function Sidebar({
         <div className="admin-mini-profile" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
             <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-              alt="Super Admin"
+              src={displayAvatar}
+              alt={displayName}
               className="admin-avatar"
             />
             <div className="admin-meta">
-              <div className="admin-name">Alexandre Vance</div>
-              <div className="admin-role">Super Admin</div>
+              <div className="admin-name">{displayName}</div>
+              <div className="admin-role">{displayRole}</div>
             </div>
           </div>
 
@@ -185,5 +217,6 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   );
 }

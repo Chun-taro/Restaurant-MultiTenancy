@@ -153,6 +153,22 @@ export const api = {
     updateSettings: (restaurantId, data) => request(`/api/tenant/${restaurantId}/settings`, {
       method: 'PUT',
       body: JSON.stringify(data)
+    }),
+    addons: (restaurantId) => request(`/api/tenant/${restaurantId}/addons`),
+    createAddon: (restaurantId, data) => request(`/api/tenant/${restaurantId}/addons`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    updateAddon: (restaurantId, id, data) => request(`/api/tenant/${restaurantId}/addons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }),
+    deleteAddon: (restaurantId, id) => request(`/api/tenant/${restaurantId}/addons/${id}`, {
+      method: 'DELETE'
+    }),
+    uploadImage: (restaurantId, data) => request(`/api/tenant/${restaurantId}/upload`, {
+      method: 'POST',
+      body: JSON.stringify(data)
     })
   },
   storefront: {
@@ -169,6 +185,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     }),
-    trackOrder: (slug, orderNumber) => request(`/api/storefront/${slug}/orders/${orderNumber}`)
+    trackOrder: (slug, orderNumber) => request(`/api/storefront/${slug}/orders/${orderNumber}`),
+    customerOrders: (slug, params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/api/storefront/${slug}/customer/orders${q ? `?${q}` : ''}`);
+    }
   }
 };

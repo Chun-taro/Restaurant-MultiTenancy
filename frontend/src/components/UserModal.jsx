@@ -81,7 +81,7 @@ export default function UserModal({ isOpen, onClose, onSubmit, editUser = null }
                 type="text"
                 className="form-control"
                 required
-                placeholder="e.g. Alexandre Vance"
+                placeholder="e.g. Maria Santos"
                 value={formData.name}
                 onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
               />

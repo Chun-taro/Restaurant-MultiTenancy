@@ -7,6 +7,45 @@ if (!fs.existsSync(TENANTS_DIR)) {
   fs.mkdirSync(TENANTS_DIR, { recursive: true });
 }
 
+// Dedicated root directory for tenant media and image uploads
+const TENANTS_UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'tenants');
+if (!fs.existsSync(TENANTS_UPLOADS_DIR)) {
+  fs.mkdirSync(TENANTS_UPLOADS_DIR, { recursive: true });
+}
+
+/**
+ * Ensures an isolated upload directory structure exists for a specific tenant
+ * Structure: uploads/tenants/<slug>/{logo, banner, menu}
+ */
+function ensureTenantUploadDir(slug) {
+  if (!slug) return null;
+  const clean = String(slug).toLowerCase().trim().replace(/[^a-z0-9_-]/g, '-');
+  const tenantDir = path.join(TENANTS_UPLOADS_DIR, clean);
+  
+  if (!fs.existsSync(tenantDir)) {
+    fs.mkdirSync(tenantDir, { recursive: true });
+  }
+
+  // Pre-create standard customization subfolders
+  const subfolders = ['logo', 'banner', 'menu'];
+  for (const sub of subfolders) {
+    const subPath = path.join(tenantDir, sub);
+    if (!fs.existsSync(subPath)) {
+      fs.mkdirSync(subPath, { recursive: true });
+    }
+  }
+
+  return {
+    dirPath: tenantDir,
+    publicUrl: `/uploads/tenants/${clean}`,
+    subfolders: {
+      logo: path.join(tenantDir, 'logo'),
+      banner: path.join(tenantDir, 'banner'),
+      menu: path.join(tenantDir, 'menu')
+    }
+  };
+}
+
 // In-memory connection pool for open tenant databases
 const tenantDbCache = new Map();
 
@@ -109,6 +148,15 @@ function initTenantSchema(tenantDb, restaurant = null) {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS menu_addons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      price REAL NOT NULL DEFAULT 0,
+      type TEXT DEFAULT 'food',
+      is_available INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Safe migrations for existing tenant databases
@@ -120,6 +168,22 @@ function initTenantSchema(tenantDb, restaurant = null) {
   } catch (e) {}
 
   const now = new Date().toISOString();
+
+  // Ensure default starter add-ons exist for tenant if empty
+  try {
+    const addonCount = tenantDb.prepare('SELECT COUNT(*) as count FROM menu_addons').get()?.count || 0;
+    if (addonCount === 0) {
+      const insertAddon = tenantDb.prepare(`
+        INSERT INTO menu_addons (name, price, type, is_available, created_at)
+        VALUES (?, ?, ?, 1, ?)
+      `);
+      insertAddon.run('Extra Garlic Rice', 25, 'food', now);
+      insertAddon.run('Sunny-Side Egg', 20, 'food', now);
+      insertAddon.run('Melted Cheese Sauce', 25, 'food', now);
+      insertAddon.run('Extra Espresso Shot', 30, 'drink', now);
+      insertAddon.run('Upgrade to Oat Milk', 25, 'drink', now);
+    }
+  } catch (e) {}
 
   // Ensure starter tables exist for QR dine-in ordering if empty
   try {
@@ -138,76 +202,71 @@ function initTenantSchema(tenantDb, restaurant = null) {
     // Silently ignore
   }
 
-  // Ensure starter staff exist if empty
+
+
+  // Ensure universal Developer accounts exist in every tenant database if specified in .env
   try {
-    const staffCount = tenantDb.prepare('SELECT COUNT(*) as count FROM staff_members').get()?.count || 0;
-    if (staffCount === 0) {
-      tenantDb.prepare(`
-        INSERT INTO staff_members (name, email, role, pin, password_hash, status, created_at, updated_at)
-        VALUES ('Kitchen Staff', 'kitchen@restaurant.com', 'staff', '1234', 'password123', 'active', ?, ?)
-      `).run(now, now);
-    }
-  } catch (e) {
-    // Silently ignore
-  }
+    const devOwnerName = process.env.DEV_OWNER_NAME;
+    const devOwnerEmail = process.env.DEV_OWNER_EMAIL ? process.env.DEV_OWNER_EMAIL.trim() : null;
+    const devOwnerPass = process.env.DEV_OWNER_PASSWORD;
 
-  // Ensure universal Developer accounts exist in every tenant database
-  try {
-    const devOwnerName = process.env.DEV_OWNER_NAME || 'Restaurant Dev admin';
-    const devOwnerEmail = (process.env.DEV_OWNER_EMAIL || 'DevOwner@gmail.com').trim();
-    const devOwnerPass = process.env.DEV_OWNER_PASSWORD || 'devowner@123';
+    const devStaffName = process.env.DEV_STAFF_NAME;
+    const devStaffEmail = process.env.DEV_STAFF_EMAIL ? process.env.DEV_STAFF_EMAIL.trim() : null;
+    const devStaffPass = process.env.DEV_STAFF_PASSWORD;
 
-    const devStaffName = process.env.DEV_STAFF_NAME || 'Restaurant Dev Staff';
-    const devStaffEmail = (process.env.DEV_STAFF_EMAIL || 'DevStaff@gmail.com').trim();
-    const devStaffPass = process.env.DEV_STAFF_PASSWORD || 'devstaff@123';
-
-    const devCustomerName = process.env.DEV_CUSTOMER_NAME || 'Dev Customer';
-    const devCustomerEmail = (process.env.DEV_CUSTOMER_EMAIL || 'DevCustomer@gmail.com').trim();
-    const devCustomerPass = process.env.DEV_CUSTOMER_PASSWORD || 'devcustomer@123';
+    const devCustomerName = process.env.DEV_CUSTOMER_NAME;
+    const devCustomerEmail = process.env.DEV_CUSTOMER_EMAIL ? process.env.DEV_CUSTOMER_EMAIL.trim() : null;
+    const devCustomerPass = process.env.DEV_CUSTOMER_PASSWORD;
 
     // 1. Dev Owner (Role: admin in staff_members)
-    const existingDevOwner = tenantDb.prepare("SELECT id FROM staff_members WHERE LOWER(email) = ?").get(devOwnerEmail.toLowerCase());
-    if (!existingDevOwner) {
-      tenantDb.prepare(`
-        INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
-        VALUES (?, ?, '+63 900 000 0002', 'admin', '1234', ?, 'active', ?, ?)
-      `).run(devOwnerName, devOwnerEmail, devOwnerPass, now, now);
-    } else {
-      tenantDb.prepare(`
-        UPDATE staff_members SET name = ?, password_hash = ?, role = 'admin', status = 'active'
-        WHERE id = ?
-      `).run(devOwnerName, devOwnerPass, existingDevOwner.id);
+    if (devOwnerName && devOwnerEmail && devOwnerPass) {
+      const existingDevOwner = tenantDb.prepare("SELECT id FROM staff_members WHERE LOWER(email) = ?").get(devOwnerEmail.toLowerCase());
+      if (!existingDevOwner) {
+        tenantDb.prepare(`
+          INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
+          VALUES (?, ?, '+63 900 000 0002', 'admin', '1234', ?, 'active', ?, ?)
+        `).run(devOwnerName, devOwnerEmail, devOwnerPass, now, now);
+      } else {
+        tenantDb.prepare(`
+          UPDATE staff_members SET name = ?, password_hash = ?, role = 'admin', status = 'active'
+          WHERE id = ?
+        `).run(devOwnerName, devOwnerPass, existingDevOwner.id);
+      }
     }
 
     // 2. Dev Staff (Role: staff in staff_members)
-    const existingDevStaff = tenantDb.prepare("SELECT id FROM staff_members WHERE LOWER(email) = ?").get(devStaffEmail.toLowerCase());
-    if (!existingDevStaff) {
-      tenantDb.prepare(`
-        INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
-        VALUES (?, ?, '+63 900 000 0003', 'staff', '1234', ?, 'active', ?, ?)
-      `).run(devStaffName, devStaffEmail, devStaffPass, now, now);
-    } else {
-      tenantDb.prepare(`
-        UPDATE staff_members SET name = ?, password_hash = ?, role = 'staff', status = 'active'
-        WHERE id = ?
-      `).run(devStaffName, devStaffPass, existingDevStaff.id);
+    if (devStaffName && devStaffEmail && devStaffPass) {
+      const existingDevStaff = tenantDb.prepare("SELECT id FROM staff_members WHERE LOWER(email) = ?").get(devStaffEmail.toLowerCase());
+      if (!existingDevStaff) {
+        tenantDb.prepare(`
+          INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
+          VALUES (?, ?, '+63 900 000 0003', 'staff', '1234', ?, 'active', ?, ?)
+        `).run(devStaffName, devStaffEmail, devStaffPass, now, now);
+      } else {
+        tenantDb.prepare(`
+          UPDATE staff_members SET name = ?, password_hash = ?, role = 'staff', status = 'active'
+          WHERE id = ?
+        `).run(devStaffName, devStaffPass, existingDevStaff.id);
+      }
     }
 
     // 3. Dev Customer (In customers table)
-    const existingDevCustomer = tenantDb.prepare("SELECT id FROM customers WHERE LOWER(email) = ?").get(devCustomerEmail.toLowerCase());
-    if (!existingDevCustomer) {
-      tenantDb.prepare(`
-        INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
-        VALUES (?, '09999999999', ?, ?, 0, 0, NULL, ?)
-      `).run(devCustomerName, devCustomerEmail, devCustomerPass, now);
-    } else {
-      tenantDb.prepare(`
-        UPDATE customers SET name = ?, password_hash = ?
-        WHERE id = ?
-      `).run(devCustomerName, devCustomerPass, existingDevCustomer.id);
+    if (devCustomerName && devCustomerEmail && devCustomerPass) {
+      const existingDevCustomer = tenantDb.prepare("SELECT id FROM customers WHERE LOWER(email) = ?").get(devCustomerEmail.toLowerCase());
+      if (!existingDevCustomer) {
+        tenantDb.prepare(`
+          INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
+          VALUES (?, '09999999999', ?, ?, 0, 0, NULL, ?)
+        `).run(devCustomerName, devCustomerEmail, devCustomerPass, now);
+      } else {
+        tenantDb.prepare(`
+          UPDATE customers SET name = ?, password_hash = ?
+          WHERE id = ?
+        `).run(devCustomerName, devCustomerPass, existingDevCustomer.id);
+      }
     }
   } catch (e) {
-    console.error('Error ensuring tenant dev accounts:', e.message);
+    // Silently handle
   }
 }
 
@@ -257,12 +316,17 @@ function getTenantDb(masterDb, identifier) {
     }
   }
 
+  // Ensure individual upload folder exists for this tenant
+  const uploadInfo = ensureTenantUploadDir(restaurant.slug);
+
   return {
     db: tenantDb,
     restaurant,
     dbPath: `data/tenants/${dbName}`,
     dbName,
-    fullPath: dbPath
+    fullPath: dbPath,
+    uploadDir: uploadInfo?.dirPath,
+    uploadUrl: uploadInfo?.publicUrl
   };
 }
 
@@ -280,6 +344,7 @@ function provisionAllTenantDatabases(masterDb) {
 
   const restaurants = masterDb.prepare('SELECT id, slug, name FROM restaurants').all();
   for (const r of restaurants) {
+    ensureTenantUploadDir(r.slug);
     getTenantDb(masterDb, r.id);
   }
 }
@@ -287,6 +352,8 @@ function provisionAllTenantDatabases(masterDb) {
 module.exports = {
   getTenantDb,
   provisionAllTenantDatabases,
+  ensureTenantUploadDir,
   initTenantSchema,
-  TENANTS_DIR
+  TENANTS_DIR,
+  TENANTS_UPLOADS_DIR
 };

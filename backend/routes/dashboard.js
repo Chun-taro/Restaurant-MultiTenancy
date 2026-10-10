@@ -16,8 +16,10 @@ router.get('/stats', (req, res) => {
     const totalPlatformGmv = volumeStats.total_volume || 0;
     const totalPlatformOrders = volumeStats.total_orders || 0;
 
-    // Total users
+    // Total users & counts by role
     const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    const superAdminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'superadmin'").get().count;
+    const ownerCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role != 'superadmin'").get().count;
 
     // Calculate MRR from active & trialing subscriptions
     const mrrQuery = db.prepare(`
@@ -95,7 +97,9 @@ router.get('/stats', (req, res) => {
           arr,
           totalPlatformGmv,
           totalPlatformOrders,
-          totalUsers
+          totalUsers,
+          superAdminCount,
+          ownerCount
         },
         planDistribution,
         revenueTrend,

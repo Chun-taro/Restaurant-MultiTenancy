@@ -42,9 +42,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState([]);
   const [adminUser, setAdminUser] = useState(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const handleNavigateAdmin = (route) => {
     setCurrentRoute(route);
+    setIsMobileSidebarOpen(false);
     localStorage.setItem('restosaas_admin_route', route);
     if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin')) {
       window.history.replaceState(null, '', `/admin#${route}`);
@@ -73,10 +75,24 @@ export default function App() {
   // Helper to resolve route directly from browser URL
   const resolveRouteFromUrl = () => {
     const hostname = window.location.hostname;
-    const hostParts = hostname.split('.');
     let detectedSubdomain = null;
-    if (hostParts.length > 1 && hostParts[0] !== 'localhost' && hostParts[0] !== 'www' && hostParts[0] !== '127') {
-      detectedSubdomain = hostParts[0].toLowerCase();
+
+    // Check if hostname is an IP address (IPv4 or IPv6)
+    const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname === '::1' || hostname === '0.0.0.0';
+
+    if (!isIpAddress) {
+      const hostParts = hostname.split('.');
+      // 1. <subdomain>.localhost (e.g. brandobar.localhost:5173)
+      if (hostParts.length === 2 && hostParts[1] === 'localhost') {
+        const sub = hostParts[0].toLowerCase();
+        if (sub !== 'localhost' && sub !== 'www') {
+          detectedSubdomain = sub;
+        }
+      }
+      // 2. <subdomain>.domain.com (e.g. brandobar.restosaas.com)
+      else if (hostParts.length > 2 && hostParts[0] !== 'www') {
+        detectedSubdomain = hostParts[0].toLowerCase();
+      }
     }
 
     const pathname = window.location.pathname;
@@ -502,6 +518,9 @@ export default function App() {
         onSignOut={handleSignOut}
         tenantCount={tenants.length}
         tenants={tenants}
+        adminUser={adminUser}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       <div className="main-wrapper">
@@ -517,6 +536,7 @@ export default function App() {
           onSignOut={handleSignOut}
           adminUser={adminUser}
           onOpenProfile={() => setIsProfileModalOpen(true)}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         />
 
         <main className="content-area">

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
+const { hashPassword } = require('../utils/auth');
 
 function logAudit(actorName, actorRole, action, entityType, entityId, details) {
   try {
@@ -8,7 +9,7 @@ function logAudit(actorName, actorRole, action, entityType, entityId, details) {
       INSERT INTO audit_logs (actor_name, actor_role, action, entity_type, entity_id, details, ip_address, created_at)
       VALUES (?, ?, ?, ?, ?, ?, '127.0.0.1', ?)
     `);
-    insert.run(actorName || 'Alexandre Vance', actorRole || 'superadmin', action, entityType, String(entityId), details, new Date().toISOString());
+    insert.run(actorName || 'Super Admin', actorRole || 'superadmin', action, entityType, String(entityId), details, new Date().toISOString());
   } catch (e) {
     console.error('Audit log failed:', e);
   }
@@ -87,7 +88,7 @@ router.put('/profile', (req, res) => {
 
     let newPasswordHash = user.password_hash;
     if (password && password.trim().length > 0) {
-      newPasswordHash = password.trim();
+      newPasswordHash = hashPassword(password.trim());
     }
 
     db.prepare(`
@@ -129,8 +130,8 @@ router.put('/profile', (req, res) => {
 // POST /api/users - Create new Superadmin or User
 router.post('/', (req, res) => {
   try {
-    const { name, email, password = 'password123', role = 'superadmin', phone, avatar } = req.body;
-    if (!name || !email) return res.status(400).json({ success: false, error: 'Name and email are required' });
+    const { name, email, password, role = 'superadmin', phone, avatar } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
 
     const cleanEmail = email.trim().toLowerCase();
     const existing = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
@@ -138,6 +139,7 @@ router.post('/', (req, res) => {
 
     const now = new Date().toISOString();
     const avatarUrl = avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name.trim())}`;
+    const hashedPassword = hashPassword(password.trim());
 
     const insert = db.prepare(`
       INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
@@ -147,7 +149,7 @@ router.post('/', (req, res) => {
     insert.run(
       name.trim(),
       cleanEmail,
-      password,
+      hashedPassword,
       role,
       phone || null,
       avatarUrl,
@@ -219,7 +221,7 @@ router.put('/:id', (req, res) => {
 
     let newPasswordHash = user.password_hash;
     if (password && password.trim().length > 0) {
-      newPasswordHash = password.trim();
+      newPasswordHash = hashPassword(password.trim());
     }
 
     db.prepare(`

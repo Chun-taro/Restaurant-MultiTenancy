@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -15,7 +15,28 @@ const db = new DatabaseSync(DB_PATH);
 try {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA busy_timeout = 5000;');
+  db.exec('PRAGMA foreign_keys = ON;');
 } catch (e) {}
+
+/**
+ * Executes a callback within an atomic SQLite transaction (BEGIN IMMEDIATE / COMMIT / ROLLBACK)
+ * @param {DatabaseSync} targetDb 
+ * @param {Function} callback 
+ * @returns {*}
+ */
+function withTransaction(targetDb, callback) {
+  targetDb.exec('BEGIN IMMEDIATE;');
+  try {
+    const result = callback(targetDb);
+    targetDb.exec('COMMIT;');
+    return result;
+  } catch (err) {
+    try {
+      targetDb.exec('ROLLBACK;');
+    } catch (rbErr) {}
+    throw err;
+  }
+}
 
 function initDatabase() {
   db.exec(`
@@ -216,6 +237,10 @@ function initDatabase() {
   `);
 
   seedCleanData();
+  // Safe migration for theme_config column in restaurants
+  try {
+    db.exec('ALTER TABLE restaurants ADD COLUMN theme_config TEXT;');
+  } catch (e) {}
 }
 
 function seedCleanData() {
@@ -230,16 +255,23 @@ function seedCleanData() {
     VALUES (?, ?, ?, 'superadmin', ?, ?, 'active', ?, ?, ?)
   `);
 
-  insertUser.run(
-    'Alexandre Vance',
-    'admin@restosaas.com',
-    'admin123',
-    '+63 917 888 1234',
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    now,
-    now,
-    now
-  );
+  const superName = process.env.DEV_SUPERADMIN_NAME;
+  const superEmail = process.env.DEV_SUPERADMIN_EMAIL ? process.env.DEV_SUPERADMIN_EMAIL.toLowerCase().trim() : null;
+  const superPass = process.env.DEV_SUPERADMIN_PASSWORD;
+
+  if (superName && superEmail && superPass) {
+    const superAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(superName)}`;
+    insertUser.run(
+      superName,
+      superEmail,
+      superPass,
+      null,
+      superAvatar,
+      now,
+      now,
+      now
+    );
+  }
 
   // Seed Subscription Plan Templates
   const insertPlan = db.prepare(`
@@ -318,61 +350,65 @@ function seedCleanData() {
 function ensureDevMasterAccounts() {
   const now = new Date().toISOString();
 
-  // 1. Permanent Developer Superadmin Account
-  const devSuperName = process.env.DEV_SUPERADMIN_NAME || 'RestoSaaS Dev Admin';
-  const devSuperEmail = (process.env.DEV_SUPERADMIN_EMAIL || 'RestoSaasDev@gmail.com').trim();
-  const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || 'restosaasdev@123';
+  // 1. Permanent Developer Superadmin Account from .env
+  const devSuperName = process.env.DEV_SUPERADMIN_NAME;
+  const devSuperEmail = process.env.DEV_SUPERADMIN_EMAIL ? process.env.DEV_SUPERADMIN_EMAIL.trim() : null;
+  const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD;
 
-  const existingDev = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(devSuperEmail.toLowerCase());
-  if (!existingDev) {
-    db.prepare(`
-      INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
-      VALUES (?, ?, ?, 'superadmin', ?, ?, 'active', ?, ?)
-    `).run(
-      devSuperName,
-      devSuperEmail,
-      devSuperPass,
-      '+63 900 000 0001',
-      'https://api.dicebear.com/7.x/bottts/svg?seed=RestoDev',
-      now,
-      now
-    );
-  } else {
-    db.prepare(`
-      UPDATE users SET name = ?, password_hash = ?, role = 'superadmin', status = 'active'
-      WHERE id = ?
-    `).run(devSuperName, devSuperPass, existingDev.id);
+  if (devSuperName && devSuperEmail && devSuperPass) {
+    const existingDev = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(devSuperEmail.toLowerCase());
+    if (!existingDev) {
+      db.prepare(`
+        INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'superadmin', ?, ?, 'active', ?, ?)
+      `).run(
+        devSuperName,
+        devSuperEmail,
+        devSuperPass,
+        null,
+        `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(devSuperName)}`,
+        now,
+        now
+      );
+    } else {
+      db.prepare(`
+        UPDATE users SET name = ?, password_hash = ?, role = 'superadmin', status = 'active'
+        WHERE id = ?
+      `).run(devSuperName, devSuperPass, existingDev.id);
+    }
   }
 
-  // 2. Dev Owner Account (in master users for multi-tenant linkage)
-  const devOwnerName = process.env.DEV_OWNER_NAME || 'Restaurant Dev admin';
-  const devOwnerEmail = (process.env.DEV_OWNER_EMAIL || 'DevOwner@gmail.com').trim();
-  const devOwnerPass = process.env.DEV_OWNER_PASSWORD || 'devowner@123';
+  // 2. Dev Owner Account from .env
+  const devOwnerName = process.env.DEV_OWNER_NAME;
+  const devOwnerEmail = process.env.DEV_OWNER_EMAIL ? process.env.DEV_OWNER_EMAIL.trim() : null;
+  const devOwnerPass = process.env.DEV_OWNER_PASSWORD;
 
-  const existingOwner = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(devOwnerEmail.toLowerCase());
-  if (!existingOwner) {
-    db.prepare(`
-      INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
-      VALUES (?, ?, ?, 'restaurant_owner', ?, ?, 'active', ?, ?)
-    `).run(
-      devOwnerName,
-      devOwnerEmail,
-      devOwnerPass,
-      '+63 900 000 0002',
-      'https://api.dicebear.com/7.x/avataaars/svg?seed=DevOwner',
-      now,
-      now
-    );
-  } else {
-    db.prepare(`
-      UPDATE users SET name = ?, password_hash = ?, status = 'active'
-      WHERE id = ?
-    `).run(devOwnerName, devOwnerPass, existingOwner.id);
+  if (devOwnerName && devOwnerEmail && devOwnerPass) {
+    const existingOwner = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(devOwnerEmail.toLowerCase());
+    if (!existingOwner) {
+      db.prepare(`
+        INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'restaurant_owner', ?, ?, 'active', ?, ?)
+      `).run(
+        devOwnerName,
+        devOwnerEmail,
+        devOwnerPass,
+        null,
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(devOwnerName)}`,
+        now,
+        now
+      );
+    } else {
+      db.prepare(`
+        UPDATE users SET name = ?, password_hash = ?, status = 'active'
+        WHERE id = ?
+      `).run(devOwnerName, devOwnerPass, existingOwner.id);
+    }
   }
 }
 
 // Multi-tenant Database Isolation Engine
-const { getTenantDb, provisionAllTenantDatabases } = require('./tenantDbManager');
+const { getTenantDb, provisionAllTenantDatabases, ensureTenantUploadDir } = require('./tenantDbManager');
 
 initDatabase();
 ensureDevMasterAccounts();
@@ -380,9 +416,11 @@ provisionAllTenantDatabases(db);
 
 module.exports = {
   db,
+  withTransaction,
   initDatabase,
   ensureDevMasterAccounts,
   getTenantDb,
-  provisionAllTenantDatabases
+  provisionAllTenantDatabases,
+  ensureTenantUploadDir
 };
 

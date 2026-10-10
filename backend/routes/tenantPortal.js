@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { db, getTenantDb } = require('../db');
+const path = require('node:path');
+const fs = require('node:fs');
+const { db, getTenantDb, ensureTenantUploadDir } = require('../db');
+const { hashPassword, comparePassword, generateToken, authRateLimiter } = require('../utils/auth');
 
 // Helper to resolve tenant database
 function resolveTenant(restaurantId) {
@@ -31,22 +34,22 @@ function processUnifiedAuth(tenantCtx, payload) {
     throw new Error('Please enter both your work email and password.');
   }
 
-  const devSuperEmail = (process.env.DEV_SUPERADMIN_EMAIL || 'restosaasdev@gmail.com').toLowerCase().trim();
-  const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || 'restosaasdev@123';
-  const devOwnerEmail = (process.env.DEV_OWNER_EMAIL || 'devowner@gmail.com').toLowerCase().trim();
-  const devOwnerPass = process.env.DEV_OWNER_PASSWORD || 'devowner@123';
-  const devStaffEmail = (process.env.DEV_STAFF_EMAIL || 'devstaff@gmail.com').toLowerCase().trim();
-  const devStaffPass = process.env.DEV_STAFF_PASSWORD || 'devstaff@123';
+  const devSuperEmail = process.env.DEV_SUPERADMIN_EMAIL ? process.env.DEV_SUPERADMIN_EMAIL.toLowerCase().trim() : null;
+  const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || null;
+  const devOwnerEmail = process.env.DEV_OWNER_EMAIL ? process.env.DEV_OWNER_EMAIL.toLowerCase().trim() : null;
+  const devOwnerPass = process.env.DEV_OWNER_PASSWORD || null;
+  const devStaffEmail = process.env.DEV_STAFF_EMAIL ? process.env.DEV_STAFF_EMAIL.toLowerCase().trim() : null;
+  const devStaffPass = process.env.DEV_STAFF_PASSWORD || null;
 
-  // 1. Explicit Direct Verification for Universal Dev Accounts
-  if (rawEmail === devOwnerEmail && rawPassword === devOwnerPass) {
-    matchedUser = { id: 9991, name: process.env.DEV_OWNER_NAME || 'Restaurant Dev admin', email: process.env.DEV_OWNER_EMAIL || 'DevOwner@gmail.com', role: 'admin' };
+  // 1. Explicit Direct Verification for Universal Dev Accounts (from .env)
+  if (devOwnerEmail && devOwnerPass && rawEmail === devOwnerEmail && rawPassword === devOwnerPass) {
+    matchedUser = { id: 9991, name: process.env.DEV_OWNER_NAME || 'Restaurant Owner', email: devOwnerEmail, role: 'admin' };
     userRole = 'admin';
-  } else if (rawEmail === devStaffEmail && rawPassword === devStaffPass) {
-    matchedUser = { id: 9992, name: process.env.DEV_STAFF_NAME || 'Restaurant Dev Staff', email: process.env.DEV_STAFF_EMAIL || 'DevStaff@gmail.com', role: 'staff' };
+  } else if (devStaffEmail && devStaffPass && rawEmail === devStaffEmail && rawPassword === devStaffPass) {
+    matchedUser = { id: 9992, name: process.env.DEV_STAFF_NAME || 'Restaurant Staff', email: devStaffEmail, role: 'staff' };
     userRole = 'staff';
-  } else if (rawEmail === devSuperEmail && rawPassword === devSuperPass) {
-    matchedUser = { id: 9990, name: process.env.DEV_SUPERADMIN_NAME || 'RestoSaaS Dev Admin', email: process.env.DEV_SUPERADMIN_EMAIL || 'RestoSaasDev@gmail.com', role: 'superadmin' };
+  } else if (devSuperEmail && devSuperPass && rawEmail === devSuperEmail && rawPassword === devSuperPass) {
+    matchedUser = { id: 9990, name: process.env.DEV_SUPERADMIN_NAME || 'Superadmin', email: devSuperEmail, role: 'superadmin' };
     userRole = 'admin';
   }
 
@@ -72,25 +75,15 @@ function processUnifiedAuth(tenantCtx, payload) {
       customStaffUser = tenantDb.prepare("SELECT * FROM staff_members WHERE LOWER(email) = ? AND status = 'active'").get(rawEmail);
     } catch (e) {}
 
-    if (ownerUser && (ownerUser.password_hash === rawPassword || rawPassword === 'admin123' || rawPassword === 'password123' || rawPassword === 'devowner@123')) {
+    if (ownerUser && comparePassword(rawPassword, ownerUser.password_hash)) {
       matchedUser = ownerUser;
       userRole = 'admin';
-    } else if (superadminUser && (superadminUser.password_hash === rawPassword || rawPassword === 'admin123' || rawPassword === 'password123' || rawPassword === 'restosaasdev@123')) {
+    } else if (superadminUser && comparePassword(rawPassword, superadminUser.password_hash)) {
       matchedUser = superadminUser;
       userRole = 'admin';
-    } else if (customStaffUser && (customStaffUser.password_hash === rawPassword || rawPassword === 'password123' || rawPassword === 'staff123' || rawPassword === 'devstaff@123' || rawPassword === 'devowner@123' || !customStaffUser.password_hash)) {
+    } else if (customStaffUser && comparePassword(rawPassword, customStaffUser.password_hash)) {
       matchedUser = customStaffUser;
       userRole = customStaffUser.role || 'staff';
-    } else if (rawPassword === 'staff123' || rawPassword === 'admin123' || rawPassword === 'password123') {
-      const anyOwner = db.prepare(`
-        SELECT u.id, u.name, u.email
-        FROM users u
-        JOIN restaurant_users ru ON u.id = ru.user_id
-        WHERE ru.restaurant_id = ?
-        LIMIT 1
-      `).get(restaurant.id);
-      matchedUser = anyOwner || { id: 100, name: `${restaurant.name} Staff`, email: rawEmail };
-      userRole = rawEmail.includes('admin') || rawEmail.includes('owner') ? 'admin' : 'staff';
     }
   }
 
@@ -109,7 +102,14 @@ function processUnifiedAuth(tenantCtx, payload) {
           restaurant_id: restaurant.id,
           slug: restaurant.slug
         },
-        token: `tenant_${userRole}_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
+        token: generateToken({
+          id: matchedUser.id,
+          name: matchedUser.name,
+          email: matchedUser.email || rawEmail,
+          role: userRole,
+          slug: restaurant.slug,
+          restaurant_id: restaurant.id
+        }),
         redirectUrl: `/portal/${restaurant.slug}`
       }
     };
@@ -119,7 +119,7 @@ function processUnifiedAuth(tenantCtx, payload) {
 }
 
 // POST /api/tenant/:restaurantId/auth/login - Unified Single Login
-router.post('/:restaurantId/auth/login', (req, res) => {
+router.post('/:restaurantId/auth/login', authRateLimiter, (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tenantCtx = resolveTenant(restaurantId);
@@ -164,9 +164,14 @@ router.get('/:restaurantId/overview', (req, res) => {
     const tablesCount = tenantDb.prepare('SELECT COUNT(*) as count FROM restaurant_tables').get().count;
     const menuItemsCount = tenantDb.prepare('SELECT COUNT(*) as count FROM menu_items').get().count;
 
-    // Recent 5 orders with items
+    // Recent 5 orders with items and food images
     const recentOrders = orders.slice(0, 5).map(o => {
-      const items = tenantDb.prepare('SELECT * FROM order_items WHERE order_id = ?').all(o.id);
+      const items = tenantDb.prepare(`
+        SELECT oi.*, m.image_url 
+        FROM order_items oi 
+        LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+        WHERE oi.order_id = ?
+      `).all(o.id);
       return { ...o, items };
     });
 
@@ -236,7 +241,12 @@ router.get('/:restaurantId/orders', (req, res) => {
 
     const orders = tenantDb.prepare(query).all(...params);
     const enrichedOrders = orders.map(o => {
-      const items = tenantDb.prepare('SELECT * FROM order_items WHERE order_id = ?').all(o.id);
+      const items = tenantDb.prepare(`
+        SELECT oi.*, m.image_url 
+        FROM order_items oi 
+        LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+        WHERE oi.order_id = ?
+      `).all(o.id);
       return { ...o, items };
     });
 
@@ -255,7 +265,7 @@ router.patch('/:restaurantId/orders/:orderId/status', (req, res) => {
     const { db: tenantDb } = tenantCtx;
 
     const { status } = req.body;
-    const validStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'new', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     }
@@ -271,7 +281,12 @@ router.patch('/:restaurantId/orders/:orderId/status', (req, res) => {
     }
 
     const updated = tenantDb.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    const items = tenantDb.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+    const items = tenantDb.prepare(`
+      SELECT oi.*, m.image_url 
+      FROM order_items oi 
+      LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+      WHERE oi.order_id = ?
+    `).all(orderId);
 
     res.json({
       success: true,
@@ -299,11 +314,17 @@ router.get('/:restaurantId/menu', (req, res) => {
       items: items.filter(item => item.category_id === cat.id)
     }));
 
+    let addons = [];
+    try {
+      addons = tenantDb.prepare('SELECT * FROM menu_addons ORDER BY id ASC').all();
+    } catch (e) {}
+
     res.json({
       success: true,
       data: {
         categories: categoriesWithItems,
-        totalItems: items.length
+        totalItems: items.length,
+        addons
       }
     });
   } catch (err) {
@@ -348,7 +369,7 @@ router.delete('/:restaurantId/categories/:id', (req, res) => {
     const { db: tenantDb } = tenantCtx;
 
     tenantDb.prepare('DELETE FROM menu_categories WHERE id = ?').run(id);
-    res.json({ success: true, message: 'Category deleted from tenant database' });
+    res.json({ success: true, message: 'Category deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -360,14 +381,19 @@ router.post('/:restaurantId/items', (req, res) => {
     const { restaurantId } = req.params;
     const tenantCtx = resolveTenant(restaurantId);
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
-    const { db: tenantDb } = tenantCtx;
+    const { db: tenantDb, restaurant } = tenantCtx;
 
     const { category_id, name, description, price, image_url, is_featured, preparation_time, badge } = req.body;
-    if (!name || !price || !category_id) {
+    if (!name || price === undefined || price === '' || !category_id) {
       return res.status(400).json({ success: false, error: 'Name, price, and category are required' });
     }
 
-    // 🔒 Enforce Subscription Perk: Max Menu Items Quota
+    const cat = tenantDb.prepare('SELECT id FROM menu_categories WHERE id = ?').get(Number(category_id));
+    if (!cat) {
+      return res.status(400).json({ success: false, error: 'The selected category does not exist in this restaurant database.' });
+    }
+
+    // Enforce Subscription Perk: Max Menu Items Quota
     const plan = getTenantPlan(restaurant.id);
     if (plan && plan.max_products !== -1) {
       const currentItems = tenantDb.prepare('SELECT COUNT(*) as c FROM menu_items').get()?.c || 0;
@@ -388,7 +414,7 @@ router.post('/:restaurantId/items', (req, res) => {
     `);
 
     insert.run(
-      category_id,
+      cat.id,
       name.trim(),
       description || '',
       parseFloat(price),
@@ -477,7 +503,94 @@ router.delete('/:restaurantId/items/:id', (req, res) => {
     const { db: tenantDb } = tenantCtx;
 
     tenantDb.prepare('DELETE FROM menu_items WHERE id = ?').run(id);
-    res.json({ success: true, message: 'Item deleted from tenant database' });
+    res.json({ success: true, message: 'Menu item deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/tenant/:restaurantId/addons
+router.get('/:restaurantId/addons', (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    const addons = tenantDb.prepare('SELECT * FROM menu_addons ORDER BY id ASC').all();
+    res.json({ success: true, data: addons });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/tenant/:restaurantId/addons
+router.post('/:restaurantId/addons', (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    const { name, price = 0, type = 'food', is_available = 1 } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Add-on name is required' });
+    }
+
+    const now = new Date().toISOString();
+    const insert = tenantDb.prepare(`
+      INSERT INTO menu_addons (name, price, type, is_available, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const result = insert.run(name.trim(), parseFloat(price) || 0, type || 'food', is_available ? 1 : 0, now);
+    const created = tenantDb.prepare('SELECT * FROM menu_addons WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json({ success: true, data: created, message: 'Add-on created successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/tenant/:restaurantId/addons/:id
+router.put('/:restaurantId/addons/:id', (req, res) => {
+  try {
+    const { restaurantId, id } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    const { name, price, type, is_available } = req.body;
+    tenantDb.prepare(`
+      UPDATE menu_addons SET
+        name = COALESCE(?, name),
+        price = COALESCE(?, price),
+        type = COALESCE(?, type),
+        is_available = COALESCE(?, is_available)
+      WHERE id = ?
+    `).run(
+      name ? name.trim() : null,
+      price !== undefined ? parseFloat(price) : null,
+      type || null,
+      is_available !== undefined ? (is_available ? 1 : 0) : null,
+      id
+    );
+
+    const updated = tenantDb.prepare('SELECT * FROM menu_addons WHERE id = ?').get(id);
+    res.json({ success: true, data: updated, message: 'Add-on updated successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/tenant/:restaurantId/addons/:id
+router.delete('/:restaurantId/addons/:id', (req, res) => {
+  try {
+    const { restaurantId, id } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    tenantDb.prepare('DELETE FROM menu_addons WHERE id = ?').run(id);
+    res.json({ success: true, message: 'Add-on deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -535,8 +648,13 @@ router.put('/:restaurantId/settings', (req, res) => {
 
     const {
       name, cuisine_type, primary_color, secondary_color,
-      logo_url, banner_url, address, city, phone, email
+      logo_url, banner_url, address, city, phone, email,
+      theme_config
     } = req.body;
+
+    const themeConfigStr = theme_config
+      ? (typeof theme_config === 'string' ? theme_config : JSON.stringify(theme_config))
+      : null;
 
     const now = new Date().toISOString();
     db.prepare(`
@@ -551,6 +669,7 @@ router.put('/:restaurantId/settings', (req, res) => {
         city = COALESCE(?, city),
         phone = COALESCE(?, phone),
         email = COALESCE(?, email),
+        theme_config = COALESCE(?, theme_config),
         updated_at = ?
       WHERE id = ?
     `).run(
@@ -564,12 +683,76 @@ router.put('/:restaurantId/settings', (req, res) => {
       city ?? null,
       phone ?? null,
       email ?? null,
+      themeConfigStr,
       now,
       restaurant.id
     );
 
     const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurant.id);
     res.json({ success: true, data: updated, message: 'Restaurant settings updated!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/tenant/:restaurantId/upload - Upload tenant custom media (logo, banner, dish photo)
+router.post('/:restaurantId/upload', (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { restaurant } = tenantCtx;
+
+    const { file, fileName, folder = 'general' } = req.body;
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'No image file data provided.' });
+    }
+
+    const uploadInfo = ensureTenantUploadDir(restaurant.slug);
+    const tenantDir = uploadInfo.dirPath;
+
+    const targetSub = ['logo', 'banner', 'menu', 'dishes'].includes(folder) ? folder : '';
+    const targetFolder = targetSub ? path.join(tenantDir, targetSub) : tenantDir;
+    if (!fs.existsSync(targetFolder)) {
+      fs.mkdirSync(targetFolder, { recursive: true });
+    }
+
+    // Process base64 data URL
+    const matches = file.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    let buffer;
+    let ext = 'jpg';
+
+    if (matches && matches.length === 3) {
+      const mime = matches[1].toLowerCase();
+      if (mime.includes('png')) ext = 'png';
+      else if (mime.includes('webp')) ext = 'webp';
+      else if (mime.includes('gif')) ext = 'gif';
+      else if (mime.includes('svg')) ext = 'svg';
+      buffer = Buffer.from(matches[2], 'base64');
+    } else {
+      buffer = Buffer.from(file, 'base64');
+    }
+
+    const timestamp = Date.now();
+    const cleanBase = (fileName || 'image')
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .toLowerCase();
+    const finalName = `${timestamp}_${cleanBase}.${ext}`;
+    const filePath = path.join(targetFolder, finalName);
+
+    fs.writeFileSync(filePath, buffer);
+
+    const relativeSub = targetSub ? `/${targetSub}` : '';
+    const publicUrl = `/uploads/tenants/${restaurant.slug}${relativeSub}/${finalName}`;
+
+    res.json({
+      success: true,
+      message: `Image saved to ${restaurant.name}'s dedicated media directory!`,
+      url: publicUrl,
+      fileName: finalName,
+      folderPath: `uploads/tenants/${restaurant.slug}${relativeSub}`
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -745,14 +928,14 @@ router.post('/:restaurantId/staff', (req, res) => {
     const { restaurantId } = req.params;
     const tenantCtx = resolveTenant(restaurantId);
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
-    const { db: tenantDb } = tenantCtx;
-    const { name, email, phone, role = 'staff', pin, password = 'password123', status = 'active' } = req.body;
+    const { db: tenantDb, restaurant } = tenantCtx;
+    const { name, email, phone, role = 'staff', pin, password, status = 'active' } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, error: 'Member name is required' });
     }
 
-    // 🔒 Enforce Subscription Perk: Max Staff Quota
+    // Enforce Subscription Perk: Max Staff Quota
     const plan = getTenantPlan(restaurant.id);
     if (plan && plan.max_staff !== -1) {
       const currentStaff = tenantDb.prepare('SELECT COUNT(*) as c FROM staff_members').get()?.c || 0;
@@ -765,10 +948,11 @@ router.post('/:restaurantId/staff', (req, res) => {
     }
 
     const now = new Date().toISOString();
+    const storedHash = password ? hashPassword(password) : '';
     tenantDb.prepare(`
       INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(name, email || null, phone || null, role, pin || null, password || 'password123', status, now, now);
+    `).run(name, email || null, phone || null, role, pin || null, storedHash, status, now, now);
 
     const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
     const created = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(newId);
@@ -796,6 +980,11 @@ router.put('/:restaurantId/staff/:staffId', (req, res) => {
     if (!existing) return res.status(404).json({ success: false, error: 'Staff member not found' });
 
     const now = new Date().toISOString();
+    let passwordToStore = existing.password_hash;
+    if (password !== undefined && password !== '') {
+      passwordToStore = hashPassword(password);
+    }
+
     tenantDb.prepare(`
       UPDATE staff_members
       SET name = ?, email = ?, phone = ?, role = ?, pin = ?, password_hash = ?, status = ?, updated_at = ?
@@ -806,7 +995,7 @@ router.put('/:restaurantId/staff/:staffId', (req, res) => {
       phone !== undefined ? phone : existing.phone,
       role !== undefined ? role : existing.role,
       pin !== undefined ? pin : existing.pin,
-      password !== undefined ? password : existing.password_hash,
+      passwordToStore,
       status !== undefined ? status : existing.status,
       now,
       staffId
@@ -828,7 +1017,10 @@ router.delete('/:restaurantId/staff/:staffId', (req, res) => {
     const { db: tenantDb } = tenantCtx;
 
     const staff = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(staffId);
-    if (staff && staff.email && (staff.email.toLowerCase() === 'devowner@gmail.com' || staff.email.toLowerCase() === 'devstaff@gmail.com')) {
+    const devOwnerEmail = process.env.DEV_OWNER_EMAIL ? process.env.DEV_OWNER_EMAIL.toLowerCase().trim() : null;
+    const devStaffEmail = process.env.DEV_STAFF_EMAIL ? process.env.DEV_STAFF_EMAIL.toLowerCase().trim() : null;
+
+    if (staff && staff.email && ((devOwnerEmail && staff.email.toLowerCase() === devOwnerEmail) || (devStaffEmail && staff.email.toLowerCase() === devStaffEmail))) {
       return res.status(403).json({
         success: false,
         error: 'Security Restriction: Developer testing accounts are protected and cannot be deleted.'
@@ -843,13 +1035,13 @@ router.delete('/:restaurantId/staff/:staffId', (req, res) => {
 });
 
 // POST /api/tenant/:restaurantId/auth/register - Direct account creation (Customer or Staff)
-router.post('/:restaurantId/auth/register', (req, res) => {
+router.post('/:restaurantId/auth/register', authRateLimiter, (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tenantCtx = resolveTenant(restaurantId);
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { db: tenantDb, restaurant } = tenantCtx;
-    const { name, phone, email, role = 'customer', pin, password = 'password123' } = req.body;
+    const { name, phone, email, role = 'customer', pin, password = '' } = req.body;
 
     if (!name || (!phone && !email)) {
       return res.status(400).json({ success: false, error: 'Name and either Mobile Phone or Email are required' });
@@ -858,10 +1050,11 @@ router.post('/:restaurantId/auth/register', (req, res) => {
     const now = new Date().toISOString();
 
     if (role === 'staff' || role === 'admin') {
+      const storedHash = password ? hashPassword(password) : '';
       tenantDb.prepare(`
         INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
-      `).run(name, email || null, phone || null, role, pin || null, password, now, now);
+      `).run(name, email || null, phone || null, role, pin || null, storedHash, now, now);
       const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
       const staffUser = tenantDb.prepare('SELECT * FROM staff_members WHERE id = ?').get(newId);
 
@@ -879,7 +1072,14 @@ router.post('/:restaurantId/auth/register', (req, res) => {
             restaurant_id: restaurant.id,
             slug: restaurant.slug
           },
-          token: `tenant_${role}_${Buffer.from(restaurant.slug + ':' + Date.now()).toString('base64')}`,
+          token: generateToken({
+            id: staffUser.id,
+            name: staffUser.name,
+            email: staffUser.email,
+            role: staffUser.role,
+            slug: restaurant.slug,
+            restaurant_id: restaurant.id
+          }),
           redirectUrl: `/portal/${restaurant.slug}`
         }
       });
@@ -894,13 +1094,16 @@ router.post('/:restaurantId/auth/register', (req, res) => {
       customer = tenantDb.prepare('SELECT * FROM customers WHERE email = ?').get(email);
     }
 
+    const customerHash = password ? hashPassword(password) : '';
     if (!customer) {
       tenantDb.prepare(`
-        INSERT INTO customers (name, phone, email, total_orders, total_spent, last_order_at, created_at)
-        VALUES (?, ?, ?, 0, 0, NULL, ?)
-      `).run(name, phone || '', email || '', now);
+        INSERT INTO customers (name, phone, email, password_hash, total_orders, total_spent, last_order_at, created_at)
+        VALUES (?, ?, ?, ?, 0, 0, NULL, ?)
+      `).run(name, phone || '', email || '', customerHash, now);
       const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
       customer = tenantDb.prepare('SELECT * FROM customers WHERE id = ?').get(newId);
+    } else if (password) {
+      tenantDb.prepare('UPDATE customers SET password_hash = ? WHERE id = ?').run(customerHash, customer.id);
     }
 
     return res.status(201).json({
@@ -918,7 +1121,15 @@ router.post('/:restaurantId/auth/register', (req, res) => {
           restaurant_id: restaurant.id,
           slug: restaurant.slug
         },
-        token: `diner_${Buffer.from(customer.id + ':' + restaurant.slug + ':' + Date.now()).toString('base64')}`,
+        token: generateToken({
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          role: 'customer',
+          slug: restaurant.slug,
+          restaurant_id: restaurant.id
+        }),
         redirectUrl: `/store/${restaurant.slug}`
       }
     });

@@ -472,4 +472,201 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// POST /api/tenants/seed-demo - Quick 1-click provision of the starter demo restaurant
+router.post('/seed-demo', (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM restaurants WHERE slug = ?').get('brandobar');
+    if (existing) {
+      return res.json({
+        success: true,
+        message: 'Demo restaurant "Brando Bar & Grill" is already provisioned',
+        data: existing
+      });
+    }
+
+    const now = new Date().toISOString();
+    const nextPeriod = new Date(Date.now() + 30 * 86400000).toISOString();
+
+    const plan = db.prepare("SELECT id FROM subscription_plans WHERE code = 'growth' OR code = 'starter' LIMIT 1").get();
+    const planId = plan ? plan.id : 1;
+
+    let owner = db.prepare('SELECT id FROM users WHERE role = ? OR LOWER(email) = ? LIMIT 1').get('restaurant_owner', 'devowner@gmail.com');
+    let ownerId;
+    if (owner) {
+      ownerId = owner.id;
+    } else {
+      const ownerResult = db.prepare(`
+        INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
+        VALUES (?, 'devowner@gmail.com', 'devowner@123', 'restaurant_owner', '+63 900 000 0002', ?, 'active', ?, ?)
+      `).run(
+        'Restaurant Dev admin',
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=DevOwner`,
+        now,
+        now
+      );
+      ownerId = Number(ownerResult.lastInsertRowid);
+    }
+
+    const restResult = db.prepare(`
+      INSERT INTO restaurants (
+        name, slug, subdomain, custom_domain, cuisine_type, logo_url, banner_url,
+        primary_color, secondary_color, status, address, city, phone, email,
+        currency, orders_count, total_volume, theme_config, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'PHP', 0, 0, ?, ?, ?)
+    `).run(
+      'Brando Bar & Grill',
+      'brandobar',
+      'brandobar',
+      null,
+      'American & Barbecue',
+      'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=240&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200&auto=format&fit=crop&q=80',
+      '#6366F1',
+      '#1E293B',
+      'High Street South Block, 26th St',
+      'Bonifacio Global City, Taguig',
+      '+63 917 888 1234',
+      'hello@brandobar.ph',
+      JSON.stringify({
+        preset: 'emerald_clean',
+        primary_color: '#6366F1',
+        secondary_color: '#1E293B',
+        accent_color: '#F59E0B',
+        bg_style: 'slate_clean',
+        font_family: 'Plus Jakarta Sans',
+        border_radius: 'smooth',
+        hero_style: 'cinematic',
+        card_density: 'grid_spacious'
+      }),
+      now,
+      now
+    );
+
+    const restaurantId = Number(restResult.lastInsertRowid);
+
+    db.prepare(`
+      INSERT INTO restaurant_users (restaurant_id, user_id, role, created_at)
+      VALUES (?, ?, 'owner', ?)
+    `).run(restaurantId, ownerId, now);
+
+    db.prepare(`
+      INSERT INTO subscriptions (restaurant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, created_at)
+      VALUES (?, ?, 'active', 'monthly', ?, ?, ?)
+    `).run(restaurantId, planId, now, nextPeriod, now);
+
+    // Initialize isolated tenant DB and starter menu items
+    const tenantCtx = getTenantDb(db, 'brandobar');
+    if (tenantCtx) {
+      const { db: tenantDb } = tenantCtx;
+      const catCount = tenantDb.prepare('SELECT COUNT(*) as count FROM menu_categories').get()?.count || 0;
+      if (catCount === 0) {
+        const cat1Res = tenantDb.prepare(`
+          INSERT INTO menu_categories (name, description, icon, sort_order, is_active, created_at)
+          VALUES ('Smoked BBQ & Steaks', 'Wood-fired slow smoked meats & ribs', 'ri-fire-line', 1, 1, ?)
+        `).run(now);
+        const cat1Id = Number(cat1Res.lastInsertRowid);
+
+        const cat2Res = tenantDb.prepare(`
+          INSERT INTO menu_categories (name, description, icon, sort_order, is_active, created_at)
+          VALUES ('Artisanal Burgers', 'Brioche buns with double ground patties', 'ri-restaurant-line', 2, 1, ?)
+        `).run(now);
+        const cat2Id = Number(cat2Res.lastInsertRowid);
+
+        const cat3Res = tenantDb.prepare(`
+          INSERT INTO menu_categories (name, description, icon, sort_order, is_active, created_at)
+          VALUES ('Craft Beverages', 'House draft beer, cold brew & sodas', 'ri-cup-line', 3, 1, ?)
+        `).run(now);
+        const cat3Id = Number(cat3Res.lastInsertRowid);
+
+        // Dishes for BBQ
+        tenantDb.prepare(`
+          INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, is_featured, preparation_time, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, 1, 1, 25, 'Chef Special', ?)
+        `).run(
+          cat1Id,
+          'Texas Style Smoked Ribs',
+          'Fall-off-the-bone tender baby back ribs glazed with house honey hickory BBQ sauce.',
+          780,
+          'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+          now
+        );
+
+        tenantDb.prepare(`
+          INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, is_featured, preparation_time, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, 1, 0, 20, 'Signature', ?)
+        `).run(
+          cat1Id,
+          'Slow-Smoked Beef Brisket',
+          '14-hour hickory smoked brisket served with pickled red onions and garlic rice.',
+          650,
+          'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=600&auto=format&fit=crop&q=80',
+          now
+        );
+
+        // Dishes for Burgers
+        tenantDb.prepare(`
+          INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, is_featured, preparation_time, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, 1, 1, 15, 'Best Seller', ?)
+        `).run(
+          cat2Id,
+          'The Truffle Melt Burger',
+          'Double Angus smashed beef patty, black truffle aioli, Swiss Emmental and caramelized sweet onions.',
+          450,
+          'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80',
+          now
+        );
+
+        tenantDb.prepare(`
+          INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, is_featured, preparation_time, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, 1, 0, 15, null, ?)
+        `).run(
+          cat2Id,
+          'Crispy Bacon Smash Burger',
+          'Smoked applewood bacon, aged Wisconsin cheddar, house secret relish and buttered brioche.',
+          380,
+          'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&auto=format&fit=crop&q=80',
+          now
+        );
+
+        // Dishes for Drinks
+        tenantDb.prepare(`
+          INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, is_featured, preparation_time, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, 1, 0, 5, 'Local Craft', ?)
+        `).run(
+          cat3Id,
+          'BGC Craft Draft Lager',
+          'Refreshing crisp microbrewed golden lager served ice cold with citrus hints.',
+          190,
+          'https://images.unsplash.com/photo-1608270119273-e3802380fce0?w=600&auto=format&fit=crop&q=80',
+          now
+        );
+
+        tenantDb.prepare(`
+          INSERT INTO menu_items (category_id, name, description, price, image_url, is_available, is_featured, preparation_time, badge, created_at)
+          VALUES (?, ?, ?, ?, ?, 1, 0, 5, null, ?)
+        `).run(
+          cat3Id,
+          'House Cold Brew Lemonade',
+          'Signature iced Earl Grey tea shaken with fresh honey calamansi and mint leaves.',
+          160,
+          'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80',
+          now
+        );
+      }
+    }
+
+    logAudit('System', 'system', 'PROVISION_DEMO', 'restaurant', restaurantId, 'Provisioned demo restaurant "Brando Bar & Grill"');
+
+    const createdTenant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurantId);
+    res.json({
+      success: true,
+      message: 'Demo restaurant "Brando Bar & Grill" provisioned successfully!',
+      data: createdTenant
+    });
+  } catch (error) {
+    console.error('Error provisioning demo restaurant:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

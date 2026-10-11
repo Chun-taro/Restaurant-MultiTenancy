@@ -41,7 +41,8 @@ export const api = {
       body: JSON.stringify({ plan_id: planId, billing_cycle: cycle })
     }),
     impersonate: (id) => request(`/api/tenants/${id}/impersonate`, { method: 'POST', body: JSON.stringify({}) }),
-    delete: (id) => request(`/api/tenants/${id}`, { method: 'DELETE', body: JSON.stringify({}) })
+    delete: (id) => request(`/api/tenants/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
+    seedDemo: () => request('/api/tenants/seed-demo', { method: 'POST', body: JSON.stringify({}) })
   },
   plans: {
     list: () => request('/api/plans'),

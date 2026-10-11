@@ -6,46 +6,16 @@ export default function LandingPageView({
   isAuthenticated,
   tenants = [],
   onOpenTenantPortal,
-  onOpenStorefront
+  onOpenStorefront,
+  onQuickProvisionDemo,
+  isProvisioningDemo = false
 }) {
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [activeFaq, setActiveFaq] = useState(null);
 
-  // Fallback demo restaurants if tenants array is empty
-  const defaultDemos = [
-    {
-      name: 'Brando Bar & Grill',
-      slug: 'brandobar',
-      cuisine: 'American & Barbecue',
-      city: 'Bonifacio Global City, Taguig',
-      subdomain: 'brandobar',
-      logo: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=120&auto=format&fit=crop&q=80',
-      color: '#6366F1',
-      tagline: 'Craft beers, smoked ribs & live bistro ambiance'
-    },
-    {
-      name: 'Bella Vista Trattoria',
-      slug: 'bellavista',
-      cuisine: 'Authentic Italian & Wine Bar',
-      city: 'Makati Central Business District',
-      subdomain: 'bellavista',
-      logo: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80',
-      color: '#10B981',
-      tagline: 'Handmade pasta, wood-fired pizza & curated vintage wines'
-    },
-    {
-      name: 'Taco Libre Taqueria',
-      slug: 'tacolibre',
-      cuisine: 'Mexican Street Tacos & Cocktails',
-      city: 'Poblacion, Makati',
-      subdomain: 'tacolibre',
-      logo: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=120&auto=format&fit=crop&q=80',
-      color: '#F59E0B',
-      tagline: 'Artisanal birria tacos, loaded nachos and fresh margaritas'
-    }
-  ];
+  const hasLiveTenants = Boolean(tenants && tenants.length > 0);
 
-  const showcaseTenants = tenants && tenants.length > 0
+  const showcaseTenants = hasLiveTenants
     ? tenants.map(t => ({
         name: t.name,
         slug: t.slug,
@@ -56,10 +26,11 @@ export default function LandingPageView({
         color: t.primary_color || '#6366F1',
         tagline: `${t.cuisine_type || 'Gourmet'} restaurant powered by RestoSaaS`
       }))
-    : defaultDemos;
+    : [];
 
-  const [selectedShowcaseSlug, setSelectedShowcaseSlug] = useState(showcaseTenants[0]?.slug || 'brandobar');
-  const activeShowcaseTenant = showcaseTenants.find(t => t.slug === selectedShowcaseSlug) || showcaseTenants[0];
+  const [selectedShowcaseSlug, setSelectedShowcaseSlug] = useState('');
+  const effectiveSelectedSlug = selectedShowcaseSlug || showcaseTenants[0]?.slug;
+  const activeShowcaseTenant = showcaseTenants.find(t => t.slug === effectiveSelectedSlug) || showcaseTenants[0];
 
   const plans = [
     {
@@ -311,173 +282,253 @@ export default function LandingPageView({
             <p style={{ color: 'var(--text-muted)', fontSize: '15px', maxWidth: '640px', margin: '10px auto 0', lineHeight: 1.6 }}>
               Select any provisioned restaurant below to preview their dedicated customer storefront and kitchen management portal in real time.
             </p>
-
-            {/* Restaurant Selector Tabs */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              flexWrap: 'wrap',
-              marginTop: '28px'
-            }}>
-              {showcaseTenants.map((t) => {
-                const isSelected = t.slug === selectedShowcaseSlug;
-                return (
-                  <button
-                    key={t.slug}
-                    onClick={() => setSelectedShowcaseSlug(t.slug)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 18px',
-                      borderRadius: 'var(--radius-pill)',
-                      border: isSelected ? `2px solid ${t.color || 'var(--primary)'}` : '1px solid var(--border-subtle)',
-                      background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                      color: isSelected ? '#fff' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontSize: '13.5px',
-                      fontWeight: isSelected ? 700 : 500,
-                      transition: 'all 0.2s ease',
-                      boxShadow: isSelected ? `0 0 16px ${t.color}33` : 'none'
-                    }}
-                  >
-                    <img
-                      src={t.logo}
-                      alt={t.name}
-                      style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
-                    />
-                    <span>{t.name}</span>
-                    {isSelected && (
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color || 'var(--primary)' }}></span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
-          {/* Active Tenant Feature Card */}
-          {activeShowcaseTenant && (
+          {!hasLiveTenants ? (
             <div className="card" style={{
-              padding: '32px 36px',
-              borderTop: `4px solid ${activeShowcaseTenant.color || 'var(--primary)'}`,
+              padding: '44px 36px',
+              textAlign: 'center',
               background: 'rgba(17, 24, 39, 0.85)',
-              boxShadow: 'var(--shadow-xl)'
+              border: '1px dashed rgba(99, 102, 241, 0.35)',
+              borderRadius: 'var(--radius-xl)',
+              boxShadow: 'var(--shadow-xl)',
+              marginTop: '28px'
             }}>
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1.2fr 1fr',
-                gap: '36px',
-                alignItems: 'center'
+                width: '68px',
+                height: '68px',
+                borderRadius: '50%',
+                background: 'rgba(99, 102, 241, 0.12)',
+                color: 'var(--primary-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '32px',
+                margin: '0 auto 18px',
+                border: '1px solid rgba(99, 102, 241, 0.25)'
               }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
-                    <img
-                      src={activeShowcaseTenant.logo}
-                      alt={activeShowcaseTenant.name}
+                <i className="ri-store-3-line"></i>
+              </div>
+
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 14px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                color: 'var(--primary-light)',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '16px'
+              }}>
+                <i className="ri-information-line"></i>
+                <span>Clean Database — Zero Restaurants Provisioned</span>
+              </div>
+
+              <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#fff', marginBottom: '10px' }}>
+                No Live Restaurants In Database Yet
+              </h3>
+
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14.5px', maxWidth: '620px', margin: '0 auto 28px', lineHeight: 1.65 }}>
+                The platform database is freshly initialized with zero fake tenants. You can create your first restaurant in the Super Admin Console, or click the button below to instantly deploy a live demo restaurant with sample menus and QR tables.
+              </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                {onQuickProvisionDemo && (
+                  <button
+                    className="btn btn-emerald"
+                    style={{ padding: '13px 26px', fontSize: '14px', fontWeight: 700 }}
+                    onClick={onQuickProvisionDemo}
+                    disabled={isProvisioningDemo}
+                  >
+                    <i className={isProvisioningDemo ? "ri-loader-4-line ri-spin" : "ri-magic-line"}></i>
+                    {isProvisioningDemo ? 'Provisioning Demo Store...' : '🚀 Quick Provision Demo Restaurant (1-Click)'}
+                  </button>
+                )}
+
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '13px 26px', fontSize: '14px', fontWeight: 700 }}
+                  onClick={isAuthenticated ? onGoToConsole : onGoToLogin}
+                >
+                  <i className="ri-shield-user-fill"></i>
+                  {isAuthenticated ? 'Open Super Admin to Provision' : 'Super Admin Sign In'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Restaurant Selector Tabs */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                flexWrap: 'wrap',
+                marginTop: '28px'
+              }}>
+                {showcaseTenants.map((t) => {
+                  const isSelected = t.slug === activeShowcaseTenant?.slug;
+                  return (
+                    <button
+                      key={t.slug}
+                      onClick={() => setSelectedShowcaseSlug(t.slug)}
                       style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: 'var(--radius-lg)',
-                        objectFit: 'cover',
-                        border: '2px solid rgba(255,255,255,0.1)'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 18px',
+                        borderRadius: 'var(--radius-pill)',
+                        border: isSelected ? `2px solid ${t.color || 'var(--primary)'}` : '1px solid var(--border-subtle)',
+                        background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                        color: isSelected ? '#fff' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '13.5px',
+                        fontWeight: isSelected ? 700 : 500,
+                        transition: 'all 0.2s ease',
+                        boxShadow: isSelected ? `0 0 16px ${t.color}33` : 'none'
                       }}
-                    />
+                    >
+                      <img
+                        src={t.logo}
+                        alt={t.name}
+                        style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                      <span>{t.name}</span>
+                      {isSelected && (
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color || 'var(--primary)' }}></span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active Tenant Feature Card */}
+              {activeShowcaseTenant && (
+                <div className="card" style={{
+                  padding: '32px 36px',
+                  borderTop: `4px solid ${activeShowcaseTenant.color || 'var(--primary)'}`,
+                  background: 'rgba(17, 24, 39, 0.85)',
+                  boxShadow: 'var(--shadow-xl)'
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.2fr 1fr',
+                    gap: '36px',
+                    alignItems: 'center'
+                  }}>
                     <div>
-                      <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '-0.01em' }}>
-                        {activeShowcaseTenant.name}
-                      </h3>
-                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-                        <span><i className="ri-map-pin-2-line" style={{ color: 'var(--primary-light)' }}></i> {activeShowcaseTenant.city}</span>
-                        <span>·</span>
-                        <span style={{ color: 'var(--emerald)', fontWeight: 600 }}>{activeShowcaseTenant.cuisine}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+                        <img
+                          src={activeShowcaseTenant.logo}
+                          alt={activeShowcaseTenant.name}
+                          style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: 'var(--radius-lg)',
+                            objectFit: 'cover',
+                            border: '2px solid rgba(255,255,255,0.1)'
+                          }}
+                        />
+                        <div>
+                          <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '-0.01em' }}>
+                            {activeShowcaseTenant.name}
+                          </h3>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                            <span><i className="ri-map-pin-2-line" style={{ color: 'var(--primary-light)' }}></i> {activeShowcaseTenant.city}</span>
+                            <span>·</span>
+                            <span style={{ color: 'var(--emerald)', fontWeight: 600 }}>{activeShowcaseTenant.cuisine}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, marginBottom: '22px' }}>
+                        {activeShowcaseTenant.tagline}. Each restaurant tenant operates under its own isolated partition, menu matrix, table layout, and staff roles.
+                      </p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', marginBottom: '28px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
+                          <i className="ri-global-line" style={{ color: '#38BDF8' }}></i>
+                          <span>Tenant Subdomain: </span>
+                          <code style={{ color: '#38BDF8', fontFamily: 'var(--font-mono)' }}>https://{activeShowcaseTenant.subdomain}.restosaas.ph</code>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
+                          <i className="ri-shield-check-line" style={{ color: 'var(--emerald)' }}></i>
+                          <span>Partition: </span>
+                          <code style={{ color: 'var(--emerald)', fontFamily: 'var(--font-mono)' }}>partition_{activeShowcaseTenant.slug} (Isolated)</code>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '12px 22px', fontSize: '14px', fontWeight: 700 }}
+                          onClick={() => onOpenStorefront(activeShowcaseTenant.slug)}
+                        >
+                          <i className="ri-store-2-line"></i> Customer Storefront ↗
+                        </button>
+                        <button
+                          className="btn btn-emerald"
+                          style={{ padding: '12px 22px', fontSize: '14px', fontWeight: 700 }}
+                          onClick={() => onOpenTenantPortal(activeShowcaseTenant.slug)}
+                        >
+                          <i className="ri-dashboard-2-line"></i> Tenant Portal ↗
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right Quick Preview Box */}
+                    <div style={{
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '24px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Included in this restaurant tier
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(99,102,241,0.15)', color: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <i className="ri-qr-code-line"></i>
+                        </div>
+                        <div>
+                          <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>QR Table Ordering Engine</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Instant table-assigned orders with zero staff bottlenecks.</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(16,185,129,0.15)', color: 'var(--emerald)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <i className="ri-restaurant-line"></i>
+                        </div>
+                        <div>
+                          <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>Kitchen Display System (KDS)</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Real-time ticket updates as chefs cook and dispatch meals.</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(245,158,11,0.15)', color: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <i className="ri-bank-card-line"></i>
+                        </div>
+                        <div>
+                          <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>Omnichannel Local Checkout</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Maya, GCash, Card, and Cash counter billing settlement.</div>
+                        </div>
                       </div>
                     </div>
                   </div>
-
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, marginBottom: '22px' }}>
-                    {activeShowcaseTenant.tagline}. Each restaurant tenant operates under its own isolated partition, menu matrix, table layout, and staff roles.
-                  </p>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', marginBottom: '28px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
-                      <i className="ri-global-line" style={{ color: '#38BDF8' }}></i>
-                      <span>Tenant Subdomain: </span>
-                      <code style={{ color: '#38BDF8', fontFamily: 'var(--font-mono)' }}>https://{activeShowcaseTenant.subdomain}.restosaas.ph</code>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
-                      <i className="ri-shield-check-line" style={{ color: 'var(--emerald)' }}></i>
-                      <span>Partition: </span>
-                      <code style={{ color: 'var(--emerald)', fontFamily: 'var(--font-mono)' }}>partition_{activeShowcaseTenant.slug} (Isolated)</code>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                    <button
-                      className="btn btn-primary"
-                      style={{ padding: '12px 22px', fontSize: '14px', fontWeight: 700 }}
-                      onClick={() => onOpenStorefront(activeShowcaseTenant.slug)}
-                    >
-                      <i className="ri-store-2-line"></i> Customer Storefront ↗
-                    </button>
-                    <button
-                      className="btn btn-emerald"
-                      style={{ padding: '12px 22px', fontSize: '14px', fontWeight: 700 }}
-                      onClick={() => onOpenTenantPortal(activeShowcaseTenant.slug)}
-                    >
-                      <i className="ri-dashboard-2-line"></i> Tenant Portal ↗
-                    </button>
-                  </div>
                 </div>
-
-                {/* Right Quick Preview Box */}
-                <div style={{
-                  background: 'rgba(0, 0, 0, 0.4)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px'
-                }}>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Included in this restaurant tier
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(99,102,241,0.15)', color: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <i className="ri-qr-code-line"></i>
-                    </div>
-                    <div>
-                      <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>QR Table Ordering Engine</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Instant table-assigned orders with zero staff bottlenecks.</div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(16,185,129,0.15)', color: 'var(--emerald)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <i className="ri-restaurant-line"></i>
-                    </div>
-                    <div>
-                      <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>Kitchen Display System (KDS)</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Real-time ticket updates as chefs cook and dispatch meals.</div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(245,158,11,0.15)', color: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <i className="ri-bank-card-line"></i>
-                    </div>
-                    <div>
-                      <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>Omnichannel Local Checkout</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Maya, GCash, Card, and Cash counter billing settlement.</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </section>

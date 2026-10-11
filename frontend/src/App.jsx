@@ -449,6 +449,22 @@ export default function App() {
     }
   };
 
+  const [isProvisioningDemo, setIsProvisioningDemo] = useState(false);
+
+  const handleQuickProvisionDemo = async () => {
+    try {
+      setIsProvisioningDemo(true);
+      const res = await api.tenants.seedDemo();
+      showToast(res.message || 'Demo restaurant "Brando Bar & Grill" provisioned successfully!', 'success');
+      const tRes = await api.tenants.list();
+      setTenants(tRes.data);
+    } catch (err) {
+      showToast(err.message || 'Failed to provision demo restaurant', 'error');
+    } finally {
+      setIsProvisioningDemo(false);
+    }
+  };
+
   // 1. PUBLIC LANDING PAGE (http://localhost:5173/)
   if (appMode === 'landing') {
     return (
@@ -458,8 +474,10 @@ export default function App() {
           onGoToConsole={() => navigateTo('/admin')}
           isAuthenticated={!!adminUser}
           tenants={tenants}
-          onOpenTenantPortal={(slug) => window.open(`/portal/${slug || 'brandobar'}`, '_blank')}
-          onOpenStorefront={(slug) => window.open(`/store/${slug || 'brandobar'}`, '_blank')}
+          onOpenTenantPortal={(slug) => window.open(`/portal/${slug}`, '_blank')}
+          onOpenStorefront={(slug) => window.open(`/store/${slug}`, '_blank')}
+          onQuickProvisionDemo={handleQuickProvisionDemo}
+          isProvisioningDemo={isProvisioningDemo}
         />
         <Toast toasts={toasts} onDismiss={dismissToast} />
       </>

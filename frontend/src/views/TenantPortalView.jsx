@@ -212,6 +212,7 @@ export default function TenantPortalView({
   const [tables, setTables] = useState([]);
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   const [settingsForm, setSettingsForm] = useState({
     name: '',
@@ -610,7 +611,11 @@ export default function TenantPortalView({
         // Fallback
       }
     } catch (err) {
-      showToast?.(err.message, 'error');
+      if (err.status === 404 || err.message?.toLowerCase().includes('not found')) {
+        setNotFound(true);
+      } else {
+        showToast?.(err.message, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -915,6 +920,119 @@ export default function TenantPortalView({
       document.title = `${tenantSlug.toUpperCase()} — Restaurant Portal`;
     }
   }, [restaurant?.name, tenantSlug]);
+
+  if (notFound || (!loading && !overview)) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#0F1116',
+        color: '#FFF',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif"
+      }}>
+        <div style={{
+          maxWidth: '520px',
+          width: '100%',
+          backgroundColor: '#181B22',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '24px',
+          padding: '44px 32px',
+          textAlign: 'center',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.6)'
+        }}>
+          <div style={{
+            width: '76px',
+            height: '76px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            color: '#F87171',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '38px',
+            margin: '0 auto 20px',
+            border: '1px solid rgba(239, 68, 68, 0.25)'
+          }}>
+            <i className="ri-dashboard-2-line" />
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 14px',
+            borderRadius: '20px',
+            backgroundColor: 'rgba(244, 63, 94, 0.12)',
+            border: '1px solid rgba(244, 63, 94, 0.25)',
+            color: '#FB7185',
+            fontSize: '11px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            marginBottom: '16px'
+          }}>
+            <i className="ri-error-warning-line" />
+            <span>Tenant Workspace Not Found (404)</span>
+          </div>
+
+          <h2 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 12px 0', color: '#FFF', letterSpacing: '-0.02em' }}>
+            "{tenantSlug}" Does Not Exist
+          </h2>
+
+          <p style={{ fontSize: '14.5px', color: '#94A3B8', lineHeight: 1.6, margin: '0 0 28px 0' }}>
+            No restaurant kitchen or management portal with identifier <strong style={{ color: '#F1F5F9' }}>@{tenantSlug}</strong> has been provisioned on this platform yet.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <a
+              href="/admin"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '13px 22px',
+                borderRadius: '12px',
+                backgroundColor: '#10B981',
+                color: '#FFF',
+                fontWeight: 700,
+                fontSize: '14px',
+                textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
+              }}
+            >
+              <i className="ri-shield-keyhole-line" />
+              <span>Provision Restaurant in Super Admin</span>
+            </a>
+
+            <a
+              href="/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 22px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#E2E8F0',
+                fontWeight: 600,
+                fontSize: '13px',
+                textDecoration: 'none'
+              }}
+            >
+              <i className="ri-arrow-left-line" />
+              <span>Back to RestoSaaS Home</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !overview) {
     return (

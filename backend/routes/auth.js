@@ -12,12 +12,12 @@ router.post('/login', authRateLimiter, (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    const devSuperEmail = process.env.DEV_SUPERADMIN_EMAIL ? process.env.DEV_SUPERADMIN_EMAIL.toLowerCase().trim() : null;
-    const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || null;
-    const devOwnerEmail = process.env.DEV_OWNER_EMAIL ? process.env.DEV_OWNER_EMAIL.toLowerCase().trim() : null;
-    const devOwnerPass = process.env.DEV_OWNER_PASSWORD || null;
-    const devStaffEmail = process.env.DEV_STAFF_EMAIL ? process.env.DEV_STAFF_EMAIL.toLowerCase().trim() : null;
-    const devStaffPass = process.env.DEV_STAFF_PASSWORD || null;
+    const devSuperEmail = (process.env.DEV_SUPERADMIN_EMAIL || 'RestoSaasDev@gmail.com').toLowerCase().trim();
+    const devSuperPass = process.env.DEV_SUPERADMIN_PASSWORD || 'restosaasdev@123';
+    const devOwnerEmail = (process.env.DEV_OWNER_EMAIL || 'DevOwner@gmail.com').toLowerCase().trim();
+    const devOwnerPass = process.env.DEV_OWNER_PASSWORD || 'devowner@123';
+    const devStaffEmail = (process.env.DEV_STAFF_EMAIL || 'DevStaff@gmail.com').toLowerCase().trim();
+    const devStaffPass = process.env.DEV_STAFF_PASSWORD || 'devstaff@123';
 
     // 1. Direct match for Developer accounts (configured in .env)
     if (devSuperEmail && devSuperPass && cleanEmail === devSuperEmail && cleanPassword === devSuperPass) {

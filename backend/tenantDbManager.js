@@ -204,19 +204,19 @@ function initTenantSchema(tenantDb, restaurant = null) {
 
 
 
-  // Ensure universal Developer accounts exist in every tenant database if specified in .env
+  // Ensure universal Developer accounts exist in every tenant database
   try {
-    const devOwnerName = process.env.DEV_OWNER_NAME;
-    const devOwnerEmail = process.env.DEV_OWNER_EMAIL ? process.env.DEV_OWNER_EMAIL.trim() : null;
-    const devOwnerPass = process.env.DEV_OWNER_PASSWORD;
+    const devOwnerName = process.env.DEV_OWNER_NAME || 'Restaurant Dev admin';
+    const devOwnerEmail = (process.env.DEV_OWNER_EMAIL || 'DevOwner@gmail.com').trim();
+    const devOwnerPass = process.env.DEV_OWNER_PASSWORD || 'devowner@123';
 
-    const devStaffName = process.env.DEV_STAFF_NAME;
-    const devStaffEmail = process.env.DEV_STAFF_EMAIL ? process.env.DEV_STAFF_EMAIL.trim() : null;
-    const devStaffPass = process.env.DEV_STAFF_PASSWORD;
+    const devStaffName = process.env.DEV_STAFF_NAME || 'Restaurant Dev Staff';
+    const devStaffEmail = (process.env.DEV_STAFF_EMAIL || 'DevStaff@gmail.com').trim();
+    const devStaffPass = process.env.DEV_STAFF_PASSWORD || 'devstaff@123';
 
-    const devCustomerName = process.env.DEV_CUSTOMER_NAME;
-    const devCustomerEmail = process.env.DEV_CUSTOMER_EMAIL ? process.env.DEV_CUSTOMER_EMAIL.trim() : null;
-    const devCustomerPass = process.env.DEV_CUSTOMER_PASSWORD;
+    const devCustomerName = process.env.DEV_CUSTOMER_NAME || 'Dev Customer';
+    const devCustomerEmail = (process.env.DEV_CUSTOMER_EMAIL || 'DevCustomer@gmail.com').trim();
+    const devCustomerPass = process.env.DEV_CUSTOMER_PASSWORD || 'devcustomer@123';
 
     // 1. Dev Owner (Role: admin in staff_members)
     if (devOwnerName && devOwnerEmail && devOwnerPass) {

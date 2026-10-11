@@ -2188,22 +2188,22 @@ input:checked + .slider:before {
   right: 0;
   width: 270px;
   max-width: calc(100vw - 24px);
-  background-color: #FFFFFF;
+  background-color: var(--customer-card-bg, #FFFFFF);
   border-radius: 16px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid #E2E8F0;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--storefront-border, #E2E8F0);
   padding: 8px;
   z-index: 1200;
   animation: fadeInSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .customer-dropdown-item:hover {
-  background-color: #F1F5F9 !important;
+  background-color: var(--customer-hover-bg, #F1F5F9) !important;
 }
 
 .customer-logout-btn:hover {
-  background-color: #FEE2E2 !important;
-  color: #B91C1C !important;
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  color: #EF4444 !important;
 }
 
 @media (max-width: 640px) {
@@ -2228,9 +2228,9 @@ input:checked + .slider:before {
   position: sticky;
   top: 0;
   z-index: 30;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: var(--tenant-header-bg, rgba(255, 255, 255, 0.95));
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid #E2E8F0;
+  border-bottom: 1px solid var(--tenant-border, #E2E8F0);
   padding: 12px 24px;
   display: flex;
   align-items: center;
@@ -2259,12 +2259,13 @@ input:checked + .slider:before {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--tenant-text, #1E293B);
 }
 
 .tenant-header-titles p {
   margin: 0;
   font-size: 12.5px;
-  color: #64748B;
+  color: var(--tenant-muted, #64748B);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2292,22 +2293,34 @@ input:checked + .slider:before {
   right: 0;
   width: 270px;
   max-width: calc(100vw - 24px);
-  background-color: #FFFFFF;
+  background-color: var(--tenant-card-bg, #FFFFFF);
   border-radius: 16px;
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.16), 0 4px 14px rgba(0, 0, 0, 0.08);
-  border: 1px solid #E2E8F0;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--tenant-border, #E2E8F0);
   padding: 8px;
   z-index: 1200;
   animation: fadeInSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .tenant-dropdown-item:hover {
-  background-color: #F1F5F9 !important;
+  background-color: var(--tenant-hover-bg, #F1F5F9) !important;
 }
 
 .tenant-logout-btn:hover {
-  background-color: #FEE2E2 !important;
-  color: #B91C1C !important;
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #EF4444 !important;
+}
+
+/* Dark mode overrides for Tenant Portal */
+.tenant-portal-dark {
+  --tenant-hover-bg: #1F293D;
+}
+.tenant-portal-dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+.tenant-portal-dark select,
+.tenant-portal-dark textarea {
+  background-color: var(--tenant-input-bg, #1F293D) !important;
+  color: var(--tenant-text, #F8FAFC) !important;
+  border-color: var(--tenant-border, #2A364F) !important;
 }
 
 @media (max-width: 900px) {

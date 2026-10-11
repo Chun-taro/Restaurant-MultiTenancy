@@ -42,15 +42,17 @@ export default function CustomerStorefrontView({
         console.warn('Failed to parse storefront theme_config', e);
       }
     }
+    const preset = conf.preset || 'emerald_clean';
+    const bgStyle = conf.bg_style || conf.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(preset) ? 'midnight_dark' : 'slate_clean');
     return {
-      preset: conf.preset || 'emerald_clean',
-      primary_color: conf.primary_color || data?.restaurant?.primary_color || '#2A9D9A',
-      secondary_color: conf.secondary_color || data?.restaurant?.secondary_color || '#1E293B',
-      accent_color: conf.accent_color || '#F59E0B',
-      bg_style: conf.bg_style || 'slate_clean',
-      font_family: conf.font_family || 'Plus Jakarta Sans',
-      border_radius: conf.border_radius || 'smooth',
-      hero_style: conf.hero_style || 'cinematic',
+      preset,
+      primary_color: conf.primary_color || conf.primary || data?.restaurant?.primary_color || '#2A9D9A',
+      secondary_color: conf.secondary_color || conf.secondary || data?.restaurant?.secondary_color || '#1E293B',
+      accent_color: conf.accent_color || conf.accent || '#F59E0B',
+      bg_style: bgStyle,
+      font_family: conf.font_family || conf.font || 'Plus Jakarta Sans',
+      border_radius: conf.border_radius || conf.radius || 'smooth',
+      hero_style: conf.hero_style || conf.hero || 'cinematic',
       card_density: conf.card_density || 'grid_spacious'
     };
   }, [data?.restaurant]);
@@ -58,20 +60,22 @@ export default function CustomerStorefrontView({
   const primaryBrand = themeConfig.primary_color;
   const secondaryBrand = themeConfig.secondary_color;
   const accentBrand = themeConfig.accent_color;
-  const isDarkMode = themeConfig.bg_style === 'midnight_dark';
+  const isDarkMode = themeConfig.bg_style === 'midnight_dark' ||
+    themeConfig.bgStyle === 'midnight_dark' ||
+    ['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(themeConfig.preset);
 
   // Compute background & contrast palette
   const themePalette = useMemo(() => {
     switch (themeConfig.bg_style) {
       case 'midnight_dark':
         return {
-          bg: '#0F172A',
-          card: '#1E293B',
-          cardSoft: '#334155',
+          bg: '#0B0F19',
+          card: '#161F30',
+          cardSoft: '#1F293D',
           text: '#F8FAFC',
           mutedText: '#94A3B8',
-          border: '#334155',
-          navBg: 'rgba(15, 23, 42, 0.94)'
+          border: '#2A364F',
+          navBg: 'rgba(11, 15, 25, 0.96)'
         };
       case 'warm_cream':
         return {
@@ -889,7 +893,7 @@ export default function CustomerStorefrontView({
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: DINE_THEME.pinkLight }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: DINE_THEME.bgSoft }}>
         <div style={{ textAlign: 'center' }}>
           <img
             src="/dine/IMG_0162.jpeg"
@@ -906,7 +910,15 @@ export default function CustomerStorefrontView({
   const currentStep = getTrackingStepIndex(activeOrder?.status);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: DINE_THEME.pinkSoft, color: DINE_THEME.dark, fontFamily: DINE_THEME.fontFamily }}>
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: DINE_THEME.pinkSoft,
+      color: DINE_THEME.dark,
+      fontFamily: DINE_THEME.fontFamily,
+      '--customer-card-bg': DINE_THEME.white,
+      '--customer-hover-bg': isDarkMode ? '#1F293D' : '#F1F5F9',
+      '--storefront-border': DINE_THEME.border
+    }}>
 
       {/* ─── TOP WEB APP BAR ────────────────────────────────────────────── */}
       <header style={{
@@ -916,7 +928,7 @@ export default function CustomerStorefrontView({
         backgroundColor: DINE_THEME.navBg,
         backdropFilter: 'blur(12px)',
         borderBottom: `1px solid ${DINE_THEME.border}`,
-        boxShadow: '0 4px 20px rgba(38, 50, 56, 0.04)'
+        boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 20px rgba(38, 50, 56, 0.04)'
       }}>
         <div className="storefront-header-inner">
 
@@ -928,7 +940,7 @@ export default function CustomerStorefrontView({
                 alt={restaurant?.name || 'DINE'}
                 style={{ width: '46px', height: '46px', borderRadius: DINE_THEME.radius, objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
               />
-              <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid #FFF' }} />
+              <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: `2px solid ${isDarkMode ? '#161F30' : '#FFF'}` }} />
             </div>
 
             <div>
@@ -952,10 +964,10 @@ export default function CustomerStorefrontView({
           <div className="storefront-dining-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{
               display: 'flex',
-              backgroundColor: '#F1F5F9',
+              backgroundColor: isDarkMode ? '#1F293D' : '#F1F5F9',
               borderRadius: '14px',
               padding: '3px',
-              border: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+              border: `1.5px solid ${diningMode === 'dine_in' ? (isDarkMode ? 'rgba(16, 185, 129, 0.5)' : '#86EFAC') : (isDarkMode ? 'rgba(234, 88, 12, 0.5)' : '#FDBA74')}`,
               boxShadow: diningMode === 'dine_in' ? '0 2px 10px rgba(16, 185, 129, 0.15)' : '0 2px 10px rgba(234, 88, 12, 0.15)',
               transition: 'all 0.25s ease'
             }}>
@@ -970,7 +982,7 @@ export default function CustomerStorefrontView({
                   border: 'none',
                   cursor: 'pointer',
                   background: diningMode === 'dine_in' ? 'linear-gradient(135deg, #059669 0%, #10B981 100%)' : 'transparent',
-                  color: diningMode === 'dine_in' ? '#FFF' : '#475569',
+                  color: diningMode === 'dine_in' ? '#FFF' : (isDarkMode ? '#94A3B8' : '#475569'),
                   boxShadow: diningMode === 'dine_in' ? '0 3px 10px rgba(5, 150, 105, 0.35)' : 'none',
                   transition: 'all 0.2s ease',
                   display: 'flex',
@@ -992,7 +1004,7 @@ export default function CustomerStorefrontView({
                   border: 'none',
                   cursor: 'pointer',
                   background: diningMode === 'takeaway' ? 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)' : 'transparent',
-                  color: diningMode === 'takeaway' ? '#FFF' : '#475569',
+                  color: diningMode === 'takeaway' ? '#FFF' : (isDarkMode ? '#94A3B8' : '#475569'),
                   boxShadow: diningMode === 'takeaway' ? '0 3px 10px rgba(234, 88, 12, 0.35)' : 'none',
                   transition: 'all 0.2s ease',
                   display: 'flex',
@@ -1011,17 +1023,17 @@ export default function CustomerStorefrontView({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                backgroundColor: '#F0FDF4',
+                backgroundColor: isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4',
                 padding: '6px 12px',
                 borderRadius: '12px',
-                border: '1.5px solid #86EFAC',
+                border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
                 fontSize: '12px',
                 fontWeight: 700,
-                color: '#065F46',
+                color: isDarkMode ? '#A7F3D0' : '#065F46',
                 boxShadow: '0 2px 6px rgba(16, 185, 129, 0.1)'
               }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
-                <i className="ri-qr-code-line" style={{ color: '#059669', fontSize: '14px' }} />
+                <i className="ri-qr-code-line" style={{ color: isDarkMode ? '#34D399' : '#059669', fontSize: '14px' }} />
                 <span>Table:</span>
                 <select
                   value={selectedTable}
@@ -1030,14 +1042,14 @@ export default function CustomerStorefrontView({
                     border: 'none',
                     outline: 'none',
                     fontWeight: 800,
-                    color: '#065F46',
+                    color: isDarkMode ? '#A7F3D0' : '#065F46',
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
                     fontSize: '12px'
                   }}
                 >
                   {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'Table 5' }, { table_number: 'Table 6' }, { table_number: 'VIP Table' }]).map(t => (
-                    <option key={t.table_number} value={t.table_number}>{t.table_number}</option>
+                    <option key={t.table_number} value={t.table_number} style={{ backgroundColor: isDarkMode ? '#161F30' : '#FFF', color: isDarkMode ? '#F8FAFC' : '#065F46' }}>{t.table_number}</option>
                   ))}
                 </select>
               </div>
@@ -1046,17 +1058,17 @@ export default function CustomerStorefrontView({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                backgroundColor: '#FFF7ED',
+                backgroundColor: isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED',
                 padding: '6px 12px',
                 borderRadius: '12px',
-                border: '1.5px solid #FDBA74',
+                border: isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74',
                 fontSize: '12px',
                 fontWeight: 700,
-                color: '#9A3412',
+                color: isDarkMode ? '#FED7AA' : '#9A3412',
                 boxShadow: '0 2px 6px rgba(234, 88, 12, 0.1)'
               }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EA580C', display: 'inline-block' }} />
-                <i className="ri-time-line" style={{ color: '#EA580C', fontSize: '14px' }} />
+                <i className="ri-time-line" style={{ color: isDarkMode ? '#FB923C' : '#EA580C', fontSize: '14px' }} />
                 <span>Pickup:</span>
                 <select
                   value={selectedArrival}
@@ -1065,14 +1077,14 @@ export default function CustomerStorefrontView({
                     border: 'none',
                     outline: 'none',
                     fontWeight: 800,
-                    color: '#9A3412',
+                    color: isDarkMode ? '#FED7AA' : '#9A3412',
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
                     fontSize: '12px'
                   }}
                 >
                   {ARRIVAL_TIMES.map(t => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t} style={{ backgroundColor: isDarkMode ? '#161F30' : '#FFF', color: isDarkMode ? '#F8FAFC' : '#9A3412' }}>{t}</option>
                   ))}
                 </select>
               </div>
@@ -1086,9 +1098,9 @@ export default function CustomerStorefrontView({
                 type="button"
                 onClick={() => setIsHistoryOpen(true)}
                 style={{
-                  backgroundColor: '#FEF3C7',
-                  color: '#92400E',
-                  border: '1px solid #FDE68A',
+                  backgroundColor: isDarkMode ? 'rgba(180, 83, 9, 0.3)' : '#FEF3C7',
+                  color: isDarkMode ? '#FCD34D' : '#92400E',
+                  border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid #FDE68A',
                   padding: '7px 14px',
                   borderRadius: '10px',
                   fontSize: '12px',
@@ -1137,7 +1149,7 @@ export default function CustomerStorefrontView({
                         width: '28px',
                         height: '28px',
                         borderRadius: '50%',
-                        backgroundColor: '#FFF',
+                        backgroundColor: DINE_THEME.white,
                         border: `1.5px solid ${DINE_THEME.teal}`,
                         objectFit: 'cover'
                       }}
@@ -1151,7 +1163,7 @@ export default function CustomerStorefrontView({
                         height: '8px',
                         borderRadius: '50%',
                         backgroundColor: '#10B981',
-                        border: '1.5px solid #FFF'
+                        border: `1.5px solid ${isDarkMode ? '#161F30' : '#FFF'}`
                       }}
                       title="Logged In"
                     />
@@ -1178,9 +1190,9 @@ export default function CustomerStorefrontView({
                       top: 'calc(100% + 8px)',
                       right: 0,
                       width: '270px',
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: DINE_THEME.white,
                       borderRadius: '16px',
-                      boxShadow: '0 14px 40px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.06)',
+                      boxShadow: '0 14px 40px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.12)',
                       border: `1px solid ${DINE_THEME.border}`,
                       padding: '8px',
                       zIndex: 1100,
@@ -1204,7 +1216,7 @@ export default function CustomerStorefrontView({
                             width: '40px',
                             height: '40px',
                             borderRadius: '50%',
-                            backgroundColor: '#FFF',
+                            backgroundColor: DINE_THEME.white,
                             border: `2px solid ${DINE_THEME.teal}`,
                             objectFit: 'cover'
                           }}
@@ -1219,7 +1231,7 @@ export default function CustomerStorefrontView({
                         </div>
                       </div>
                       <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', backgroundColor: isDarkMode ? 'rgba(22, 163, 74, 0.25)' : '#DCFCE7', color: isDarkMode ? '#86EFAC' : '#15803D' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16A34A' }} />
                           Active Session
                         </span>
@@ -1341,8 +1353,8 @@ export default function CustomerStorefrontView({
                         padding: '9px 12px',
                         borderRadius: '10px',
                         border: 'none',
-                        backgroundColor: '#FEF2F2',
-                        color: '#DC2626',
+                        backgroundColor: isDarkMode ? 'rgba(220, 38, 38, 0.2)' : '#FEF2F2',
+                        color: isDarkMode ? '#F87171' : '#DC2626',
                         fontSize: '13px',
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -1350,7 +1362,7 @@ export default function CustomerStorefrontView({
                         transition: 'all 0.15s'
                       }}
                     >
-                      <i className="ri-logout-box-r-line" style={{ fontSize: '16px', color: '#DC2626' }} />
+                      <i className="ri-logout-box-r-line" style={{ fontSize: '16px', color: isDarkMode ? '#F87171' : '#DC2626' }} />
                       <span>Log Out</span>
                     </button>
                   </div>
@@ -1361,8 +1373,8 @@ export default function CustomerStorefrontView({
                 type="button"
                 onClick={() => setIsAuthModalOpen(true)}
                 style={{
-                  backgroundColor: '#FFF',
-                  color: DINE_THEME.tealDark,
+                  backgroundColor: isDarkMode ? DINE_THEME.white : '#FFF',
+                  color: isDarkMode ? DINE_THEME.teal : DINE_THEME.tealDark,
                   border: `1.5px solid ${DINE_THEME.teal}`,
                   padding: '7px 14px',
                   borderRadius: '12px',
@@ -1404,8 +1416,8 @@ export default function CustomerStorefrontView({
               <span>Cart</span>
               {cartItemCount > 0 && (
                 <span style={{
-                  backgroundColor: '#FFF',
-                  color: DINE_THEME.tealDark,
+                  backgroundColor: isDarkMode ? '#0B0F19' : '#FFF',
+                  color: isDarkMode ? '#5EEAD4' : DINE_THEME.tealDark,
                   borderRadius: '10px',
                   padding: '1px 7px',
                   fontSize: '11px',
@@ -1491,17 +1503,21 @@ export default function CustomerStorefrontView({
 
             {/* Mode-Tailored Arrival & Service Indicator */}
             <div style={{
-              backgroundColor: diningMode === 'dine_in' ? '#F0FDF4' : '#FFF7ED',
+              backgroundColor: diningMode === 'dine_in'
+                ? (isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4')
+                : (isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED'),
               padding: '14px 18px',
               borderRadius: '16px',
-              border: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+              border: `1.5px solid ${diningMode === 'dine_in'
+                ? (isDarkMode ? 'rgba(16, 185, 129, 0.4)' : '#86EFAC')
+                : (isDarkMode ? 'rgba(249, 115, 22, 0.4)' : '#FDBA74')}`,
               boxShadow: diningMode === 'dine_in' ? '0 4px 16px rgba(16, 185, 129, 0.1)' : '0 4px 16px rgba(234, 88, 12, 0.1)',
               color: DINE_THEME.dark,
               minWidth: '280px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: diningMode === 'dine_in' ? '#065F46' : '#9A3412' }}>
-                  <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-time-fill'} style={{ color: diningMode === 'dine_in' ? '#059669' : '#EA580C', fontSize: '15px' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: diningMode === 'dine_in' ? (isDarkMode ? '#6EE7B7' : '#065F46') : (isDarkMode ? '#FDBA74' : '#9A3412') }}>
+                  <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-time-fill'} style={{ color: diningMode === 'dine_in' ? (isDarkMode ? '#34D399' : '#059669') : (isDarkMode ? '#FB923C' : '#EA580C'), fontSize: '15px' }} />
                   <span>{diningMode === 'dine_in' ? 'Dine-In Arrival & Seating:' : 'Takeout Pickup Window:'}</span>
                 </div>
                 <span style={{
@@ -1509,8 +1525,12 @@ export default function CustomerStorefrontView({
                   fontWeight: 800,
                   padding: '2px 7px',
                   borderRadius: '10px',
-                  backgroundColor: diningMode === 'dine_in' ? '#DCFCE7' : '#FFEDD5',
-                  color: diningMode === 'dine_in' ? '#15803D' : '#C2410C'
+                  backgroundColor: diningMode === 'dine_in'
+                    ? (isDarkMode ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7')
+                    : (isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5'),
+                  color: diningMode === 'dine_in'
+                    ? (isDarkMode ? '#A7F3D0' : '#15803D')
+                    : (isDarkMode ? '#FED7AA' : '#C2410C')
                 }}>
                   {diningMode === 'dine_in' ? `Table ${selectedTable}` : 'Counter Pickup'}
                 </span>
@@ -1530,11 +1550,11 @@ export default function CustomerStorefrontView({
                         fontWeight: 700,
                         border: isSelected
                           ? `1.5px solid ${diningMode === 'dine_in' ? '#059669' : '#EA580C'}`
-                          : '1px solid #CBD5E1',
+                          : (isDarkMode ? '1px solid #2A364F' : '1px solid #CBD5E1'),
                         backgroundColor: isSelected
                           ? (diningMode === 'dine_in' ? '#059669' : '#EA580C')
-                          : '#FFF',
-                        color: isSelected ? '#FFF' : '#475569',
+                          : (isDarkMode ? '#1F293D' : '#FFF'),
+                        color: isSelected ? '#FFF' : (isDarkMode ? '#CBD5E1' : '#475569'),
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                         boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.1)' : 'none'
@@ -1558,11 +1578,13 @@ export default function CustomerStorefrontView({
       }}>
         {diningMode === 'dine_in' ? (
           <div style={{
-            background: 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 55%, #ECFDF5 100%)',
-            border: '1.5px solid #86EFAC',
+            background: isDarkMode
+              ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, #161F30 60%, rgba(6, 78, 59, 0.3) 100%)'
+              : 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 55%, #ECFDF5 100%)',
+            border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
             borderRadius: '18px',
             padding: '16px 22px',
-            boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)',
+            boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 18px rgba(16, 185, 129, 0.08)',
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -1589,14 +1611,22 @@ export default function CustomerStorefrontView({
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#065F46' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: isDarkMode ? '#6EE7B7' : '#065F46' }}>
                     Table Service Experience
                   </span>
-                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0' }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: isDarkMode ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7',
+                    color: isDarkMode ? '#A7F3D0' : '#166534',
+                    border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid #BBF7D0'
+                  }}>
                     Assigned: {selectedTable}
                   </span>
                 </div>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#047857' }}>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: isDarkMode ? '#94A3B8' : '#047857' }}>
                   Take a seat! Dishes are freshly cooked and delivered directly to your table with dining tableware.
                 </p>
               </div>
@@ -1604,7 +1634,7 @@ export default function CustomerStorefrontView({
 
             {/* Quick Table Switcher Chips */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#065F46', marginRight: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: isDarkMode ? '#6EE7B7' : '#065F46', marginRight: '4px' }}>
                 Quick Switch Table:
               </span>
               {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'VIP Table' }]).slice(0, 6).map(t => (
@@ -1618,9 +1648,15 @@ export default function CustomerStorefrontView({
                     fontSize: '11px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    border: selectedTable === t.table_number ? '2px solid #059669' : '1px solid #CBD5E1',
-                    backgroundColor: selectedTable === t.table_number ? '#059669' : '#FFF',
-                    color: selectedTable === t.table_number ? '#FFF' : '#334155',
+                    border: selectedTable === t.table_number
+                      ? '2px solid #059669'
+                      : (isDarkMode ? '1px solid #2A364F' : '1px solid #CBD5E1'),
+                    backgroundColor: selectedTable === t.table_number
+                      ? '#059669'
+                      : (isDarkMode ? '#1F293D' : '#FFF'),
+                    color: selectedTable === t.table_number
+                      ? '#FFF'
+                      : (isDarkMode ? '#E2E8F0' : '#334155'),
                     transition: 'all 0.15s ease',
                     boxShadow: selectedTable === t.table_number ? '0 2px 6px rgba(5, 150, 105, 0.25)' : 'none'
                   }}
@@ -1632,11 +1668,13 @@ export default function CustomerStorefrontView({
           </div>
         ) : (
           <div style={{
-            background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 55%, #FFEDD5 100%)',
-            border: '1.5px solid #FDBA74',
+            background: isDarkMode
+              ? 'linear-gradient(135deg, rgba(124, 45, 18, 0.45) 0%, #161F30 60%, rgba(124, 45, 18, 0.3) 100%)'
+              : 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 55%, #FFEDD5 100%)',
+            border: isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74',
             borderRadius: '18px',
             padding: '16px 22px',
-            boxShadow: '0 4px 18px rgba(234, 88, 12, 0.08)',
+            boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 18px rgba(234, 88, 12, 0.08)',
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -1663,17 +1701,32 @@ export default function CustomerStorefrontView({
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#9A3412' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: isDarkMode ? '#FDBA74' : '#9A3412' }}>
                     Takeout & To-Go Express
                   </span>
-                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', backgroundColor: '#FFEDD5', color: '#C2410C', border: '1px solid #FED7AA' }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5',
+                    color: isDarkMode ? '#FED7AA' : '#C2410C',
+                    border: isDarkMode ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid #FED7AA'
+                  }}>
                     Ready in: {selectedArrival}
                   </span>
-                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '10px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: '10px',
+                    backgroundColor: isDarkMode ? 'rgba(180, 83, 9, 0.3)' : '#FEF3C7',
+                    color: isDarkMode ? '#FCD34D' : '#92400E'
+                  }}>
                     Front Counter #1
                   </span>
                 </div>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#C2410C' }}>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: isDarkMode ? '#94A3B8' : '#C2410C' }}>
                   Fast pickup at counter. Sealed in tamper-evident thermal boxes with eco-friendly utensils.
                 </p>
               </div>
@@ -1681,7 +1734,7 @@ export default function CustomerStorefrontView({
 
             {/* Quick Pickup Window Chips */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#9A3412', marginRight: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: isDarkMode ? '#FDBA74' : '#9A3412', marginRight: '4px' }}>
                 Pickup Timing:
               </span>
               {ARRIVAL_TIMES.map(t => (
@@ -1695,9 +1748,15 @@ export default function CustomerStorefrontView({
                     fontSize: '11px',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    border: selectedArrival === t ? '2px solid #EA580C' : '1px solid #CBD5E1',
-                    backgroundColor: selectedArrival === t ? '#EA580C' : '#FFF',
-                    color: selectedArrival === t ? '#FFF' : '#334155',
+                    border: selectedArrival === t
+                      ? '2px solid #EA580C'
+                      : (isDarkMode ? '1px solid #2A364F' : '1px solid #CBD5E1'),
+                    backgroundColor: selectedArrival === t
+                      ? '#EA580C'
+                      : (isDarkMode ? '#1F293D' : '#FFF'),
+                    color: selectedArrival === t
+                      ? '#FFF'
+                      : (isDarkMode ? '#E2E8F0' : '#334155'),
                     transition: 'all 0.15s ease',
                     boxShadow: selectedArrival === t ? '0 2px 6px rgba(234, 88, 12, 0.25)' : 'none'
                   }}
@@ -1713,7 +1772,7 @@ export default function CustomerStorefrontView({
       {/* ─── LIVE ORDER TRACKER BANNER (If Active Order) ───────────────── */}
       {activeOrder && (
         <div style={{
-          backgroundColor: '#FFF',
+          backgroundColor: DINE_THEME.white,
           borderBottom: `2px solid ${DINE_THEME.teal}`,
           padding: '16px 20px',
           boxShadow: `0 4px 20px ${DINE_THEME.tealLight}`
@@ -1761,7 +1820,7 @@ export default function CustomerStorefrontView({
 
             {/* Stepper Progress Bar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: '16px', left: '20px', right: '20px', height: '3px', backgroundColor: '#E2E8F0', zIndex: 1 }} />
+              <div style={{ position: 'absolute', top: '16px', left: '20px', right: '20px', height: '3px', backgroundColor: isDarkMode ? '#2A364F' : '#E2E8F0', zIndex: 1 }} />
               <div style={{
                 position: 'absolute',
                 top: '16px',
@@ -1784,8 +1843,8 @@ export default function CustomerStorefrontView({
                       width: '32px',
                       height: '32px',
                       borderRadius: '50%',
-                      backgroundColor: isPassed ? DINE_THEME.teal : '#FFF',
-                      border: `2px solid ${isPassed ? DINE_THEME.teal : '#CBD5E1'}`,
+                      backgroundColor: isPassed ? DINE_THEME.teal : (isDarkMode ? '#1F293D' : '#FFF'),
+                      border: `2px solid ${isPassed ? DINE_THEME.teal : (isDarkMode ? '#2A364F' : '#CBD5E1')}`,
                       color: isPassed ? '#FFF' : DINE_THEME.slate,
                       display: 'flex',
                       alignItems: 'center',
@@ -1823,7 +1882,7 @@ export default function CustomerStorefrontView({
           </div>
 
           {/* Search Box */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FFF', borderRadius: '12px', border: `1px solid ${DINE_THEME.border}`, padding: '7px 14px', width: '320px', maxWidth: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: DINE_THEME.white, borderRadius: '12px', border: `1px solid ${DINE_THEME.border}`, padding: '7px 14px', width: '320px', maxWidth: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <i className="ri-search-line" style={{ color: DINE_THEME.slate, marginRight: '8px', fontSize: '16px' }} />
             <input
               type="text"
@@ -2145,9 +2204,13 @@ export default function CustomerStorefrontView({
                         openProductModal(item);
                       }}
                       style={{
-                        backgroundColor: diningMode === 'dine_in' ? '#F0FDF4' : '#FFF7ED',
-                        color: diningMode === 'dine_in' ? '#065F46' : '#9A3412',
-                        border: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+                        backgroundColor: diningMode === 'dine_in'
+                          ? (isDarkMode ? 'rgba(5, 150, 105, 0.22)' : '#F0FDF4')
+                          : (isDarkMode ? 'rgba(234, 88, 12, 0.22)' : '#FFF7ED'),
+                        color: diningMode === 'dine_in'
+                          ? (isDarkMode ? '#6EE7B7' : '#065F46')
+                          : (isDarkMode ? '#FDBA74' : '#9A3412'),
+                        border: `1.5px solid ${diningMode === 'dine_in' ? (isDarkMode ? 'rgba(16, 185, 129, 0.4)' : '#86EFAC') : (isDarkMode ? 'rgba(249, 115, 22, 0.4)' : '#FDBA74')}`,
                         padding: '6px 14px',
                         borderRadius: DINE_THEME.pillRadius,
                         fontSize: '12px',
@@ -2178,7 +2241,7 @@ export default function CustomerStorefrontView({
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
           backdropFilter: 'blur(6px)',
           display: 'flex',
           alignItems: 'center',
@@ -2187,13 +2250,14 @@ export default function CustomerStorefrontView({
           padding: '16px'
         }}>
           <div style={{
-            backgroundColor: '#FFF',
+            backgroundColor: DINE_THEME.white,
             borderRadius: '20px',
             width: '100%',
             maxWidth: '520px',
             maxHeight: '90vh',
             overflowY: 'auto',
-            boxShadow: '0 24px 60px rgba(0,0,0,0.25)',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
+            border: `1px solid ${DINE_THEME.border}`,
             display: 'flex',
             flexDirection: 'column'
           }}>
@@ -2214,15 +2278,15 @@ export default function CustomerStorefrontView({
                   width: '36px',
                   height: '36px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(255,255,255,0.9)',
-                  border: 'none',
+                  backgroundColor: isDarkMode ? 'rgba(22, 31, 48, 0.9)' : 'rgba(255,255,255,0.9)',
+                  border: `1px solid ${DINE_THEME.border}`,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '18px',
                   color: DINE_THEME.dark,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                 }}
               >
                 <i className="ri-close-line" />
@@ -2264,7 +2328,7 @@ export default function CustomerStorefrontView({
                         padding: '10px',
                         borderRadius: '12px',
                         border: modalSize === sz ? `2px solid ${DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
-                        backgroundColor: modalSize === sz ? DINE_THEME.tealLight : '#FFF',
+                        backgroundColor: modalSize === sz ? DINE_THEME.tealLight : (isDarkMode ? '#1F293D' : '#FFF'),
                         color: modalSize === sz ? DINE_THEME.tealDark : DINE_THEME.dark,
                         fontWeight: 700,
                         fontSize: '13px',
@@ -2298,7 +2362,7 @@ export default function CustomerStorefrontView({
                           padding: '8px 4px',
                           borderRadius: '8px',
                           border: modalSugar === s ? `2px solid ${DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
-                          backgroundColor: modalSugar === s ? DINE_THEME.tealLight : '#FFF',
+                          backgroundColor: modalSugar === s ? DINE_THEME.tealLight : (isDarkMode ? '#1F293D' : '#FFF'),
                           color: modalSugar === s ? DINE_THEME.tealDark : DINE_THEME.dark,
                           fontWeight: 700,
                           fontSize: '12px',
@@ -2330,7 +2394,7 @@ export default function CustomerStorefrontView({
                           justifyContent: 'space-between',
                           padding: '8px 12px',
                           borderRadius: '10px',
-                          backgroundColor: isChecked ? DINE_THEME.pinkLight : '#F8FAFC',
+                          backgroundColor: isChecked ? DINE_THEME.pinkLight : (isDarkMode ? '#1F293D' : '#F8FAFC'),
                           border: `1px solid ${isChecked ? DINE_THEME.teal : DINE_THEME.border}`,
                           cursor: 'pointer'
                         }}
@@ -2372,6 +2436,8 @@ export default function CustomerStorefrontView({
                     padding: '9px 12px',
                     borderRadius: '10px',
                     border: `1px solid ${DINE_THEME.border}`,
+                    backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                    color: DINE_THEME.dark,
                     fontSize: '13px',
                     boxSizing: 'border-box'
                   }}
@@ -2443,13 +2509,14 @@ export default function CustomerStorefrontView({
           zIndex: 100
         }}>
           <div style={{
-            backgroundColor: '#FFF',
+            backgroundColor: DINE_THEME.white,
             width: '100%',
             maxWidth: '460px',
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '-8px 0 30px rgba(0,0,0,0.15)'
+            boxShadow: '-8px 0 30px rgba(0,0,0,0.3)',
+            borderLeft: `1px solid ${DINE_THEME.border}`
           }}>
             {/* Cart Header */}
             <div style={{
@@ -2478,8 +2545,12 @@ export default function CustomerStorefrontView({
             {/* Cart Mode Banner */}
             <div style={{
               padding: '12px 18px',
-              backgroundColor: diningMode === 'dine_in' ? '#F0FDF4' : '#FFF7ED',
-              borderBottom: `1.5px solid ${diningMode === 'dine_in' ? '#86EFAC' : '#FDBA74'}`,
+              backgroundColor: diningMode === 'dine_in'
+                ? (isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4')
+                : (isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED'),
+              borderBottom: `1.5px solid ${diningMode === 'dine_in'
+                ? (isDarkMode ? 'rgba(16, 185, 129, 0.4)' : '#86EFAC')
+                : (isDarkMode ? 'rgba(249, 115, 22, 0.4)' : '#FDBA74')}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -2501,10 +2572,10 @@ export default function CustomerStorefrontView({
                   <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-takeaway-fill'} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: diningMode === 'dine_in' ? '#065F46' : '#9A3412' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: diningMode === 'dine_in' ? (isDarkMode ? '#6EE7B7' : '#065F46') : (isDarkMode ? '#FDBA74' : '#9A3412') }}>
                     {diningMode === 'dine_in' ? `Dine-In • Table Service` : `Takeout / To-Go Express`}
                   </div>
-                  <div style={{ fontSize: '11px', color: diningMode === 'dine_in' ? '#047857' : '#C2410C' }}>
+                  <div style={{ fontSize: '11px', color: diningMode === 'dine_in' ? (isDarkMode ? '#A7F3D0' : '#047857') : (isDarkMode ? '#FED7AA' : '#C2410C') }}>
                     {diningMode === 'dine_in'
                       ? `Served fresh to ${selectedTable}`
                       : `Pick up at counter • Est: ${selectedArrival}`}
@@ -2519,16 +2590,16 @@ export default function CustomerStorefrontView({
                   style={{
                     padding: '4px 8px',
                     borderRadius: '8px',
-                    border: '1.5px solid #86EFAC',
-                    backgroundColor: '#FFF',
-                    color: '#065F46',
+                    border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
+                    backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                    color: isDarkMode ? '#A7F3D0' : '#065F46',
                     fontSize: '11px',
                     fontWeight: 800,
                     cursor: 'pointer'
                   }}
                 >
                   {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'VIP Table' }]).map(t => (
-                    <option key={t.table_number} value={t.table_number}>{t.table_number}</option>
+                    <option key={t.table_number} value={t.table_number} style={{ backgroundColor: isDarkMode ? '#161F30' : '#FFF', color: isDarkMode ? '#F8FAFC' : '#065F46' }}>{t.table_number}</option>
                   ))}
                 </select>
               ) : (
@@ -2538,16 +2609,16 @@ export default function CustomerStorefrontView({
                   style={{
                     padding: '4px 8px',
                     borderRadius: '8px',
-                    border: '1.5px solid #FDBA74',
-                    backgroundColor: '#FFF',
-                    color: '#9A3412',
+                    border: isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74',
+                    backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                    color: isDarkMode ? '#FED7AA' : '#9A3412',
                     fontSize: '11px',
                     fontWeight: 800,
                     cursor: 'pointer'
                   }}
                 >
                   {ARRIVAL_TIMES.map(t => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t} style={{ backgroundColor: isDarkMode ? '#161F30' : '#FFF', color: isDarkMode ? '#F8FAFC' : '#9A3412' }}>{t}</option>
                   ))}
                 </select>
               )}
@@ -2570,7 +2641,7 @@ export default function CustomerStorefrontView({
                         padding: '12px',
                         borderRadius: '12px',
                         border: `1px solid ${DINE_THEME.border}`,
-                        backgroundColor: '#FFF',
+                        backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '8px'
@@ -2613,17 +2684,17 @@ export default function CustomerStorefrontView({
                           <button
                             type="button"
                             onClick={() => updateCartItemQty(item.cartItemId, -1)}
-                            style={{ width: '28px', height: '28px', border: 'none', background: 'none', fontWeight: 800, cursor: 'pointer' }}
+                            style={{ width: '28px', height: '28px', border: 'none', background: 'none', fontWeight: 800, color: DINE_THEME.dark, cursor: 'pointer' }}
                           >
                             -
                           </button>
-                          <span style={{ width: '24px', textAlign: 'center', fontSize: '13px', fontWeight: 700 }}>
+                          <span style={{ width: '24px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: DINE_THEME.dark }}>
                             {item.quantity}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateCartItemQty(item.cartItemId, 1)}
-                            style={{ width: '28px', height: '28px', border: 'none', background: 'none', fontWeight: 800, cursor: 'pointer' }}
+                            style={{ width: '28px', height: '28px', border: 'none', background: 'none', fontWeight: 800, color: DINE_THEME.dark, cursor: 'pointer' }}
                           >
                             +
                           </button>
@@ -2635,13 +2706,13 @@ export default function CustomerStorefrontView({
                   {/* Takeout Specific Options (Cutlery & Packaging Notes) */}
                   {diningMode === 'takeaway' && (
                     <div style={{
-                      backgroundColor: '#FFF7ED',
-                      border: '1.5px solid #FED7AA',
+                      backgroundColor: isDarkMode ? 'rgba(124, 45, 18, 0.3)' : '#FFF7ED',
+                      border: isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FED7AA',
                       borderRadius: '12px',
                       padding: '12px 14px'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#9A3412', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: isDarkMode ? '#FDBA74' : '#9A3412', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={includeUtensils}
@@ -2660,10 +2731,10 @@ export default function CustomerStorefrontView({
                           width: '100%',
                           padding: '7px 10px',
                           borderRadius: '8px',
-                          border: '1px solid #FDBA74',
-                          backgroundColor: '#FFF',
+                          border: isDarkMode ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid #FDBA74',
+                          backgroundColor: isDarkMode ? '#161F30' : '#FFF',
                           fontSize: '11px',
-                          color: '#334155',
+                          color: DINE_THEME.dark,
                           boxSizing: 'border-box'
                         }}
                       />
@@ -2686,7 +2757,16 @@ export default function CustomerStorefrontView({
                           placeholder="e.g. Alex Santos"
                           value={customerName}
                           onChange={e => setCustomerName(e.target.value)}
-                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${DINE_THEME.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: '8px',
+                            border: `1px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
+                            fontSize: '13px',
+                            boxSizing: 'border-box'
+                          }}
                         />
                       </div>
 
@@ -2699,7 +2779,16 @@ export default function CustomerStorefrontView({
                           placeholder="e.g. 0917 123 4567"
                           value={customerPhone}
                           onChange={e => setCustomerPhone(e.target.value)}
-                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${DINE_THEME.border}`, fontSize: '13px', boxSizing: 'border-box' }}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: '8px',
+                            border: `1px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
+                            fontSize: '13px',
+                            boxSizing: 'border-box'
+                          }}
                         />
                       </div>
                     </div>
@@ -2729,7 +2818,7 @@ export default function CustomerStorefrontView({
                             padding: '10px 4px',
                             borderRadius: '10px',
                             border: paymentMethod === pay.id ? `2px solid ${pay.color}` : `1px solid ${DINE_THEME.border}`,
-                            backgroundColor: paymentMethod === pay.id ? `${pay.color}15` : '#FFF',
+                            backgroundColor: paymentMethod === pay.id ? `${pay.color}20` : (isDarkMode ? '#1F293D' : '#FFF'),
                             color: paymentMethod === pay.id ? pay.color : DINE_THEME.dark,
                             fontWeight: 700,
                             fontSize: '11px',
@@ -2755,7 +2844,7 @@ export default function CustomerStorefrontView({
               <div style={{
                 padding: '16px 20px',
                 borderTop: `1px solid ${DINE_THEME.border}`,
-                backgroundColor: '#FFF'
+                backgroundColor: DINE_THEME.white
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: DINE_THEME.slate, marginBottom: '4px' }}>
                   <span>Subtotal</span>
@@ -2837,14 +2926,15 @@ export default function CustomerStorefrontView({
           padding: '16px'
         }}>
           <div style={{
-            backgroundColor: '#FFF',
+            backgroundColor: DINE_THEME.white,
             borderRadius: '20px',
             width: '100%',
             maxWidth: '540px',
             maxHeight: '85vh',
             overflowY: 'auto',
             padding: '24px',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.2)'
+            boxShadow: '0 20px 50px rgba(0,0,0,0.35)',
+            border: `1px solid ${DINE_THEME.border}`
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2892,9 +2982,9 @@ export default function CustomerStorefrontView({
                         fontWeight: 800,
                         padding: '2px 8px',
                         borderRadius: '10px',
-                        backgroundColor: '#FFEDD5',
-                        color: '#C2410C',
-                        border: '1px solid #FED7AA',
+                        backgroundColor: isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5',
+                        color: isDarkMode ? '#FED7AA' : '#C2410C',
+                        border: isDarkMode ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid #FED7AA',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '3px'
@@ -2907,9 +2997,9 @@ export default function CustomerStorefrontView({
                         fontWeight: 800,
                         padding: '2px 8px',
                         borderRadius: '10px',
-                        backgroundColor: '#DCFCE7',
-                        color: '#15803D',
-                        border: '1px solid #BBF7D0',
+                        backgroundColor: isDarkMode ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7',
+                        color: isDarkMode ? '#A7F3D0' : '#15803D',
+                        border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid #BBF7D0',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '3px'
@@ -2934,16 +3024,16 @@ export default function CustomerStorefrontView({
                 <div style={{ fontSize: '12px', color: DINE_THEME.slate, marginBottom: '12px' }}>
                   Diner: <strong>{activeOrder.customer_name}</strong> •{' '}
                   {activeOrder.order_type === 'takeaway' ? (
-                    <span>Pickup: <strong style={{ color: '#C2410C' }}>Counter #1 ({activeOrder.arrivalTime || 'ASAP'})</strong></span>
+                    <span>Pickup: <strong style={{ color: isDarkMode ? '#FDBA74' : '#C2410C' }}>Counter #1 ({activeOrder.arrivalTime || 'ASAP'})</strong></span>
                   ) : (
-                    <span>Table: <strong style={{ color: '#15803D' }}>{activeOrder.table_number || selectedTable}</strong></span>
+                    <span>Table: <strong style={{ color: isDarkMode ? '#6EE7B7' : '#15803D' }}>{activeOrder.table_number || selectedTable}</strong></span>
                   )}{' '}
                   • Method: <strong>{activeOrder.payment_method}</strong>
                 </div>
 
-                <div style={{ backgroundColor: '#FFF', borderRadius: '12px', padding: '10px 12px', border: `1px solid ${DINE_THEME.border}` }}>
+                <div style={{ backgroundColor: isDarkMode ? '#1F293D' : '#FFF', borderRadius: '12px', padding: '10px 12px', border: `1px solid ${DINE_THEME.border}` }}>
                   {(activeOrder.items || []).map((it, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '6px 0', borderBottom: idx < (activeOrder.items || []).length - 1 ? '1px dashed #F1F5F9' : 'none', gap: '10px' }}>
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '6px 0', borderBottom: idx < (activeOrder.items || []).length - 1 ? `1px dashed ${DINE_THEME.border}` : 'none', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                         <img
                           src={it.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&auto=format&fit=crop&q=80'}
@@ -2967,7 +3057,7 @@ export default function CustomerStorefrontView({
                       </span>
                     </div>
                   ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 800, paddingTop: '8px', marginTop: '6px', borderTop: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 800, paddingTop: '8px', marginTop: '6px', borderTop: `1px solid ${DINE_THEME.border}` }}>
                     <span>Total Bill</span>
                     <span style={{ color: DINE_THEME.tealDark }}>₱{Number(activeOrder.total).toFixed(0)}</span>
                   </div>
@@ -3013,7 +3103,7 @@ export default function CustomerStorefrontView({
                         style={{
                           padding: '10px 12px',
                           borderRadius: '10px',
-                          backgroundColor: isSelected ? '#F0FDFA' : '#FFF',
+                          backgroundColor: isSelected ? (isDarkMode ? 'rgba(42, 157, 154, 0.25)' : '#F0FDFA') : (isDarkMode ? '#1F293D' : '#FFF'),
                           border: `1px solid ${isSelected ? DINE_THEME.teal : DINE_THEME.border}`,
                           display: 'flex',
                           justifyContent: 'space-between',
@@ -3102,7 +3192,7 @@ export default function CustomerStorefrontView({
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(38, 50, 56, 0.65)',
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
           backdropFilter: 'blur(5px)',
           display: 'flex',
           alignItems: 'center',
@@ -3111,19 +3201,21 @@ export default function CustomerStorefrontView({
           padding: '16px'
         }}>
           <div style={{
-            backgroundColor: '#FFF',
+            backgroundColor: DINE_THEME.white,
             borderRadius: '24px',
             width: '100%',
             maxWidth: '480px',
             maxHeight: '90vh',
             overflowY: 'auto',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
             border: `1px solid ${DINE_THEME.border}`,
             overflow: 'hidden'
           }}>
             {/* Modal Header */}
             <div style={{
-              background: `linear-gradient(135deg, ${DINE_THEME.pinkLight} 0%, #FFF 100%)`,
+              background: isDarkMode
+                ? 'linear-gradient(135deg, #1F293D 0%, #161F30 100%)'
+                : `linear-gradient(135deg, ${DINE_THEME.pinkLight} 0%, #FFF 100%)`,
               padding: '24px 24px 16px',
               borderBottom: `1px solid ${DINE_THEME.border}`,
               display: 'flex',
@@ -3250,7 +3342,7 @@ export default function CustomerStorefrontView({
                             style={{
                               padding: '10px 14px',
                               borderRadius: '10px',
-                              backgroundColor: '#FFF',
+                              backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
                               border: `1px solid ${DINE_THEME.border}`,
                               display: 'flex',
                               justifyContent: 'space-between',
@@ -3310,9 +3402,9 @@ export default function CustomerStorefrontView({
                         width: '100%',
                         padding: '12px',
                         borderRadius: '12px',
-                        border: `1.5px solid #FCA5A5`,
-                        backgroundColor: '#FEF2F2',
-                        color: '#DC2626',
+                        border: isDarkMode ? '1.5px solid rgba(239, 68, 68, 0.4)' : `1.5px solid #FCA5A5`,
+                        backgroundColor: isDarkMode ? 'rgba(220, 38, 38, 0.2)' : '#FEF2F2',
+                        color: isDarkMode ? '#F87171' : '#DC2626',
                         fontSize: '13px',
                         fontWeight: 800,
                         cursor: 'pointer',
@@ -3345,12 +3437,12 @@ export default function CustomerStorefrontView({
                         padding: '9px',
                         borderRadius: '9px',
                         border: 'none',
-                        backgroundColor: authModalTab === 'signin' ? '#FFF' : 'transparent',
-                        color: authModalTab === 'signin' ? DINE_THEME.tealDark : DINE_THEME.slate,
+                        backgroundColor: authModalTab === 'signin' ? (isDarkMode ? '#1F293D' : '#FFF') : 'transparent',
+                        color: authModalTab === 'signin' ? (isDarkMode ? '#F8FAFC' : DINE_THEME.tealDark) : DINE_THEME.slate,
                         fontWeight: 800,
                         fontSize: '13px',
                         cursor: 'pointer',
-                        boxShadow: authModalTab === 'signin' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                        boxShadow: authModalTab === 'signin' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                         transition: 'all 0.15s ease',
                         display: 'flex',
                         alignItems: 'center',
@@ -3368,12 +3460,12 @@ export default function CustomerStorefrontView({
                         padding: '9px',
                         borderRadius: '9px',
                         border: 'none',
-                        backgroundColor: authModalTab === 'register' ? '#FFF' : 'transparent',
-                        color: authModalTab === 'register' ? DINE_THEME.tealDark : DINE_THEME.slate,
+                        backgroundColor: authModalTab === 'register' ? (isDarkMode ? '#1F293D' : '#FFF') : 'transparent',
+                        color: authModalTab === 'register' ? (isDarkMode ? '#F8FAFC' : DINE_THEME.tealDark) : DINE_THEME.slate,
                         fontWeight: 800,
                         fontSize: '13px',
                         cursor: 'pointer',
-                        boxShadow: authModalTab === 'register' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                        boxShadow: authModalTab === 'register' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                         transition: 'all 0.15s ease',
                         display: 'flex',
                         alignItems: 'center',
@@ -3387,8 +3479,9 @@ export default function CustomerStorefrontView({
 
                   {authError && (
                     <div style={{
-                      backgroundColor: '#FEE2E2',
-                      color: '#991B1B',
+                      backgroundColor: isDarkMode ? 'rgba(153, 27, 27, 0.3)' : '#FEE2E2',
+                      color: isDarkMode ? '#FCA5A5' : '#991B1B',
+                      border: isDarkMode ? '1px solid rgba(239, 68, 68, 0.4)' : 'none',
                       padding: '10px 14px',
                       borderRadius: '10px',
                       fontSize: '12px',
@@ -3430,6 +3523,8 @@ export default function CustomerStorefrontView({
                             padding: '12px 14px',
                             borderRadius: '10px',
                             border: `1.5px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
                             outline: 'none',
                             fontSize: '14px',
                             boxSizing: 'border-box'
@@ -3453,6 +3548,8 @@ export default function CustomerStorefrontView({
                               padding: '12px 42px 12px 14px',
                               borderRadius: '10px',
                               border: `1.5px solid ${DINE_THEME.border}`,
+                              backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                              color: DINE_THEME.dark,
                               outline: 'none',
                               fontSize: '14px',
                               boxSizing: 'border-box'
@@ -3573,6 +3670,8 @@ export default function CustomerStorefrontView({
                             padding: '12px 14px',
                             borderRadius: '10px',
                             border: `1.5px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
                             outline: 'none',
                             fontSize: '14px',
                             boxSizing: 'border-box'
@@ -3595,6 +3694,8 @@ export default function CustomerStorefrontView({
                             padding: '12px 14px',
                             borderRadius: '10px',
                             border: `1.5px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
                             outline: 'none',
                             fontSize: '14px',
                             boxSizing: 'border-box'
@@ -3616,6 +3717,8 @@ export default function CustomerStorefrontView({
                             padding: '12px 14px',
                             borderRadius: '10px',
                             border: `1.5px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
                             outline: 'none',
                             fontSize: '14px',
                             boxSizing: 'border-box'
@@ -3639,6 +3742,8 @@ export default function CustomerStorefrontView({
                               padding: '12px 42px 12px 14px',
                               borderRadius: '10px',
                               border: `1.5px solid ${DINE_THEME.border}`,
+                              backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                              color: DINE_THEME.dark,
                               outline: 'none',
                               fontSize: '14px',
                               boxSizing: 'border-box'
@@ -3761,14 +3866,14 @@ export default function CustomerStorefrontView({
           animation: 'fadeIn 0.2s ease'
         }}>
           <div style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: DINE_THEME.white,
             borderRadius: '24px',
             maxWidth: '480px',
             width: '100%',
             padding: '32px 26px',
             textAlign: 'center',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
-            border: '2px solid #86EFAC',
+            boxShadow: isDarkMode ? '0 25px 60px rgba(0,0,0,0.7)' : '0 25px 60px rgba(0,0,0,0.3)',
+            border: isDarkMode ? '1px solid #059669' : '2px solid #86EFAC',
             position: 'relative'
           }}>
             {/* Celebration Icon */}
@@ -3788,8 +3893,20 @@ export default function CustomerStorefrontView({
               <i className="ri-checkbox-circle-fill" />
             </div>
 
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#DCFCE7', color: '#166534', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>
-              <i className="ri-checkbox-circle-fill" style={{ color: '#15803D' }} />
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: isDarkMode ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
+              color: isDarkMode ? '#6EE7B7' : '#166534',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              marginBottom: '8px'
+            }}>
+              <i className="ri-checkbox-circle-fill" style={{ color: '#10B981' }} />
               <span>Order Completed</span>
             </div>
 
@@ -3806,7 +3923,7 @@ export default function CustomerStorefrontView({
 
             {/* Order Recap Card */}
             <div style={{
-              backgroundColor: '#F8FAFC',
+              backgroundColor: isDarkMode ? '#1F293D' : '#F8FAFC',
               borderRadius: '16px',
               padding: '16px',
               border: `1px solid ${DINE_THEME.border}`,
@@ -3817,7 +3934,7 @@ export default function CustomerStorefrontView({
                 <span style={{ fontSize: '12px', fontWeight: 700, color: DINE_THEME.dark }}>
                   {activeOrder.order_type === 'takeaway' ? 'Takeout Order' : `Table Service (${activeOrder.table_number || selectedTable})`}
                 </span>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#059669' }}>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#10B981' }}>
                   ₱{Number(activeOrder.total || 0).toFixed(0)}
                 </span>
               </div>
@@ -3827,7 +3944,7 @@ export default function CustomerStorefrontView({
                 {(activeOrder.items || []).map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                     <span style={{ color: DINE_THEME.dark, fontWeight: 600 }}>
-                      <strong style={{ color: '#059669' }}>{it.quantity}x</strong> {it.item_name}
+                      <strong style={{ color: '#10B981' }}>{it.quantity}x</strong> {it.item_name}
                     </span>
                     <span style={{ color: DINE_THEME.slate, fontWeight: 700 }}>
                       ₱{(it.subtotal || it.price * it.quantity || 0).toFixed(0)}
@@ -3839,13 +3956,13 @@ export default function CustomerStorefrontView({
 
             {/* Prompt banner */}
             <div style={{
-              backgroundColor: '#ECFDF5',
-              border: '1px solid #A7F3D0',
+              backgroundColor: isDarkMode ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5',
+              border: isDarkMode ? '1px solid rgba(5, 150, 105, 0.4)' : '1px solid #A7F3D0',
               borderRadius: '12px',
               padding: '10px 14px',
               marginBottom: '20px',
               fontSize: '12px',
-              color: '#065F46',
+              color: isDarkMode ? '#6EE7B7' : '#065F46',
               fontWeight: 600
             }}>
               <i className="ri-information-line" style={{ marginRight: '6px' }} />
@@ -3888,14 +4005,14 @@ export default function CustomerStorefrontView({
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: '#FFF',
+          backgroundColor: DINE_THEME.white,
           borderTop: `1px solid ${DINE_THEME.border}`,
           padding: '12px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           zIndex: 35,
-          boxShadow: '0 -4px 16px rgba(0,0,0,0.06)'
+          boxShadow: isDarkMode ? '0 -4px 20px rgba(0,0,0,0.5)' : '0 -4px 16px rgba(0,0,0,0.06)'
         }}>
           <div>
             <span style={{ fontSize: '11px', color: DINE_THEME.slate, display: 'block' }}>Basket Total</span>

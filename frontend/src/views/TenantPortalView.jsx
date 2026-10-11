@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
 
 export const THEME_PRESETS = [
@@ -270,24 +270,124 @@ export default function TenantPortalView({
   const secondaryBrandColor = activeThemeConfig.secondary_color || settingsForm?.secondary_color || overview?.restaurant?.secondary_color || '#1E293B';
   const accentBrandColor = activeThemeConfig.accent_color || '#F59E0B';
 
+  const activeBgStyle = activeThemeConfig.bg_style || activeThemeConfig.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(activeThemeConfig.preset) ? 'midnight_dark' : 'slate_clean');
+  const isDarkPortal = activeBgStyle === 'midnight_dark' || ['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(activeThemeConfig.preset);
+
+  const portalPalette = useMemo(() => {
+    switch (activeBgStyle) {
+      case 'midnight_dark':
+        return {
+          bg: '#0B0F19',
+          card: '#161F30',
+          cardSoft: '#1F293D',
+          sidebar: '#111827',
+          sidebarFooter: '#0B0F19',
+          header: 'rgba(17, 24, 39, 0.95)',
+          text: '#F8FAFC',
+          mutedText: '#94A3B8',
+          border: '#2A364F',
+          borderDark: '#374151',
+          inputBg: '#1F293D'
+        };
+      case 'warm_cream':
+        return {
+          bg: '#FAF7F2',
+          card: '#FFFFFF',
+          cardSoft: '#F4EFE6',
+          sidebar: '#FFFFFF',
+          sidebarFooter: '#FAF7F2',
+          header: 'rgba(250, 247, 242, 0.95)',
+          text: '#292524',
+          mutedText: '#78716C',
+          border: '#E7E5E4',
+          borderDark: '#D6D3D1',
+          inputBg: '#FAF7F2'
+        };
+      case 'matcha_soft':
+        return {
+          bg: '#F0FDF4',
+          card: '#FFFFFF',
+          cardSoft: '#DCFCE7',
+          sidebar: '#FFFFFF',
+          sidebarFooter: '#F0FDF4',
+          header: 'rgba(240, 253, 244, 0.95)',
+          text: '#064E3B',
+          mutedText: '#047857',
+          border: '#DCFCE7',
+          borderDark: '#BBF7D0',
+          inputBg: '#F0FDF4'
+        };
+      case 'rose_blush':
+        return {
+          bg: '#FFF1F2',
+          card: '#FFFFFF',
+          cardSoft: '#FFE4E6',
+          sidebar: '#FFFFFF',
+          sidebarFooter: '#FFF1F2',
+          header: 'rgba(255, 241, 242, 0.95)',
+          text: '#4C0519',
+          mutedText: '#9F1239',
+          border: '#FFE4E6',
+          borderDark: '#FECDD3',
+          inputBg: '#FFF1F2'
+        };
+      case 'pure_white':
+        return {
+          bg: '#FFFFFF',
+          card: '#FAFAFA',
+          cardSoft: '#F4F4F5',
+          sidebar: '#FFFFFF',
+          sidebarFooter: '#FAFAFA',
+          header: 'rgba(255, 255, 255, 0.96)',
+          text: '#09090B',
+          mutedText: '#71717A',
+          border: '#E4E4E7',
+          borderDark: '#D4D4D8',
+          inputBg: '#F4F4F5'
+        };
+      case 'slate_clean':
+      default:
+        return {
+          bg: '#F8FAFC',
+          card: '#FFFFFF',
+          cardSoft: '#F1F5F9',
+          sidebar: '#FFFFFF',
+          sidebarFooter: '#FAFAFA',
+          header: 'rgba(255, 255, 255, 0.95)',
+          text: '#1E293B',
+          mutedText: '#64748B',
+          border: '#E2E8F0',
+          borderDark: '#CBD5E1',
+          inputBg: '#F8FAFC'
+        };
+    }
+  }, [activeBgStyle]);
+
   const C = {
-    white: '#FFFFFF',
-    pink: '#F1F5F9',        // Clean slate-100 neutral (replaces pastel pink)
-    pinkLight: '#F1F5F9',   // Clean slate-100 neutral (replaces pastel pink)
-    pinkSoft: '#F8FAFC',    // Modern slate-50 page background (replaces pastel pink)
-    bgSoft: '#F8FAFC',
-    bgMuted: '#F1F5F9',
-    cardBg: '#FFFFFF',
+    white: portalPalette.card,
+    pink: portalPalette.cardSoft,
+    pinkLight: portalPalette.cardSoft,
+    pinkSoft: portalPalette.bg,
+    bgSoft: portalPalette.bg,
+    bgMuted: portalPalette.cardSoft,
+    cardBg: portalPalette.card,
+    sidebarBg: portalPalette.sidebar,
+    sidebarFooter: portalPalette.sidebarFooter,
+    headerBg: portalPalette.header,
+    inputBg: portalPalette.inputBg,
     teal: primaryBrandColor,
     tealDark: primaryBrandColor,
     tealLight: `${primaryBrandColor}18`,
     tealGlow: `${primaryBrandColor}33`,
-    dark: secondaryBrandColor,
-    slate: '#64748B',
-    border: '#E2E8F0',
-    borderDark: '#CBD5E1',
-    grayBorder: '#E2E8F0',
-    gold: accentBrandColor
+    dark: isDarkPortal ? portalPalette.text : (secondaryBrandColor || '#1E293B'),
+    slate: portalPalette.mutedText,
+    border: portalPalette.border,
+    borderDark: portalPalette.borderDark,
+    grayBorder: portalPalette.border,
+    gold: accentBrandColor,
+    isDark: isDarkPortal,
+    fontFamily: activeThemeConfig.font_family || 'Plus Jakarta Sans',
+    radius: activeThemeConfig.border_radius === 'sharp' ? '6px' : activeThemeConfig.border_radius === 'rounded' ? '20px' : '14px'
   };
   // Selected Category filter in Menu tab
   const [selectedMenuCat, setSelectedMenuCat] = useState('all');
@@ -586,7 +686,7 @@ export default function TenantPortalView({
             primary_color: parsedTheme.primary_color || r.primary_color || '#2A9D9A',
             secondary_color: parsedTheme.secondary_color || r.secondary_color || '#263238',
             accent_color: parsedTheme.accent_color || '#F59E0B',
-            bg_style: parsedTheme.bg_style || 'slate_clean',
+            bg_style: parsedTheme.bg_style || parsedTheme.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(parsedTheme.preset) ? 'midnight_dark' : 'slate_clean'),
             font_family: parsedTheme.font_family || 'Plus Jakarta Sans',
             border_radius: parsedTheme.border_radius || 'smooth',
             hero_style: parsedTheme.hero_style || 'cinematic',
@@ -1070,9 +1170,9 @@ export default function TenantPortalView({
         <div style={{
           width: '100%',
           maxWidth: '480px',
-          backgroundColor: '#FFF',
+          backgroundColor: C.cardBg,
           borderRadius: '24px',
-          boxShadow: '0 20px 60px rgba(38, 50, 56, 0.08)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.18)',
           border: `1px solid ${C.border}`,
           overflow: 'hidden'
         }}>
@@ -1123,7 +1223,7 @@ export default function TenantPortalView({
                   padding: '9px',
                   borderRadius: '9px',
                   border: 'none',
-                  backgroundColor: portalAuthTab === 'signin' ? '#FFF' : 'transparent',
+                  backgroundColor: portalAuthTab === 'signin' ? C.cardBg : 'transparent',
                   color: portalAuthTab === 'signin' ? C.tealDark : C.slate,
                   fontWeight: 800,
                   fontSize: '13px',
@@ -1146,7 +1246,7 @@ export default function TenantPortalView({
                   padding: '9px',
                   borderRadius: '9px',
                   border: 'none',
-                  backgroundColor: portalAuthTab === 'register' ? '#FFF' : 'transparent',
+                  backgroundColor: portalAuthTab === 'register' ? C.cardBg : 'transparent',
                   color: portalAuthTab === 'register' ? C.tealDark : C.slate,
                   fontWeight: 800,
                   fontSize: '13px',
@@ -1467,7 +1567,22 @@ export default function TenantPortalView({
   const currentTabMeta = tabMeta[activeTab] || { title: 'Restaurant Portal', subtitle: '' };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', backgroundColor: C.pinkSoft, color: C.dark, fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div
+      className={`tenant-portal-root ${C.isDark ? 'tenant-portal-dark' : ''}`}
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        backgroundColor: C.pinkSoft,
+        color: C.dark,
+        fontFamily: `'${C.fontFamily}', -apple-system, BlinkMacSystemFont, sans-serif`,
+        '--tenant-header-bg': C.headerBg,
+        '--tenant-border': C.border,
+        '--tenant-card-bg': C.cardBg,
+        '--tenant-text': C.dark,
+        '--tenant-muted': C.slate,
+        '--tenant-input-bg': C.inputBg
+      }}
+    >
 
       {/* ─── MOBILE BACKDROP OVERLAY ────────────────────────────────────── */}
       <div
@@ -1482,7 +1597,7 @@ export default function TenantPortalView({
         style={{
           width: '260px',
           flexShrink: 0,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: C.sidebarBg,
           borderRight: `1px solid ${C.border}`,
           display: 'flex',
           flexDirection: 'column',
@@ -1614,7 +1729,7 @@ export default function TenantPortalView({
         </div>
 
         {/* Sidebar Footer */}
-        <div style={{ padding: '14px', borderTop: `1px solid ${C.border}`, backgroundColor: '#FAFAFA', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ padding: '14px', borderTop: `1px solid ${C.border}`, backgroundColor: C.sidebarFooter, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <a
             href={`/store/${tenantSlug}`}
             target="_blank"
@@ -1686,7 +1801,7 @@ export default function TenantPortalView({
                 gap: '6px',
                 padding: '6px 12px',
                 borderRadius: '10px',
-                backgroundColor: '#FFF',
+                backgroundColor: C.cardBg,
                 border: `1px solid ${C.border}`,
                 color: C.dark,
                 fontSize: '12px',
@@ -1731,7 +1846,7 @@ export default function TenantPortalView({
                         width: '30px',
                         height: '30px',
                         borderRadius: '50%',
-                        backgroundColor: '#FFF',
+                        backgroundColor: C.cardBg,
                         border: `1.5px solid ${staffUser.role === 'admin' ? '#F59E0B' : C.teal}`,
                         objectFit: 'cover'
                       }}
@@ -1745,7 +1860,7 @@ export default function TenantPortalView({
                         height: '9px',
                         borderRadius: '50%',
                         backgroundColor: staffUser.role === 'admin' ? '#F59E0B' : '#10B981',
-                        border: '1.5px solid #FFF'
+                        border: `1.5px solid ${C.cardBg}`
                       }}
                       title="Active"
                     />
@@ -1777,9 +1892,9 @@ export default function TenantPortalView({
                       top: 'calc(100% + 8px)',
                       right: 0,
                       width: '280px',
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: C.cardBg,
                       borderRadius: '16px',
-                      boxShadow: '0 16px 42px rgba(0, 0, 0, 0.14), 0 4px 14px rgba(0, 0, 0, 0.06)',
+                      boxShadow: '0 16px 42px rgba(0, 0, 0, 0.24), 0 4px 14px rgba(0, 0, 0, 0.1)',
                       border: `1px solid ${C.border}`,
                       padding: '8px',
                       zIndex: 1100,
@@ -1791,8 +1906,8 @@ export default function TenantPortalView({
                       style={{
                         padding: '12px',
                         borderRadius: '12px',
-                        backgroundColor: staffUser.role === 'admin' ? '#FFFBEB' : C.pinkLight,
-                        border: staffUser.role === 'admin' ? '1px solid #FDE68A' : `1px solid ${C.border}`,
+                        backgroundColor: staffUser.role === 'admin' ? (C.isDark ? '#2D2006' : '#FFFBEB') : C.pinkLight,
+                        border: staffUser.role === 'admin' ? (C.isDark ? '1px solid #78350F' : '1px solid #FDE68A') : `1px solid ${C.border}`,
                         marginBottom: '6px'
                       }}
                     >
@@ -1804,7 +1919,7 @@ export default function TenantPortalView({
                             width: '42px',
                             height: '42px',
                             borderRadius: '50%',
-                            backgroundColor: '#FFF',
+                            backgroundColor: C.cardBg,
                             border: `2px solid ${staffUser.role === 'admin' ? '#F59E0B' : C.teal}`,
                             objectFit: 'cover'
                           }}
@@ -2034,12 +2149,12 @@ export default function TenantPortalView({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               {[
                 { title: "Today's Volume", value: `₱${(metrics.totalSales || 0).toFixed(0)}`, icon: 'ri-money-dollar-circle-line', color: C.teal, bg: C.tealLight },
-                { title: 'Total Orders', value: metrics.totalOrders || 0, icon: 'ri-file-list-3-line', color: '#6366F1', bg: '#EEF2FF' },
-                { title: 'Kitchen Queue', value: metrics.pendingOrders + metrics.preparingOrders, icon: 'ri-fire-line', color: '#F59E0B', bg: '#FEF3C7' },
-                { title: 'Ready to Serve', value: metrics.readyOrders || 0, icon: 'ri-notification-3-line', color: '#10B981', bg: '#D1FAE5' },
-                { title: 'Active Tables', value: `${tables.length} tables`, icon: 'ri-qr-code-line', color: '#EC4899', bg: '#FCE7F3' }
+                { title: 'Total Orders', value: metrics.totalOrders || 0, icon: 'ri-file-list-3-line', color: '#6366F1', bg: C.isDark ? 'rgba(99, 102, 241, 0.18)' : '#EEF2FF' },
+                { title: 'Kitchen Queue', value: metrics.pendingOrders + metrics.preparingOrders, icon: 'ri-fire-line', color: '#F59E0B', bg: C.isDark ? 'rgba(245, 158, 11, 0.18)' : '#FEF3C7' },
+                { title: 'Ready to Serve', value: metrics.readyOrders || 0, icon: 'ri-notification-3-line', color: '#10B981', bg: C.isDark ? 'rgba(16, 185, 129, 0.18)' : '#D1FAE5' },
+                { title: 'Active Tables', value: `${tables.length} tables`, icon: 'ri-qr-code-line', color: '#EC4899', bg: C.isDark ? 'rgba(236, 72, 153, 0.18)' : '#FCE7F3' }
               ].map(stat => (
-                <div key={stat.title} style={{ backgroundColor: '#FFF', borderRadius: '16px', padding: '18px', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div key={stat.title} style={{ backgroundColor: C.cardBg, borderRadius: '16px', padding: '18px', border: `1px solid ${C.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: C.slate, display: 'block', marginBottom: '4px' }}>{stat.title}</span>
                     <span style={{ fontSize: '24px', fontWeight: 800, color: C.dark }}>{stat.value}</span>
@@ -2055,7 +2170,7 @@ export default function TenantPortalView({
             <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
 
               {/* Live Kitchen Queue */}
-              <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
+              <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <i className="ri-fire-fill" style={{ color: '#F59E0B', fontSize: '18px' }} />
@@ -2082,7 +2197,7 @@ export default function TenantPortalView({
                         <div style={{ flex: '1 1 240px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                             <span style={{ fontSize: '16px', fontWeight: 800, color: C.dark }}>{o.customer_name}</span>
-                            <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FFF', color: C.tealDark, border: `1px solid ${C.border}` }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: C.cardBg, color: C.tealDark, border: `1px solid ${C.border}` }}>
                               {o.table_number || 'Dine In'}
                             </span>
                           </div>
@@ -2097,7 +2212,7 @@ export default function TenantPortalView({
                                 <div
                                   key={idx}
                                   onClick={() => setSelectedOrderModal(o)}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFF', padding: '3px 8px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '11px', cursor: 'pointer' }}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: C.cardBg, padding: '3px 8px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '11px', cursor: 'pointer' }}
                                   title="Click to view full order"
                                 >
                                   <img
@@ -2180,7 +2295,7 @@ export default function TenantPortalView({
               </div>
 
               {/* Bestsellers Ranking */}
-              <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
+              <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <i className="ri-award-fill" style={{ color: C.teal, fontSize: '18px' }} />
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: C.dark }}>Top Dishes & Drinks</h3>
@@ -2199,7 +2314,7 @@ export default function TenantPortalView({
                     {reports.topItems.map((item, idx) => (
                       <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '10px', backgroundColor: C.pinkLight }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: idx === 0 ? C.teal : '#FFF', color: idx === 0 ? '#FFF' : C.dark, fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: idx === 0 ? C.teal : C.cardBg, color: idx === 0 ? '#FFF' : C.dark, fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {idx + 1}
                           </span>
                           <span style={{ fontSize: '13px', fontWeight: 700, color: C.dark }}>{item.name}</span>
@@ -2237,7 +2352,7 @@ export default function TenantPortalView({
                       fontSize: '12px',
                       fontWeight: 700,
                       border: orderFilter === f.id ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                      backgroundColor: orderFilter === f.id ? C.teal : '#FFF',
+                      backgroundColor: orderFilter === f.id ? C.teal : C.cardBg,
                       color: orderFilter === f.id ? '#FFF' : C.dark,
                       cursor: 'pointer'
                     }}
@@ -2255,7 +2370,7 @@ export default function TenantPortalView({
             {/* Orders Cards Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '18px' }}>
               {filteredOrders.map(order => (
-                <div key={order.id} style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '18px', boxShadow: '0 4px 16px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div key={order.id} style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '18px', boxShadow: '0 4px 16px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
@@ -2435,7 +2550,7 @@ export default function TenantPortalView({
                     fontSize: '13px',
                     fontWeight: 800,
                     border: menuSubTab === 'items' ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                    backgroundColor: menuSubTab === 'items' ? C.teal : '#FFF',
+                    backgroundColor: menuSubTab === 'items' ? C.teal : C.cardBg,
                     color: menuSubTab === 'items' ? '#FFF' : C.dark,
                     cursor: 'pointer',
                     display: 'flex',
@@ -2455,8 +2570,8 @@ export default function TenantPortalView({
                     fontSize: '13px',
                     fontWeight: 800,
                     border: menuSubTab === 'addons' ? '1px solid #D97706' : `1px solid ${C.border}`,
-                    backgroundColor: menuSubTab === 'addons' ? '#D97706' : '#FFF',
-                    color: menuSubTab === 'addons' ? '#FFF' : '#B45309',
+                    backgroundColor: menuSubTab === 'addons' ? '#D97706' : C.cardBg,
+                    color: menuSubTab === 'addons' ? '#FFF' : (C.isDark ? '#F59E0B' : '#B45309'),
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -2478,9 +2593,9 @@ export default function TenantPortalView({
                     setIsAddonModalOpen(true);
                   }}
                   style={{
-                    backgroundColor: '#FEF3C7',
-                    color: '#92400E',
-                    border: '1px solid #FDE68A',
+                    backgroundColor: C.isDark ? '#451A03' : '#FEF3C7',
+                    color: C.isDark ? '#FDE68A' : '#92400E',
+                    border: `1px solid ${C.isDark ? '#78350F' : '#FDE68A'}`,
                     padding: '8px 14px',
                     borderRadius: '10px',
                     fontSize: '13px',
@@ -2501,7 +2616,7 @@ export default function TenantPortalView({
                         setCatForm({ name: '', description: '', icon: 'ri-restaurant-line' });
                         setIsCatModalOpen(true);
                       }}
-                      style={{ backgroundColor: '#FFF', color: C.dark, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      style={{ backgroundColor: C.cardBg, color: C.dark, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <i className="ri-folder-add-line" style={{ color: C.teal }} /> + Add Category
                     </button>
@@ -2532,7 +2647,7 @@ export default function TenantPortalView({
 
             {menuSubTab === 'addons' ? (
               <div>
-                <div style={{ backgroundColor: '#FFF', borderRadius: '14px', padding: '16px 20px', border: `1px solid ${C.border}`, marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', padding: '16px 20px', border: `1px solid ${C.border}`, marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                   <div>
                     <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>
                       Restaurant Add-ons & Customization Extras
@@ -2567,7 +2682,7 @@ export default function TenantPortalView({
                 </div>
 
                 {addons.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
+                  <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: C.cardBg, borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
                     <i className="ri-price-tag-3-line" style={{ fontSize: '42px', color: '#D97706', display: 'block', marginBottom: '12px' }} />
                     <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>No Add-ons Configured Yet</h3>
                     <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: C.slate, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -2591,7 +2706,7 @@ export default function TenantPortalView({
                       <div
                         key={addon.id}
                         style={{
-                          backgroundColor: '#FFF',
+                          backgroundColor: C.cardBg,
                           borderRadius: '14px',
                           border: `1px solid ${addon.is_available ? C.border : '#EF444433'}`,
                           padding: '16px',
@@ -2710,7 +2825,7 @@ export default function TenantPortalView({
                       fontSize: '12px',
                       fontWeight: 700,
                       border: selectedMenuCat === 'all' ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                      backgroundColor: selectedMenuCat === 'all' ? C.teal : '#FFF',
+                      backgroundColor: selectedMenuCat === 'all' ? C.teal : C.cardBg,
                       color: selectedMenuCat === 'all' ? '#FFF' : C.dark,
                       cursor: 'pointer'
                     }}
@@ -2726,7 +2841,7 @@ export default function TenantPortalView({
                         borderRadius: '8px',
                         overflow: 'hidden',
                         border: selectedMenuCat === cat.id ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-                        backgroundColor: selectedMenuCat === cat.id ? C.teal : '#FFF'
+                        backgroundColor: selectedMenuCat === cat.id ? C.teal : C.cardBg
                       }}
                     >
                       <button
@@ -2768,7 +2883,7 @@ export default function TenantPortalView({
 
             {/* Empty State when no categories exist */}
             {menuData.categories.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
+              <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: C.cardBg, borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
                 <i className="ri-restaurant-line" style={{ fontSize: '42px', color: C.teal, display: 'block', marginBottom: '12px' }} />
                 <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Your Menu Catalog is Empty</h3>
                 <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: C.slate, maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -2794,7 +2909,7 @@ export default function TenantPortalView({
 
                 if (filteredItems.length === 0) {
                   return (
-                    <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#FFF', borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
+                    <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: C.cardBg, borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
                       <i className="ri-cup-line" style={{ fontSize: '36px', color: C.slate, display: 'block', marginBottom: '10px' }} />
                       <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>No Items in This Category</h4>
                       <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: C.slate }}>
@@ -2827,7 +2942,7 @@ export default function TenantPortalView({
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '18px' }}>
                     {filteredItems.map(item => (
-                      <div key={item.id} style={{ backgroundColor: '#FFF', borderRadius: '14px', border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 14px rgba(0,0,0,0.02)' }}>
+                      <div key={item.id} style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 14px rgba(0,0,0,0.02)' }}>
                         <div style={{ position: 'relative', width: '100%', height: '140px', backgroundColor: C.pinkLight }}>
                           <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           <button
@@ -2959,7 +3074,7 @@ export default function TenantPortalView({
 
             {/* Quick Metrics */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-              <div style={{ backgroundColor: '#FFF', padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ backgroundColor: C.cardBg, padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600, display: 'block' }}>Total Staff</span>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: C.dark }}>{staffList.length}</span>
@@ -2969,7 +3084,7 @@ export default function TenantPortalView({
                 </div>
               </div>
 
-              <div style={{ backgroundColor: '#FFF', padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ backgroundColor: C.cardBg, padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600, display: 'block' }}>Admins & Managers</span>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: '#92400E' }}>
@@ -2981,7 +3096,7 @@ export default function TenantPortalView({
                 </div>
               </div>
 
-              <div style={{ backgroundColor: '#FFF', padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ backgroundColor: C.cardBg, padding: '16px 20px', borderRadius: '16px', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <span style={{ fontSize: '12px', color: C.slate, fontWeight: 600, display: 'block' }}>Kitchen & Cashier PINs</span>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: C.tealDark }}>
@@ -2995,7 +3110,7 @@ export default function TenantPortalView({
             </div>
 
             {/* Staff List Cards & Table */}
-            <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+            <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
               <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: C.dark }}>
                   Staff Directory ({staffList.length} Members)
@@ -3116,7 +3231,7 @@ export default function TenantPortalView({
                                   }}
                                   style={{
                                     border: `1px solid ${C.border}`,
-                                    backgroundColor: '#FFF',
+                                    backgroundColor: C.cardBg,
                                     color: C.tealDark,
                                     padding: '5px 10px',
                                     borderRadius: '8px',
@@ -3158,7 +3273,7 @@ export default function TenantPortalView({
 
         {/* 4. CUSTOMERS CRM TAB */}
         {activeTab === 'customers' && (
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px' }}>
+          <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Customer Directory</h3>
@@ -3214,8 +3329,12 @@ export default function TenantPortalView({
             <div style={{
               padding: '14px 20px',
               borderRadius: '12px',
-              backgroundColor: subscriptionData?.subscription?.has_advanced_analytics ? '#F0FDF4' : '#EFF6FF',
-              border: `1px solid ${subscriptionData?.subscription?.has_advanced_analytics ? '#BBF7D0' : '#BFDBFE'}`,
+              backgroundColor: C.isDark
+                ? (subscriptionData?.subscription?.has_advanced_analytics ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)')
+                : (subscriptionData?.subscription?.has_advanced_analytics ? '#F0FDF4' : '#EFF6FF'),
+              border: `1px solid ${C.isDark
+                ? (subscriptionData?.subscription?.has_advanced_analytics ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)')
+                : (subscriptionData?.subscription?.has_advanced_analytics ? '#BBF7D0' : '#BFDBFE')}`,
               display: 'flex',
               flexWrap: 'wrap',
               justifyContent: 'space-between',
@@ -3260,7 +3379,7 @@ export default function TenantPortalView({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               {/* Payment Methods Breakdown */}
-              <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
+              <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
                 <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Payment Method Breakdown</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {[
@@ -3286,7 +3405,7 @@ export default function TenantPortalView({
               </div>
 
               {/* Order Status Breakdown */}
-              <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
+              <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
                 <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Order Status Distribution</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {[
@@ -3325,7 +3444,7 @@ export default function TenantPortalView({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
               {tables.map(table => (
-                <div key={table.id} style={{ backgroundColor: '#FFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '16px', textAlign: 'center' }}>
+                <div key={table.id} style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '16px', textAlign: 'center' }}>
                   <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: C.tealLight, color: C.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', margin: '0 auto 10px' }}>
                     <i className="ri-qr-code-line" />
                   </div>
@@ -3351,7 +3470,7 @@ export default function TenantPortalView({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Active Subscription Hero Card */}
             <div style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: C.cardBg,
               borderRadius: '16px',
               border: `1px solid ${C.border}`,
               padding: '24px',
@@ -3441,7 +3560,7 @@ export default function TenantPortalView({
               <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Resource Usage & Plan Quotas</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
                 {/* Menu Items */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Menu Products Quota</span>
                     <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
@@ -3459,7 +3578,7 @@ export default function TenantPortalView({
                 </div>
 
                 {/* Staff Accounts */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Staff & Kitchen PINs</span>
                     <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
@@ -3477,7 +3596,7 @@ export default function TenantPortalView({
                 </div>
 
                 {/* Monthly Orders */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Monthly Orders Quota</span>
                     <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
@@ -3495,7 +3614,7 @@ export default function TenantPortalView({
                 </div>
 
                 {/* Table QR Capacity */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
+                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Tables Registered</span>
                     <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
@@ -3526,7 +3645,7 @@ export default function TenantPortalView({
                     <div
                       key={p.id}
                       style={{
-                        backgroundColor: '#FFFFFF',
+                        backgroundColor: C.cardBg,
                         borderRadius: '16px',
                         border: isCurrent ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
                         padding: '20px',
@@ -3608,7 +3727,7 @@ export default function TenantPortalView({
                             padding: '10px',
                             borderRadius: '10px',
                             border: `1px solid ${C.teal}`,
-                            backgroundColor: '#FFFFFF',
+                            backgroundColor: C.cardBg,
                             color: C.tealDark,
                             fontWeight: 800,
                             fontSize: '13px',
@@ -3620,7 +3739,7 @@ export default function TenantPortalView({
                             e.currentTarget.style.color = '#FFFFFF';
                           }}
                           onMouseLeave={e => {
-                            e.currentTarget.style.backgroundColor = '#FFFFFF';
+                            e.currentTarget.style.backgroundColor = C.cardBg;
                             e.currentTarget.style.color = C.tealDark;
                           }}
                         >
@@ -3634,7 +3753,7 @@ export default function TenantPortalView({
             </div>
 
             {/* Invoices & Billing History */}
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
+            <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '20px' }}>
               <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>Billing History & Invoices</h4>
               
               {(!subscriptionData?.invoices || subscriptionData.invoices.length === 0) ? (
@@ -3689,7 +3808,7 @@ export default function TenantPortalView({
         {activeTab === 'settings' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(320px, 380px)', gap: '24px', alignItems: 'start' }}>
             {/* Left: Customization Controls Form */}
-            <div style={{ backgroundColor: '#FFF', borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px', boxShadow: '0 4px 16px rgba(0,0,0,0.02)' }}>
+            <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', border: `1px solid ${C.border}`, padding: '24px', boxShadow: '0 4px 16px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '14px', borderBottom: `1px solid ${C.pinkLight}` }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: C.tealLight, color: C.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
                   <i className="ri-palette-line" />
@@ -3727,7 +3846,7 @@ export default function TenantPortalView({
                             padding: '12px',
                             borderRadius: '12px',
                             border: isSelected ? `2px solid ${preset.primary}` : `1px solid ${C.border}`,
-                            backgroundColor: isSelected ? '#FFF' : '#FFF',
+                            backgroundColor: C.cardBg,
                             textAlign: 'left',
                             cursor: 'pointer',
                             display: 'flex',
@@ -3778,7 +3897,7 @@ export default function TenantPortalView({
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '14px' }}>
                     {/* Primary Brand Color */}
-                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: '#FFF' }}>
+                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: C.cardBg }}>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: C.slate, textTransform: 'uppercase', marginBottom: '6px' }}>
                         Primary Brand Color
                       </label>
@@ -3787,7 +3906,7 @@ export default function TenantPortalView({
                           type="color"
                           value={activeThemeConfig.primary_color || settingsForm.primary_color || '#2A9D9A'}
                           onChange={e => updateThemeConfig({ primary_color: e.target.value })}
-                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: C.cardBg }}
                         />
                         <input
                           type="text"
@@ -3800,7 +3919,7 @@ export default function TenantPortalView({
                     </div>
 
                     {/* Secondary / Text Contrast Color */}
-                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: '#FFF' }}>
+                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: C.cardBg }}>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: C.slate, textTransform: 'uppercase', marginBottom: '6px' }}>
                         Secondary / Headings
                       </label>
@@ -3809,7 +3928,7 @@ export default function TenantPortalView({
                           type="color"
                           value={activeThemeConfig.secondary_color || settingsForm.secondary_color || '#1E293B'}
                           onChange={e => updateThemeConfig({ secondary_color: e.target.value })}
-                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: C.cardBg }}
                         />
                         <input
                           type="text"
@@ -3822,7 +3941,7 @@ export default function TenantPortalView({
                     </div>
 
                     {/* Accent / Highlight Color */}
-                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: '#FFF' }}>
+                    <div style={{ padding: '12px', borderRadius: '10px', border: `1px solid ${C.border}`, backgroundColor: C.cardBg }}>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: C.slate, textTransform: 'uppercase', marginBottom: '6px' }}>
                         Accent / Ribbon Highlight
                       </label>
@@ -3831,7 +3950,7 @@ export default function TenantPortalView({
                           type="color"
                           value={activeThemeConfig.accent_color || '#F59E0B'}
                           onChange={e => updateThemeConfig({ accent_color: e.target.value })}
-                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: '#FFF' }}
+                          style={{ width: '42px', height: '38px', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', padding: '2px', backgroundColor: C.cardBg }}
                         />
                         <input
                           type="text"
@@ -3869,7 +3988,8 @@ export default function TenantPortalView({
                           padding: '3px 8px',
                           borderRadius: '6px',
                           border: (activeThemeConfig.primary_color === swatch.hex || settingsForm.primary_color === swatch.hex) ? `2px solid ${C.dark}` : `1px solid ${C.border}`,
-                          backgroundColor: '#FFF',
+                          backgroundColor: C.cardBg,
+                          color: C.dark,
                           fontSize: '11px',
                           fontWeight: 700,
                           cursor: 'pointer'
@@ -3947,7 +4067,7 @@ export default function TenantPortalView({
                             padding: '12px',
                             borderRadius: '12px',
                             border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
-                            backgroundColor: isSelected ? C.tealLight : '#FFF',
+                            backgroundColor: isSelected ? C.tealLight : C.cardBg,
                             textAlign: 'left',
                             cursor: 'pointer',
                             display: 'flex',
@@ -3990,7 +4110,7 @@ export default function TenantPortalView({
                               padding: '10px 14px',
                               borderRadius: rad.radius,
                               border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
-                              backgroundColor: isSelected ? C.tealLight : '#FFF',
+                              backgroundColor: isSelected ? C.tealLight : C.cardBg,
                               textAlign: 'left',
                               cursor: 'pointer',
                               display: 'flex',
@@ -4036,7 +4156,7 @@ export default function TenantPortalView({
                               padding: '10px 14px',
                               borderRadius: '12px',
                               border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
-                              backgroundColor: isSelected ? C.tealLight : '#FFF',
+                              backgroundColor: isSelected ? C.tealLight : C.cardBg,
                               textAlign: 'left',
                               cursor: 'pointer',
                               display: 'flex',
@@ -4077,7 +4197,7 @@ export default function TenantPortalView({
                             padding: '12px 14px',
                             borderRadius: '12px',
                             border: isSelected ? `2px solid ${C.teal}` : `1px solid ${C.border}`,
-                            backgroundColor: isSelected ? C.tealLight : '#FFF',
+                            backgroundColor: isSelected ? C.tealLight : C.cardBg,
                             textAlign: 'left',
                             cursor: 'pointer',
                             display: 'flex',
@@ -4633,7 +4753,7 @@ export default function TenantPortalView({
       {/* ─── ADD/EDIT ITEM MODAL ─────────────────────────────────────────── */}
       {isItemModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>{editingItem ? 'Edit Menu Item' : 'New Dish / Drink'}</h3>
               <button type="button" onClick={() => setIsItemModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
@@ -4804,7 +4924,7 @@ export default function TenantPortalView({
       {/* ─── ADD CATEGORY MODAL ─────────────────────────────────────────── */}
       {isCatModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>Create Menu Category</h3>
               <button type="button" onClick={() => setIsCatModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
@@ -4850,7 +4970,7 @@ export default function TenantPortalView({
       {/* ─── ADD / EDIT ADD-ON MODAL ────────────────────────────────────── */}
       {isAddonModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
@@ -4898,7 +5018,7 @@ export default function TenantPortalView({
                   <select
                     value={addonForm.type}
                     onChange={e => setAddonForm({ ...addonForm, type: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box', backgroundColor: '#FFF' }}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box', backgroundColor: C.cardBg, color: C.dark }}
                   >
                     <option value="food">Food Extra</option>
                     <option value="drink">Beverage Extra</option>
@@ -4983,7 +5103,7 @@ export default function TenantPortalView({
       {/* ─── ADD TABLE MODAL ────────────────────────────────────────────── */}
       {isTableModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '380px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', width: '100%', maxWidth: '380px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>Add Restaurant Table</h3>
               <button type="button" onClick={() => setIsTableModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
@@ -5031,7 +5151,7 @@ export default function TenantPortalView({
       {/* ─── ADD / EDIT STAFF MODAL (EMAIL & PASSWORD) ────────────────── */}
       {isStaffModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#FFF', borderRadius: '20px', width: '100%', maxWidth: '460px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div style={{ backgroundColor: C.cardBg, borderRadius: '20px', width: '100%', maxWidth: '460px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: `1px solid ${C.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>
@@ -5198,7 +5318,7 @@ export default function TenantPortalView({
           animation: 'fadeIn 0.2s ease'
         }}>
           <div style={{
-            backgroundColor: '#FFF',
+            backgroundColor: C.cardBg,
             borderRadius: '20px',
             width: '100%',
             maxWidth: '560px',
@@ -5287,7 +5407,7 @@ export default function TenantPortalView({
                       padding: '10px 12px',
                       borderRadius: '12px',
                       border: `1px solid ${C.border}`,
-                      backgroundColor: '#FFF',
+                      backgroundColor: C.cardBg,
                       gap: '12px'
                     }}
                   >
@@ -5396,7 +5516,7 @@ export default function TenantPortalView({
                 <button
                   type="button"
                   onClick={() => setSelectedOrderModal(null)}
-                  style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: '#FFF', color: C.dark, border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ padding: '8px 16px', borderRadius: '10px', backgroundColor: C.cardBg, color: C.dark, border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Close
                 </button>

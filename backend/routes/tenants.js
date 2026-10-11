@@ -205,12 +205,24 @@ router.post('/', (req, res) => {
       }
 
       // 2. Restaurant
+      const defaultThemeConfig = JSON.stringify({
+        preset: 'emerald_clean',
+        primary_color: primary_color || '#2A9D9A',
+        secondary_color: '#1E293B',
+        accent_color: '#F59E0B',
+        bg_style: 'slate_clean',
+        font_family: 'Plus Jakarta Sans',
+        border_radius: 'smooth',
+        hero_style: 'cinematic',
+        card_density: 'grid_spacious'
+      });
+
       const insertRest = db.prepare(`
         INSERT INTO restaurants (
           name, slug, subdomain, custom_domain, cuisine_type, logo_url,
           primary_color, secondary_color, status, address, city, phone, email,
-          currency, orders_count, total_volume, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, '#1E293B', ?, ?, ?, ?, ?, 'PHP', 0, 0, ?, ?)
+          currency, orders_count, total_volume, theme_config, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, '#1E293B', ?, ?, ?, ?, ?, 'PHP', 0, 0, ?, ?, ?)
       `);
 
       const restResult = insertRest.run(
@@ -226,6 +238,7 @@ router.post('/', (req, res) => {
         city || 'Metro Manila',
         phone || owner_phone || '',
         email || owner_email,
+        defaultThemeConfig,
         now,
         now
       );

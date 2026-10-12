@@ -19,6 +19,7 @@ import AuditView from './views/AuditView';
 import SettingsView from './views/SettingsView';
 import TenantPortalView from './views/TenantPortalView';
 import CustomerStorefrontView from './views/CustomerStorefrontView';
+import ConfirmModal from './components/ConfirmModal';
 
 import { api } from './services/api';
 
@@ -71,6 +72,42 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [drawerTenant, setDrawerTenant] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Custom Confirmation & Alert Modal state
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'danger',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    isAlert: false,
+    onConfirm: null
+  });
+
+  const showConfirm = ({
+    title = 'Confirm Action',
+    message = 'Are you sure you want to proceed?',
+    type = 'danger',
+    confirmText = 'Confirm',
+    cancelText = 'Cancel',
+    isAlert = false,
+    onConfirm
+  }) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      isAlert,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        if (onConfirm) onConfirm();
+      }
+    });
+  };
 
   // Helper to resolve route directly from browser URL
   const resolveRouteFromUrl = () => {
@@ -362,17 +399,25 @@ export default function App() {
     window.open(`/store/${targetSlug}?table=${encodeURIComponent(table)}`, '_blank');
   };
 
-  const handleDeleteTenant = async (tenantId) => {
-    if (!confirm('Permanently delete this restaurant tenant? This cannot be undone.')) return;
-    try {
-      await api.tenants.delete(tenantId);
-      showToast('Tenant deleted successfully');
-      setIsDrawerOpen(false);
-      const res = await api.tenants.list();
-      setTenants(res.data);
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  const handleDeleteTenant = (tenantId) => {
+    showConfirm({
+      title: 'Delete Restaurant Tenant',
+      message: 'Permanently delete this restaurant tenant and all of its isolated cloud data? This action cannot be undone.',
+      type: 'danger',
+      confirmText: 'Delete Tenant',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.tenants.delete(tenantId);
+          showToast('Tenant deleted successfully');
+          setIsDrawerOpen(false);
+          const res = await api.tenants.list();
+          setTenants(res.data);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      }
+    });
   };
 
   const handleProvisionSubmit = async (formData) => {
@@ -447,16 +492,24 @@ export default function App() {
     }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!confirm(`Permanently delete account for '${userName || 'this user'}'?`)) return;
-    try {
-      await api.users.delete(userId);
-      showToast(`User '${userName}' deleted successfully.`);
-      const res = await api.users.list();
-      setUsers(res.data);
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  const handleDeleteUser = (userId, userName) => {
+    showConfirm({
+      title: 'Delete User Account',
+      message: `Permanently delete account for '${userName || 'this user'}'? They will lose all access immediately.`,
+      type: 'danger',
+      confirmText: 'Delete User',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.users.delete(userId);
+          showToast(`User '${userName}' deleted successfully.`);
+          const res = await api.users.list();
+          setUsers(res.data);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      }
+    });
   };
 
   const handleToggleUserStatus = async (userId, newStatus) => {
@@ -625,6 +678,7 @@ export default function App() {
             <BillingView
               billingData={billingData}
               onMarkPaid={handleMarkPaid}
+              showToast={showToast}
             />
           )}
 
@@ -699,6 +753,12 @@ export default function App() {
 
       {/* Toasts */}
       <Toast toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Custom Confirmation / Alert Modal */}
+      <ConfirmModal
+        {...confirmModal}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

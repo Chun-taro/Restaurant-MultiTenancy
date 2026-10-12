@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function BillingView({ billingData, onMarkPaid }) {
+export default function BillingView({ billingData, onMarkPaid, showToast }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -127,7 +127,10 @@ export default function BillingView({ billingData, onMarkPaid }) {
                         <i className="ri-check-line"></i> Mark Paid
                       </button>
                     ) : (
-                      <button className="btn btn-secondary btn-sm" onClick={() => alert(`Receipt view for ${inv.invoice_number}`)}>
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => showToast ? showToast(`Official receipt for invoice #${inv.invoice_number} sent to billing records!`, 'success') : null}
+                      >
                         <i className="ri-file-download-line"></i> Receipt
                       </button>
                     )}

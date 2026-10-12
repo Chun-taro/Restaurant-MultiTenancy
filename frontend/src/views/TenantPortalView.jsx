@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 
 export const THEME_PRESETS = [
   {
@@ -213,6 +214,42 @@ export default function TenantPortalView({
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  // Custom Confirmation & Alert Modal state
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'danger',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    isAlert: false,
+    onConfirm: null
+  });
+
+  const showConfirm = ({
+    title = 'Confirm Action',
+    message = 'Are you sure?',
+    type = 'danger',
+    confirmText = 'Confirm',
+    cancelText = 'Cancel',
+    isAlert = false,
+    onConfirm
+  }) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      isAlert,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        if (onConfirm) onConfirm();
+      }
+    });
+  };
 
   const [settingsForm, setSettingsForm] = useState({
     name: '',
@@ -622,20 +659,28 @@ export default function TenantPortalView({
     }
   };
 
-  const handleDeleteStaff = async (member) => {
+  const handleDeleteStaff = (member) => {
     if (member.isOwner) {
-      alert('Platform Owner account cannot be deleted from restaurant staff list.');
+      showToast?.('Platform Owner account cannot be deleted from restaurant staff list.', 'warning');
       return;
     }
-    if (!window.confirm(`Are you sure you want to remove ${member.name} from the restaurant staff list?`)) return;
-    try {
-      await api.tenantPortal.deleteStaff(tenantId, member.id);
-      showToast?.(`Removed ${member.name} from restaurant staff`, 'info');
-      const sRes = await api.tenantPortal.staff(tenantId);
-      setStaffList(sRes.data?.all || []);
-    } catch (err) {
-      showToast?.(err.message, 'error');
-    }
+    showConfirm({
+      title: 'Remove Staff Member',
+      message: `Are you sure you want to remove "${member.name}" from the restaurant staff list?`,
+      type: 'danger',
+      confirmText: 'Remove Staff',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.tenantPortal.deleteStaff(tenantId, member.id);
+          showToast?.(`Removed ${member.name} from restaurant staff`, 'info');
+          const sRes = await api.tenantPortal.staff(tenantId);
+          setStaffList(sRes.data?.all || []);
+        } catch (err) {
+          showToast?.(err.message, 'error');
+        }
+      }
+    });
   };
 
   useEffect(() => {
@@ -824,16 +869,24 @@ export default function TenantPortalView({
     }
   };
 
-  const handleDeleteItem = async (itemId) => {
-    if (!window.confirm('Are you sure you want to delete this menu item from the restaurant database?')) return;
-    try {
-      await api.tenantPortal.deleteItem(tenantId, itemId);
-      showToast?.('Menu item deleted from tenant DB');
-      const res = await api.tenantPortal.menu(tenantId);
-      setMenuData(res.data);
-    } catch (err) {
-      showToast?.(err.message, 'error');
-    }
+  const handleDeleteItem = (itemId) => {
+    showConfirm({
+      title: 'Delete Menu Item',
+      message: 'Are you sure you want to delete this menu item from the restaurant database? This cannot be undone.',
+      type: 'danger',
+      confirmText: 'Delete Item',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.tenantPortal.deleteItem(tenantId, itemId);
+          showToast?.('Menu item deleted from tenant DB');
+          const res = await api.tenantPortal.menu(tenantId);
+          setMenuData(res.data);
+        } catch (err) {
+          showToast?.(err.message, 'error');
+        }
+      }
+    });
   };
 
   // Add / Delete Category
@@ -851,18 +904,26 @@ export default function TenantPortalView({
     }
   };
 
-  const handleDeleteCategory = async (catId, catName) => {
-    if (!window.confirm(`Delete category "${catName}" and its items from this restaurant database?`)) return;
-    try {
-      await api.tenantPortal.deleteCategory(tenantId, catId);
-      showToast?.(`Category "${catName}" deleted!`);
-      const res = await api.tenantPortal.menu(tenantId);
-      setMenuData(res.data);
-      if (res.data?.addons) setAddons(res.data.addons);
-      if (selectedMenuCat === catId) setSelectedMenuCat('all');
-    } catch (err) {
-      showToast?.(err.message, 'error');
-    }
+  const handleDeleteCategory = (catId, catName) => {
+    showConfirm({
+      title: 'Delete Category',
+      message: `Delete category "${catName}" and all of its items from this restaurant database?`,
+      type: 'danger',
+      confirmText: 'Delete Category',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.tenantPortal.deleteCategory(tenantId, catId);
+          showToast?.(`Category "${catName}" deleted!`);
+          const res = await api.tenantPortal.menu(tenantId);
+          setMenuData(res.data);
+          if (res.data?.addons) setAddons(res.data.addons);
+          if (selectedMenuCat === catId) setSelectedMenuCat('all');
+        } catch (err) {
+          showToast?.(err.message, 'error');
+        }
+      }
+    });
   };
 
   // Add-on CRUD Handlers
@@ -910,30 +971,46 @@ export default function TenantPortalView({
     }
   };
 
-  const handleDeleteAddon = async (addonId, addonName) => {
-    if (!window.confirm(`Delete add-on "${addonName}" from this restaurant catalog?`)) return;
-    try {
-      await api.tenantPortal.deleteAddon(tenantId, addonId);
-      showToast?.(`Add-on "${addonName}" deleted`);
-      const mRes = await api.tenantPortal.menu(tenantId);
-      setMenuData(mRes.data);
-      setAddons(mRes.data?.addons || []);
-    } catch (err) {
-      showToast?.(err.message, 'error');
-    }
+  const handleDeleteAddon = (addonId, addonName) => {
+    showConfirm({
+      title: 'Delete Add-on',
+      message: `Delete add-on "${addonName}" from this restaurant catalog?`,
+      type: 'danger',
+      confirmText: 'Delete Add-on',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.tenantPortal.deleteAddon(tenantId, addonId);
+          showToast?.(`Add-on "${addonName}" deleted`);
+          const mRes = await api.tenantPortal.menu(tenantId);
+          setMenuData(mRes.data);
+          setAddons(mRes.data?.addons || []);
+        } catch (err) {
+          showToast?.(err.message, 'error');
+        }
+      }
+    });
   };
 
   // Change Subscription Plan
-  const handleChangePlan = async (planId, planName) => {
-    if (!window.confirm(`Switch your restaurant SaaS subscription plan to "${planName}"?`)) return;
-    try {
-      await api.tenantPortal.changeSubscriptionPlan(tenantId, { plan_id: planId });
-      showToast?.(`Subscription plan updated to "${planName}"!`, 'success');
-      const subRes = await api.tenantPortal.subscription(tenantId);
-      setSubscriptionData(subRes.data);
-    } catch (err) {
-      showToast?.(err.message, 'error');
-    }
+  const handleChangePlan = (planId, planName) => {
+    showConfirm({
+      title: 'Switch Subscription Plan',
+      message: `Switch your restaurant SaaS subscription plan to "${planName}"?`,
+      type: 'info',
+      confirmText: 'Switch Plan',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          await api.tenantPortal.changeSubscriptionPlan(tenantId, { plan_id: planId });
+          showToast?.(`Subscription plan updated to "${planName}"!`, 'success');
+          const subRes = await api.tenantPortal.subscription(tenantId);
+          setSubscriptionData(subRes.data);
+        } catch (err) {
+          showToast?.(err.message, 'error');
+        }
+      }
+    });
   };
 
   // Add Table
@@ -5828,6 +5905,12 @@ export default function TenantPortalView({
           </div>
         </div>
       )}
+
+      {/* Custom Confirmation / Alert Modal */}
+      <ConfirmModal
+        {...confirmModal}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

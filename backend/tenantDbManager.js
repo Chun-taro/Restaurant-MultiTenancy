@@ -1,11 +1,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
-
-const TENANTS_DIR = path.join(__dirname, '..', 'data', 'tenants');
-if (!fs.existsSync(TENANTS_DIR)) {
-  fs.mkdirSync(TENANTS_DIR, { recursive: true });
-}
+const { hydrateTenantFromAtlas } = require('./mongoHydration');
 
 // Dedicated root directory for tenant media and image uploads
 const TENANTS_UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'tenants');
@@ -27,7 +23,7 @@ function ensureTenantUploadDir(slug) {
   }
 
   // Pre-create standard customization subfolders
-  const subfolders = ['logo', 'banner', 'menu'];
+  const subfolders = ['logo', 'banner', 'menu', 'payments'];
   for (const sub of subfolders) {
     const subPath = path.join(tenantDir, sub);
     if (!fs.existsSync(subPath)) {
@@ -41,7 +37,8 @@ function ensureTenantUploadDir(slug) {
     subfolders: {
       logo: path.join(tenantDir, 'logo'),
       banner: path.join(tenantDir, 'banner'),
-      menu: path.join(tenantDir, 'menu')
+      menu: path.join(tenantDir, 'menu'),
+      payments: path.join(tenantDir, 'payments')
     }
   };
 }
@@ -166,6 +163,12 @@ function initTenantSchema(tenantDb, restaurant = null) {
   try {
     tenantDb.prepare('ALTER TABLE staff_members ADD COLUMN password_hash TEXT').run();
   } catch (e) {}
+  try {
+    tenantDb.prepare('ALTER TABLE orders ADD COLUMN payment_proof TEXT').run();
+  } catch (e) {}
+  try {
+    tenantDb.prepare('ALTER TABLE orders ADD COLUMN payment_reference TEXT').run();
+  } catch (e) {}
 
   const now = new Date().toISOString();
 
@@ -289,17 +292,13 @@ function getTenantDb(masterDb, identifier) {
     return null;
   }
 
-  const dbName = `tenant_${restaurant.slug}.db`;
-  const dbPath = path.join(TENANTS_DIR, dbName);
+  const dbName = `restosaas_tenant_${restaurant.slug}`;
 
   let tenantDb = tenantDbCache.get(restaurant.slug);
   if (!tenantDb) {
-    tenantDb = new DatabaseSync(dbPath);
-    try {
-      tenantDb.exec('PRAGMA journal_mode = WAL;');
-      tenantDb.exec('PRAGMA busy_timeout = 5000;');
-    } catch (e) {}
+    tenantDb = new DatabaseSync(':memory:');
     initTenantSchema(tenantDb, restaurant);
+    hydrateTenantFromAtlas(restaurant.slug, tenantDb);
 
     tenantDbCache.set(restaurant.slug, tenantDb);
 
@@ -310,7 +309,7 @@ function getTenantDb(masterDb, identifier) {
           db_name = ?,
           db_path = ?
         WHERE id = ?
-      `).run(dbName, `data/tenants/${dbName}`, restaurant.id);
+      `).run(dbName, `Atlas Cloud: ${dbName}`, restaurant.id);
     } catch (e) {
       // Column might not exist yet if migration hasn't run
     }
@@ -322,9 +321,9 @@ function getTenantDb(masterDb, identifier) {
   return {
     db: tenantDb,
     restaurant,
-    dbPath: `data/tenants/${dbName}`,
+    dbPath: `Atlas Cloud Database: ${dbName}`,
     dbName,
-    fullPath: dbPath,
+    fullPath: null,
     uploadDir: uploadInfo?.dirPath,
     uploadUrl: uploadInfo?.publicUrl
   };
@@ -354,6 +353,5 @@ module.exports = {
   provisionAllTenantDatabases,
   ensureTenantUploadDir,
   initTenantSchema,
-  TENANTS_DIR,
   TENANTS_UPLOADS_DIR
 };

@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { db, withTransaction, getTenantDb } = require('../db');
+const path = require('node:path');
+const fs = require('node:fs');
+const { db, withTransaction, getTenantDb, ensureTenantUploadDir } = require('../db');
 const { hashPassword, comparePassword, generateToken, authRateLimiter, orderRateLimiter } = require('../utils/auth');
+const MongoSync = require('../mongoSync');
 
 // Helper to resolve tenant
 function resolveTenant(slugOrIdentifier) {
@@ -312,7 +315,7 @@ router.get('/:slug', (req, res) => {
 });
 
 // POST /api/storefront/:slug/orders - Customer places an order into tenant's isolated DB
-router.post('/:slug/orders', orderRateLimiter, (req, res) => {
+router.post('/:slug/orders', orderRateLimiter, async (req, res) => {
   try {
     const { slug } = req.params;
     const tenantCtx = resolveTenant(slug);
@@ -331,6 +334,8 @@ router.post('/:slug/orders', orderRateLimiter, (req, res) => {
       order_type = 'dine_in',
       table_number,
       payment_method = 'gcash',
+      payment_proof,
+      payment_reference,
       notes,
       items
     } = req.body;
@@ -377,7 +382,10 @@ router.post('/:slug/orders', orderRateLimiter, (req, res) => {
     const validatedItems = [];
 
     for (const item of items) {
-      const dbItem = tenantDb.prepare('SELECT * FROM menu_items WHERE id = ?').get(item.id);
+      const itemId = item.id || item.item_id || item.menu_item_id;
+      if (!itemId) continue;
+
+      const dbItem = tenantDb.prepare('SELECT * FROM menu_items WHERE id = ?').get(itemId);
       if (!dbItem) continue;
 
       const qty = Math.max(1, parseInt(item.quantity) || 1);
@@ -403,14 +411,43 @@ router.post('/:slug/orders', orderRateLimiter, (req, res) => {
     const orderNumber = `ORD-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
     const now = new Date().toISOString();
 
+    // Determine initial payment status: GCash & Maya orders require staff verification of proof
+    const methodLower = String(payment_method || '').toLowerCase();
+    const isProofRequired = methodLower.includes('gcash') || methodLower.includes('maya');
+    const initialPaymentStatus = isProofRequired ? 'pending_verification' : 'paid';
+
+    // Process and save payment proof screenshot into tenant's private Atlas database
+    let savedProofUrl = null;
+    if (payment_proof && typeof payment_proof === 'string') {
+      if (payment_proof.startsWith('data:image/')) {
+        try {
+          const { getTenantMongoDb } = require('../tenantMongoManager');
+          const tenantMongo = getTenantMongoDb(restaurant.slug);
+          const mediaDoc = await tenantMongo.Media.create({
+            fileName: `proof_${orderNumber}_${Date.now()}`,
+            folder: 'payments',
+            contentType: 'image/jpeg',
+            dataUrl: payment_proof,
+            size: payment_proof.length
+          });
+          savedProofUrl = `/api/tenant/${restaurant.slug}/media/${mediaDoc._id}`;
+        } catch (saveErr) {
+          savedProofUrl = payment_proof;
+        }
+      } else {
+        savedProofUrl = payment_proof;
+      }
+    }
+
     // Insert order and items atomically into isolated tenant database
     const { orderId } = withTransaction(tenantDb, () => {
       const insertOrder = tenantDb.prepare(`
         INSERT INTO orders (
           order_number, customer_name, customer_phone,
           order_type, table_number, status, payment_method, payment_status,
+          payment_proof, payment_reference,
           subtotal, tax, total, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 'paid', ?, 0, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
       `);
 
       const orderResult = insertOrder.run(
@@ -418,8 +455,11 @@ router.post('/:slug/orders', orderRateLimiter, (req, res) => {
         customer_name.trim(),
         customer_phone || '',
         order_type,
-        table_number || (order_type === 'takeaway' ? 'Takeout' : 'Walk-in'),
+        table_number || (order_type === 'takeaway' ? 'Takeout' : 'Dine-In'),
         payment_method,
+        initialPaymentStatus,
+        savedProofUrl,
+        payment_reference ? String(payment_reference).trim() : null,
         subtotal,
         total,
         notes || '',
@@ -502,6 +542,12 @@ router.post('/:slug/orders', orderRateLimiter, (req, res) => {
       WHERE oi.order_id = ?
     `).all(orderId);
 
+    try {
+      if (createdOrder) {
+        MongoSync.syncOrder(restaurant.slug, createdOrder, validatedItems);
+      }
+    } catch (mErr) {}
+
     res.status(201).json({
       success: true,
       message: `Order #${orderNumber} placed in isolated tenant DB (${dbName})!`,
@@ -512,6 +558,79 @@ router.post('/:slug/orders', orderRateLimiter, (req, res) => {
         items: orderItems
       }
     });
+  } catch (err) {
+    console.error('Order placement error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/storefront/:slug/orders/:orderNumber/payment-proof - Upload or re-upload payment proof screenshot
+router.post('/:slug/orders/:orderNumber/payment-proof', async (req, res) => {
+  try {
+    const { slug, orderNumber } = req.params;
+    const tenantCtx = resolveTenant(slug);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb, restaurant } = tenantCtx;
+    const { payment_proof, payment_reference } = req.body;
+
+    const order = tenantDb.prepare('SELECT * FROM orders WHERE order_number = ?').get(orderNumber);
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    let savedProofUrl = null;
+    if (payment_proof && typeof payment_proof === 'string') {
+      if (payment_proof.startsWith('data:image/')) {
+        try {
+          const { getTenantMongoDb } = require('../tenantMongoManager');
+          const tenantMongo = getTenantMongoDb(restaurant.slug);
+          const mediaDoc = await tenantMongo.Media.create({
+            fileName: `proof_${orderNumber}_${Date.now()}`,
+            folder: 'payments',
+            contentType: 'image/jpeg',
+            dataUrl: payment_proof,
+            size: payment_proof.length
+          });
+          savedProofUrl = `/api/tenant/${restaurant.slug}/media/${mediaDoc._id}`;
+        } catch (saveErr) {
+          savedProofUrl = payment_proof;
+        }
+      } else {
+        savedProofUrl = payment_proof;
+      }
+    }
+
+    const now = new Date().toISOString();
+    tenantDb.prepare(`
+      UPDATE orders SET
+        payment_proof = COALESCE(?, payment_proof),
+        payment_reference = COALESCE(?, payment_reference),
+        payment_status = 'pending_verification',
+        updated_at = ?
+      WHERE id = ?
+    `).run(savedProofUrl, payment_reference ? String(payment_reference).trim() : null, now, order.id);
+
+    const updated = tenantDb.prepare('SELECT * FROM orders WHERE id = ?').get(order.id);
+    res.json({
+      success: true,
+      message: 'GCash payment screenshot submitted! Awaiting staff verification.',
+      data: updated
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/storefront/:slug/orders/:orderNumber/status - Live poll order status
+router.get('/:slug/orders/:orderNumber/status', (req, res) => {
+  try {
+    const { slug, orderNumber } = req.params;
+    const tenantCtx = resolveTenant(slug);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    const order = tenantDb.prepare('SELECT * FROM orders WHERE order_number = ?').get(orderNumber);
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    res.json({ success: true, data: order });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

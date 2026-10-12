@@ -2,8 +2,11 @@
  * API service for React MERN frontend
  */
 
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
+
 async function request(url, options = {}) {
-  const res = await fetch(url, {
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+  const res = await fetch(fullUrl, {
     headers: {
       'Content-Type': 'application/json',
       ...options.headers
@@ -170,6 +173,10 @@ export const api = {
     uploadImage: (restaurantId, data) => request(`/api/tenant/${restaurantId}/upload`, {
       method: 'POST',
       body: JSON.stringify(data)
+    }),
+    confirmPayment: (restaurantId, orderId, data = {}) => request(`/api/tenant/${restaurantId}/orders/${orderId}/confirm-payment`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
     })
   },
   storefront: {
@@ -187,6 +194,11 @@ export const api = {
       body: JSON.stringify(data)
     }),
     trackOrder: (slug, orderNumber) => request(`/api/storefront/${slug}/orders/${orderNumber}`),
+    uploadPaymentProof: (slug, orderNumber, data) => request(`/api/storefront/${slug}/orders/${orderNumber}/payment-proof`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    getOrderStatus: (slug, orderNumber) => request(`/api/storefront/${slug}/orders/${orderNumber}/status`),
     customerOrders: (slug, params = {}) => {
       const q = new URLSearchParams(params).toString();
       return request(`/api/storefront/${slug}/customer/orders${q ? `?${q}` : ''}`);

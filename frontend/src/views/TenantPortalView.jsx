@@ -440,6 +440,7 @@ export default function TenantPortalView({
 
   // Modals state
   const [selectedOrderModal, setSelectedOrderModal] = useState(null);
+  const [proofLightboxUrl, setProofLightboxUrl] = useState(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [itemForm, setItemForm] = useState({
@@ -760,6 +761,25 @@ export default function TenantPortalView({
       setOverview(overRes.data);
       const repRes = await api.tenantPortal.reports(tenantId);
       setReports(repRes.data);
+    } catch (err) {
+      showToast?.(err.message, 'error');
+    }
+  };
+
+  // Confirm and approve customer GCash or Maya payment screenshot
+  const handleConfirmPayment = async (orderId) => {
+    try {
+      const updateRes = await api.tenantPortal.confirmPayment(tenantId, orderId);
+      showToast?.(updateRes?.message || 'Payment confirmed & approved! Order moved to confirmed.', 'success');
+      const res = await api.tenantPortal.orders(tenantId);
+      setOrders(res.data);
+      const overRes = await api.tenantPortal.overview(tenantId);
+      setOverview(overRes.data);
+      const repRes = await api.tenantPortal.reports(tenantId);
+      setReports(repRes.data);
+      if (selectedOrderModal?.id === orderId) {
+        setSelectedOrderModal(prev => prev ? ({ ...prev, payment_status: 'paid', status: prev.status === 'pending' ? 'confirmed' : prev.status }) : null);
+      }
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -1559,7 +1579,6 @@ export default function TenantPortalView({
     staff: { title: 'Team & Staff Governance', subtitle: 'Kitchen PIN access, role permissions, and roster' },
     customers: { title: 'Customer CRM & Diners', subtitle: 'Loyalty points, purchase history, and diner records' },
     reports: { title: 'Sales Analytics & Reports', subtitle: 'Revenue breakdowns, popular items, and metrics' },
-    tables: { title: 'Tables & QR Codes', subtitle: 'Dine-in tables, seat capacities, and digital ordering codes' },
     subscription: { title: 'Subscription & Billing', subtitle: 'Manage your SaaS plan tier, resource quotas, features & invoice receipts' },
     settings: { title: 'Store Settings & Branding', subtitle: 'Cuisine profiles, brand colors, contact info, and theme' }
   };
@@ -1666,7 +1685,6 @@ export default function TenantPortalView({
             { id: 'staff', label: 'Team & Staff', icon: 'ri-team-line', badge: staffList.length },
             { id: 'customers', label: 'Customers', icon: 'ri-user-star-line', badge: customers.length },
             { id: 'reports', label: 'Reports & Analytics', icon: 'ri-bar-chart-2-line' },
-            { id: 'tables', label: 'Tables & QR', icon: 'ri-qr-code-line', badge: tables.length },
             { id: 'subscription', label: 'Subscription & Plan', icon: 'ri-vip-crown-line', tag: subscriptionData?.subscription?.plan_name || 'Active' },
             { id: 'settings', label: 'Store Settings', icon: 'ri-settings-3-line' }
           ].map(tab => {
@@ -2198,7 +2216,7 @@ export default function TenantPortalView({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                             <span style={{ fontSize: '16px', fontWeight: 800, color: C.dark }}>{o.customer_name}</span>
                             <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: C.cardBg, color: C.tealDark, border: `1px solid ${C.border}` }}>
-                              {o.table_number || 'Dine In'}
+                              {o.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'}
                             </span>
                           </div>
                           <div style={{ fontSize: '12px', color: C.slate }}>
@@ -2380,7 +2398,7 @@ export default function TenantPortalView({
                             {order.customer_name}
                           </h4>
                           <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: C.pinkLight, color: C.tealDark, border: `1px solid ${C.border}` }}>
-                            {order.table_number || 'Dine-In'}
+                            {order.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'}
                           </span>
                         </div>
                         <div style={{ fontSize: '12px', color: C.slate, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2488,6 +2506,130 @@ export default function TenantPortalView({
                           <span><strong>Note:</strong> {order.notes}</span>
                         </div>
                       )}
+
+                      {/* Digital Wallet (GCash & Maya) Payment Verification Alert on Order Card */}
+                      {['gcash', 'maya'].some(m => order.payment_method?.toLowerCase()?.includes(m)) && (() => {
+                        const isMaya = order.payment_method?.toLowerCase()?.includes('maya');
+                        const walletName = isMaya ? 'Maya' : 'GCash';
+                        return order.payment_status === 'pending_verification' ? (
+                          <div style={{
+                            marginTop: '10px',
+                            backgroundColor: isDarkPortal ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB',
+                            border: isDarkPortal ? '1px solid rgba(245, 158, 11, 0.4)' : '1.5px solid #FCD34D',
+                            borderRadius: '10px',
+                            padding: '8px 10px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <i className="ri-error-warning-fill" style={{ color: '#D97706', fontSize: '15px' }} />
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: isDarkPortal ? '#FCD34D' : '#92400E' }}>
+                                  {walletName} Verification Needed
+                                </span>
+                              </div>
+                              {order.payment_reference && (
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: isDarkPortal ? '#CBD5E1' : '#78350F', backgroundColor: isDarkPortal ? '#1F293D' : '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>
+                                  Ref: {order.payment_reference}
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {order.payment_proof && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setProofLightboxUrl(order.payment_proof);
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    padding: '5px 8px',
+                                    borderRadius: '6px',
+                                    backgroundColor: isDarkPortal ? '#1F293D' : '#FFF',
+                                    border: isDarkPortal ? '1px solid #374151' : '1px solid #CBD5E1',
+                                    color: isDarkPortal ? '#F8FAFC' : '#334155',
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  <i className="ri-image-line" />
+                                  <span>View Receipt</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConfirmPayment(order.id);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  padding: '5px 8px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#059669',
+                                  border: 'none',
+                                  color: '#FFF',
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)'
+                                }}
+                              >
+                                <i className="ri-check-line" />
+                                <span>Confirm Payment</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{
+                            marginTop: '8px',
+                            backgroundColor: isDarkPortal ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7',
+                            border: isDarkPortal ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #86EFAC',
+                            borderRadius: '8px',
+                            padding: '4px 8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            color: isDarkPortal ? '#6EE7B7' : '#166534'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <i className="ri-checkbox-circle-fill" style={{ color: '#10B981' }} />
+                              <span>{walletName} Verified</span>
+                            </div>
+                            {order.payment_proof && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProofLightboxUrl(order.payment_proof);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: isDarkPortal ? '#6EE7B7' : '#166534',
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                View Proof
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -3425,46 +3567,6 @@ export default function TenantPortalView({
           </div>
         )}
 
-        {/* 6. TABLES & QR TAB */}
-        {activeTab === 'tables' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: C.dark }}>Tables & QR Ordering</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: C.slate }}>Generate unique QR codes for dine-in tables and quick customer ordering.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsTableModalOpen(true)}
-                style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
-              >
-                + Add Table
-              </button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
-              {tables.map(table => (
-                <div key={table.id} style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '16px', textAlign: 'center' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: C.tealLight, color: C.tealDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', margin: '0 auto 10px' }}>
-                    <i className="ri-qr-code-line" />
-                  </div>
-                  <h4 style={{ margin: '0 0 2px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>{table.table_number}</h4>
-                  <span style={{ fontSize: '12px', color: C.slate }}>Capacity: {table.capacity} Persons</span>
-                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: `1px solid ${C.pinkLight}` }}>
-                    <button
-                      type="button"
-                      onClick={() => onOpenStorefront?.(tenantSlug)}
-                      style={{ border: 'none', background: 'none', color: C.tealDark, fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Test Table QR URL ➔
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 6.5. SUBSCRIPTION & BILLING TAB */}
         {activeTab === 'subscription' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -3611,17 +3713,6 @@ export default function TenantPortalView({
                       transition: 'width 0.3s ease'
                     }} />
                   </div>
-                </div>
-
-                {/* Table QR Capacity */}
-                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', border: `1px solid ${C.border}`, padding: '18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: C.slate }}>Tables Registered</span>
-                    <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
-                      {tables.length} Tables
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '11px', color: C.slate }}>Unlimited QR generation enabled</span>
                 </div>
               </div>
             </div>
@@ -5100,53 +5191,6 @@ export default function TenantPortalView({
         </div>
       )}
 
-      {/* ─── ADD TABLE MODAL ────────────────────────────────────────────── */}
-      {isTableModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
-          <div style={{ backgroundColor: C.cardBg, borderRadius: '16px', width: '100%', maxWidth: '380px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: `1px solid ${C.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: C.dark }}>Add Restaurant Table</h3>
-              <button type="button" onClick={() => setIsTableModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>
-                <i className="ri-close-line" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddTable} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Table Number / Label</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Table 9, Patio 1, VIP 2"
-                  value={tableForm.table_number}
-                  onChange={e => setTableForm({ ...tableForm, table_number: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Seating Capacity</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={tableForm.capacity}
-                  onChange={e => setTableForm({ ...tableForm, capacity: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                style={{ backgroundColor: C.teal, color: '#FFF', border: 'none', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', marginTop: '6px' }}
-              >
-                Create Table in DB
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* ─── ADD / EDIT STAFF MEMBER MODAL ──────────────────────────────── */}
       {/* ─── ADD / EDIT STAFF MODAL (EMAIL & PASSWORD) ────────────────── */}
       {isStaffModalOpen && (
@@ -5371,7 +5415,7 @@ export default function TenantPortalView({
                   </div>
                   <div style={{ fontSize: '12px', color: C.slate, marginTop: '2px' }}>
                     Customer: <strong style={{ color: C.dark }}>{selectedOrderModal.customer_name}</strong> •{' '}
-                    <span>{selectedOrderModal.table_number || 'Dine-In'}</span>
+                    <span>{selectedOrderModal.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'}</span>
                   </div>
                 </div>
               </div>
@@ -5445,6 +5489,152 @@ export default function TenantPortalView({
                   <strong>Customer Instructions:</strong> {selectedOrderModal.notes}
                 </div>
               )}
+
+              {/* Digital Wallet (GCash & Maya) Verification Panel inside Modal */}
+              {['gcash', 'maya'].some(m => selectedOrderModal.payment_method?.toLowerCase()?.includes(m)) && (() => {
+                const isMaya = selectedOrderModal.payment_method?.toLowerCase()?.includes('maya');
+                const walletName = isMaya ? 'Maya' : 'GCash';
+                const brandBorder = isMaya ? '#00C853' : '#007DFE';
+                return (
+                  <div style={{
+                    marginTop: '16px',
+                    borderRadius: '14px',
+                    border: selectedOrderModal.payment_status === 'paid'
+                      ? (isDarkPortal ? '1px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC')
+                      : (isDarkPortal ? '1px solid rgba(245, 158, 11, 0.4)' : '1.5px solid #FCD34D'),
+                    backgroundColor: selectedOrderModal.payment_status === 'paid'
+                      ? (isDarkPortal ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5')
+                      : (isDarkPortal ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB'),
+                    padding: '16px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          backgroundColor: selectedOrderModal.payment_status === 'paid' ? '#10B981' : '#F59E0B',
+                          color: '#FFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '18px'
+                        }}>
+                          <i className={selectedOrderModal.payment_status === 'paid' ? 'ri-checkbox-circle-fill' : 'ri-time-line'} />
+                        </div>
+                        <div>
+                          <div style={{
+                            fontSize: '14px',
+                            fontWeight: 800,
+                            color: selectedOrderModal.payment_status === 'paid'
+                              ? (isDarkPortal ? '#6EE7B7' : '#065F46')
+                              : (isDarkPortal ? '#FCD34D' : '#92400E')
+                          }}>
+                            {selectedOrderModal.payment_status === 'paid'
+                              ? `${walletName} Payment Verified & Approved`
+                              : `${walletName} Payment Awaiting Staff Confirmation`}
+                          </div>
+                          <div style={{ fontSize: '11px', color: C.slate, marginTop: '2px' }}>
+                            {selectedOrderModal.payment_status === 'paid'
+                              ? 'This order has been verified. Kitchen can fulfill normally.'
+                              : `Verify customer proof of payment screenshot below before confirming.`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {selectedOrderModal.payment_status !== 'paid' && (
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmPayment(selectedOrderModal.id)}
+                          style={{
+                            backgroundColor: '#059669',
+                            color: '#FFF',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '10px',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)'
+                          }}
+                        >
+                          <i className="ri-check-line" style={{ fontSize: '16px' }} />
+                          <span>Confirm {walletName} Payment</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedOrderModal.payment_reference && (
+                      <div style={{ fontSize: '12px', color: isDarkPortal ? '#F8FAFC' : '#1E293B', marginBottom: '10px' }}>
+                        <strong>Customer Reference No:</strong>{' '}
+                        <span style={{ fontFamily: 'monospace', fontSize: '13px', backgroundColor: isDarkPortal ? '#1F293D' : '#FFF', padding: '2px 8px', borderRadius: '6px', border: `1px solid ${C.border}` }}>
+                          {selectedOrderModal.payment_reference}
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedOrderModal.payment_proof ? (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                        backgroundColor: isDarkPortal ? '#161F30' : '#FFF',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: `1px solid ${C.border}`
+                      }}>
+                        <img
+                          src={selectedOrderModal.payment_proof}
+                          alt={`${walletName} Screenshot`}
+                          onClick={() => setProofLightboxUrl(selectedOrderModal.payment_proof)}
+                          style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '8px',
+                            objectFit: 'cover',
+                            cursor: 'pointer',
+                            border: `1.5px solid ${brandBorder}`
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: C.dark }}>
+                            {walletName} Payment Screenshot Receipt
+                          </div>
+                          <div style={{ fontSize: '11px', color: C.slate, marginTop: '2px' }}>
+                            Uploaded by diner at checkout. Click to inspect full-size image.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setProofLightboxUrl(selectedOrderModal.payment_proof)}
+                            style={{
+                              marginTop: '6px',
+                              background: 'none',
+                              border: 'none',
+                              color: brandBorder,
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <i className="ri-fullscreen-line" /> Open Fullscreen Image
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: C.slate, fontStyle: 'italic' }}>
+                        No payment screenshot was attached to this order.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Footer Summary & Quick Action */}
@@ -5521,6 +5711,119 @@ export default function TenantPortalView({
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── PROOF LIGHTBOX MODAL ─────────────────────────────────────── */}
+      {proofLightboxUrl && (
+        <div
+          onClick={() => setProofLightboxUrl(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              backgroundColor: isDarkPortal ? '#161F30' : '#FFF',
+              borderRadius: '20px',
+              padding: '16px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}
+          >
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ri-file-shield-2-line" style={{ color: '#007DFE', fontSize: '20px' }} />
+                <span style={{ fontSize: '14px', fontWeight: 800, color: C.dark }}>
+                  Customer GCash Payment Proof
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProofLightboxUrl(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  backgroundColor: isDarkPortal ? '#1F293D' : '#F1F5F9',
+                  color: C.dark,
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <img
+              src={proofLightboxUrl}
+              alt="Payment Proof"
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '75vh',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                border: `1px solid ${C.border}`
+              }}
+            />
+
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+              <a
+                href={proofLightboxUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: '12px',
+                  color: '#007DFE',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <i className="ri-external-link-line" /> Open full image in new tab
+              </a>
+              <button
+                type="button"
+                onClick={() => setProofLightboxUrl(null)}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: C.teal,
+                  color: '#FFF',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Close Preview
+              </button>
             </div>
           </div>
         </div>

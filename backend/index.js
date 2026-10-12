@@ -3,9 +3,28 @@ const express = require('express');
 const path = require('node:path');
 const fs = require('node:fs');
 const { db } = require('./db');
+const { connectDB, isConnected } = require('./config/db');
+const { hydrateMasterFromAtlas } = require('./mongoHydration');
+
+// Initialize MongoDB Atlas connection & load master data
+connectDB().then(() => {
+  return hydrateMasterFromAtlas(db);
+}).catch(err => {
+  console.warn('[MongoDB Atlas Startup Warning]:', err.message);
+});
+
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Enable CORS for Vercel frontend and any custom domain
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 
 // Middleware (with 50mb limit for tenant image uploads)
 app.use(express.json({ limit: '50mb' }));
@@ -32,12 +51,14 @@ app.use('/api/storefront', require('./routes/storefront'));
 
 // System health endpoint
 app.get('/api/health', (req, res) => {
+  const atlasOnline = isConnected();
   res.json({
     status: 'online',
-    platform: 'RestoSaaS Platform Engine (React + Node.js + SQLite)',
-    database: 'SQLite (No XAMPP / No MySQL / Zero-Config Embedded)',
-    dbPath: 'data/saas_platform.db',
-    version: '2.0.0',
+    platform: 'RestoSaaS Platform Engine (React + Node.js + MongoDB Atlas)',
+    database: atlasOnline ? 'MongoDB Atlas Cloud (Online)' : 'MongoDB Atlas (Connecting...)',
+    cloudCluster: 'restosaas.6ucox8v.mongodb.net',
+    connected: atlasOnline,
+    version: '2.5.0',
     timestamp: new Date().toISOString()
   });
 });

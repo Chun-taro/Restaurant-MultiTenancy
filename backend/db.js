@@ -14,19 +14,11 @@ for (const envPath of envPaths) {
 require('dotenv').config({ quiet: true });
 
 const { DatabaseSync } = require('node:sqlite');
+const { hydrateMasterFromAtlas } = require('./mongoHydration');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'saas_platform.db');
-
-// Ensure data directory exists
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const db = new DatabaseSync(DB_PATH);
+// In-memory high speed query engine (0 SQLite files created on disk)
+const db = new DatabaseSync(':memory:');
 try {
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA foreign_keys = ON;');
 } catch (e) {}
 

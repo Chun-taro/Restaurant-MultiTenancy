@@ -4,6 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { db, getTenantDb, ensureTenantUploadDir } = require('../db');
 const { hashPassword, comparePassword, generateToken, authRateLimiter } = require('../utils/auth');
+const MongoSync = require('../mongoSync');
 
 // Helper to resolve tenant database
 function resolveTenant(restaurantId) {
@@ -41,6 +42,9 @@ function processUnifiedAuth(tenantCtx, payload) {
   const devStaffEmail = process.env.DEV_STAFF_EMAIL ? process.env.DEV_STAFF_EMAIL.toLowerCase().trim() : null;
   const devStaffPass = process.env.DEV_STAFF_PASSWORD || null;
 
+  let matchedUser = null;
+  let userRole = null;
+
   // 1. Explicit Direct Verification for Universal Dev Accounts (from .env)
   if (devOwnerEmail && devOwnerPass && rawEmail === devOwnerEmail && rawPassword === devOwnerPass) {
     matchedUser = { id: 9991, name: process.env.DEV_OWNER_NAME || 'Restaurant Owner', email: devOwnerEmail, role: 'admin' };
@@ -55,12 +59,28 @@ function processUnifiedAuth(tenantCtx, payload) {
 
   // 2. Check Restaurant Owner / Assigned Admin from master users table
   if (!matchedUser) {
-    const ownerUser = db.prepare(`
+    let ownerUser = db.prepare(`
       SELECT u.id, u.name, u.email, u.password_hash, u.role as platform_role, ru.role as restaurant_role
       FROM users u
       JOIN restaurant_users ru ON u.id = ru.user_id
       WHERE ru.restaurant_id = ? AND LOWER(u.email) = ?
     `).get(restaurant.id, rawEmail);
+
+    if (!ownerUser) {
+      // Fallback: check if the user is registered as restaurant_owner or admin in users table
+      const directUser = db.prepare(`
+        SELECT id, name, email, password_hash, role as platform_role, 'owner' as restaurant_role
+        FROM users
+        WHERE LOWER(email) = ? AND (role = 'restaurant_owner' OR role = 'admin' OR role = 'superadmin')
+      `).get(rawEmail);
+
+      if (directUser) {
+        const isLinked = db.prepare('SELECT id FROM restaurant_users WHERE restaurant_id = ? AND user_id = ?').get(restaurant.id, directUser.id);
+        if (isLinked || (restaurant.email && restaurant.email.toLowerCase() === rawEmail) || directUser.role === 'restaurant_owner') {
+          ownerUser = directUser;
+        }
+      }
+    }
 
     // 3. Check Platform Superadmin
     const superadminUser = db.prepare(`
@@ -288,9 +308,60 @@ router.patch('/:restaurantId/orders/:orderId/status', (req, res) => {
       WHERE oi.order_id = ?
     `).all(orderId);
 
+    try {
+      MongoSync.updateOrderStatus(tenantCtx.restaurant.slug, order.order_number, status);
+    } catch (sErr) {}
+
     res.json({
       success: true,
       message: `Order #${order.order_number} marked as ${status}`,
+      data: { ...updated, items }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /api/tenant/:restaurantId/orders/:orderId/confirm-payment - Staff/Owner confirms GCash payment proof
+router.patch('/:restaurantId/orders/:orderId/confirm-payment', (req, res) => {
+  try {
+    const { restaurantId, orderId } = req.params;
+    const tenantCtx = resolveTenant(restaurantId);
+    if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    const { db: tenantDb } = tenantCtx;
+
+    const order = tenantDb.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    const { payment_status = 'paid', advance_status = true } = req.body;
+    const now = new Date().toISOString();
+    const nextStatus = (advance_status && (order.status === 'pending' || order.status === 'new')) ? 'confirmed' : order.status;
+
+    tenantDb.prepare(`
+      UPDATE orders SET
+        payment_status = ?,
+        status = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(payment_status, nextStatus, now, orderId);
+
+    const updated = tenantDb.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    const items = tenantDb.prepare(`
+      SELECT oi.*, m.image_url 
+      FROM order_items oi 
+      LEFT JOIN menu_items m ON oi.menu_item_id = m.id 
+      WHERE oi.order_id = ?
+    `).all(orderId);
+
+    const methodLabel = String(order.payment_method || '').toLowerCase().includes('maya')
+      ? 'Maya'
+      : String(order.payment_method || '').toLowerCase().includes('gcash')
+        ? 'GCash'
+        : 'Payment';
+
+    res.json({
+      success: true,
+      message: `${methodLabel} Payment for Order #${order.order_number} confirmed & approved!`,
       data: { ...updated, items }
     });
   } catch (err) {
@@ -354,6 +425,10 @@ router.post('/:restaurantId/categories', (req, res) => {
     const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
     const created = tenantDb.prepare('SELECT * FROM menu_categories WHERE id = ?').get(newId);
 
+    try {
+      MongoSync.syncCategory(tenantCtx.restaurant.slug, created);
+    } catch (cErr) {}
+
     res.status(201).json({ success: true, data: created });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -368,7 +443,13 @@ router.delete('/:restaurantId/categories/:id', (req, res) => {
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { db: tenantDb } = tenantCtx;
 
+    const cat = tenantDb.prepare('SELECT * FROM menu_categories WHERE id = ?').get(id);
     tenantDb.prepare('DELETE FROM menu_categories WHERE id = ?').run(id);
+
+    try {
+      if (cat) MongoSync.deleteCategory(tenantCtx.restaurant.slug, cat.name);
+    } catch (dErr) {}
+
     res.json({ success: true, message: 'Category deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -388,7 +469,7 @@ router.post('/:restaurantId/items', (req, res) => {
       return res.status(400).json({ success: false, error: 'Name, price, and category are required' });
     }
 
-    const cat = tenantDb.prepare('SELECT id FROM menu_categories WHERE id = ?').get(Number(category_id));
+    const cat = tenantDb.prepare('SELECT id, name FROM menu_categories WHERE id = ?').get(Number(category_id));
     if (!cat) {
       return res.status(400).json({ success: false, error: 'The selected category does not exist in this restaurant database.' });
     }
@@ -427,6 +508,11 @@ router.post('/:restaurantId/items', (req, res) => {
 
     const newId = tenantDb.prepare('SELECT last_insert_rowid() as id').get().id;
     const created = tenantDb.prepare('SELECT * FROM menu_items WHERE id = ?').get(newId);
+
+    try {
+      MongoSync.syncMenuItem(restaurant.slug, created, cat.name);
+    } catch (iErr) {}
+
     res.status(201).json({ success: true, data: created });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -696,23 +782,25 @@ router.put('/:restaurantId/settings', (req, res) => {
 });
 
 // POST /api/tenant/:restaurantId/upload - Upload tenant custom media (logo, banner, dish photo)
-router.post('/:restaurantId/upload', (req, res) => {
+router.post('/:restaurantId/upload', async (req, res) => {
   try {
     const { restaurantId } = req.params;
     const tenantCtx = resolveTenant(restaurantId);
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { restaurant } = tenantCtx;
 
-    const { file, fileName, folder = 'general' } = req.body;
-    if (!file) {
+    const { file, fileName, folder = 'menu' } = req.body;
+    if (!file || typeof file !== 'string') {
       return res.status(400).json({ success: false, error: 'No image file data provided.' });
     }
 
     const uploadInfo = ensureTenantUploadDir(restaurant.slug);
     const tenantDir = uploadInfo.dirPath;
 
-    const targetSub = ['logo', 'banner', 'menu', 'dishes'].includes(folder) ? folder : '';
-    const targetFolder = targetSub ? path.join(tenantDir, targetSub) : tenantDir;
+    const targetSub = ['logo', 'banner', 'menu', 'dishes', 'payments'].includes(folder) 
+      ? (folder === 'dishes' ? 'menu' : folder) 
+      : 'menu';
+    const targetFolder = path.join(tenantDir, targetSub);
     if (!fs.existsSync(targetFolder)) {
       fs.mkdirSync(targetFolder, { recursive: true });
     }
@@ -721,9 +809,11 @@ router.post('/:restaurantId/upload', (req, res) => {
     const matches = file.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
     let buffer;
     let ext = 'jpg';
+    let contentType = 'image/jpeg';
 
     if (matches && matches.length === 3) {
       const mime = matches[1].toLowerCase();
+      contentType = mime;
       if (mime.includes('png')) ext = 'png';
       else if (mime.includes('webp')) ext = 'webp';
       else if (mime.includes('gif')) ext = 'gif';
@@ -741,19 +831,40 @@ router.post('/:restaurantId/upload', (req, res) => {
     const finalName = `${timestamp}_${cleanBase}.${ext}`;
     const filePath = path.join(targetFolder, finalName);
 
+    // 1. Save file to dedicated disk storage
     fs.writeFileSync(filePath, buffer);
 
-    const relativeSub = targetSub ? `/${targetSub}` : '';
-    const publicUrl = `/uploads/tenants/${restaurant.slug}${relativeSub}/${finalName}`;
+    const publicUrl = `/uploads/tenants/${restaurant.slug}/${targetSub}/${finalName}`;
+
+    // 2. Also persist to tenant's private MongoDB Atlas collection
+    let mediaDoc = null;
+    try {
+      const { getTenantMongoDb } = require('../tenantMongoManager');
+      const tenantMongo = getTenantMongoDb(restaurant.slug);
+      if (tenantMongo?.Media) {
+        mediaDoc = await tenantMongo.Media.create({
+          fileName: finalName,
+          folder: targetSub,
+          contentType,
+          dataUrl: file,
+          size: buffer.length
+        });
+      }
+    } catch (mongoErr) {
+      console.warn('[Tenant Upload] Note: Atlas Media backup skipped:', mongoErr.message);
+    }
 
     res.json({
       success: true,
-      message: `Image saved to ${restaurant.name}'s dedicated media directory!`,
+      message: `Image saved to ${restaurant.name}'s dedicated media directory and private database!`,
       url: publicUrl,
       fileName: finalName,
-      folderPath: `uploads/tenants/${restaurant.slug}${relativeSub}`
+      folderPath: `uploads/tenants/${restaurant.slug}/${targetSub}`,
+      mediaId: mediaDoc?._id || null,
+      cloudUrl: mediaDoc ? `/api/tenant/${restaurant.slug}/media/${mediaDoc._id}` : null
     });
   } catch (err) {
+    console.error('Tenant upload error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1261,4 +1372,36 @@ router.post('/:restaurantId/subscription/change-plan', (req, res) => {
   }
 });
 
+// GET /api/tenant/:slugOrId/media/:mediaId - Serve image directly from tenant's private Atlas database
+router.get('/:slugOrId/media/:mediaId', async (req, res) => {
+  try {
+    const { slugOrId, mediaId } = req.params;
+    const tenantCtx = resolveTenant(slugOrId);
+    const slug = tenantCtx?.restaurant?.slug || String(slugOrId).toLowerCase().trim();
+
+    const { getTenantMongoDb } = require('../tenantMongoManager');
+    const tenantMongo = getTenantMongoDb(slug);
+    if (!tenantMongo) return res.status(404).send('Not found');
+
+    const mediaDoc = await tenantMongo.Media.findById(mediaId).lean();
+    if (!mediaDoc || !mediaDoc.dataUrl) return res.status(404).send('Image not found');
+
+    const matches = mediaDoc.dataUrl.match(/^data:([a-zA-Z0-9\/+-]+);base64,(.+)$/);
+    if (!matches) {
+      return res.redirect(mediaDoc.dataUrl);
+    }
+
+    const contentType = matches[1] || mediaDoc.contentType || 'image/jpeg';
+    const buffer = Buffer.from(matches[2], 'base64');
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.end(buffer);
+  } catch (err) {
+    res.status(500).send('Error serving media');
+  }
+});
+
 module.exports = router;
+

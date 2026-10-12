@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db, withTransaction, getTenantDb } = require('../db');
+const MongoSync = require('../mongoSync');
 
 // Helper to log audit actions
 function logAudit(actorName, actorRole, action, entityType, entityId, details) {
@@ -10,6 +11,7 @@ function logAudit(actorName, actorRole, action, entityType, entityId, details) {
       VALUES (?, ?, ?, ?, ?, ?, '127.0.0.1', ?)
     `);
     insert.run(actorName || 'Super Admin', actorRole || 'superadmin', action, entityType, String(entityId), details, new Date().toISOString());
+    MongoSync.syncAuditLog({ actor_name: actorName, actor_role: actorRole, action, entity_type: entityType, entity_id: entityId, details, ip_address: '127.0.0.1' });
   } catch (e) {
     console.error('Audit log failed:', e);
   }
@@ -187,6 +189,10 @@ router.post('/', (req, res) => {
       let resolvedOwnerId;
       if (owner) {
         resolvedOwnerId = owner.id;
+        if (owner_password) {
+          db.prepare('UPDATE users SET password_hash = ?, status = ?, updated_at = ? WHERE id = ?')
+            .run(owner_password, 'active', now, owner.id);
+        }
       } else {
         const insertUser = db.prepare(`
           INSERT INTO users (name, email, password_hash, role, phone, avatar, status, created_at, updated_at)
@@ -312,11 +318,38 @@ router.post('/', (req, res) => {
             upload_dir: tCtx.uploadDir,
             upload_url: tCtx.uploadUrl
           };
+
+          // Register owner into isolated tenant staff_members table
+          try {
+            const cleanOwnerEmail = owner_email.trim().toLowerCase();
+            const existingStaff = tCtx.db.prepare("SELECT id FROM staff_members WHERE LOWER(email) = ?").get(cleanOwnerEmail);
+            if (!existingStaff) {
+              tCtx.db.prepare(`
+                INSERT INTO staff_members (name, email, phone, role, pin, password_hash, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'admin', '1234', ?, 'active', ?, ?)
+              `).run(owner_name.trim(), cleanOwnerEmail, owner_phone || null, owner_password, now, now);
+            } else {
+              tCtx.db.prepare(`
+                UPDATE staff_members SET name = ?, password_hash = ?, role = 'admin', status = 'active', updated_at = ?
+                WHERE id = ?
+              `).run(owner_name.trim(), owner_password, now, existingStaff.id);
+            }
+          } catch (staffErr) {
+            console.warn('Tenant staff sync note:', staffErr.message);
+          }
         }
       }
     } catch (e) {
       console.warn('Tenant DB initialization warning:', e.message);
     }
+
+    try {
+      const createdResto = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurantId);
+      if (createdResto) {
+        MongoSync.syncRestaurant(createdResto);
+        MongoSync.syncSubscription(createdResto.slug, { plan_id, status, billing_cycle });
+      }
+    } catch (sErr) {}
 
     res.status(201).json({
       success: true,
@@ -359,6 +392,11 @@ router.patch('/:id/status', (req, res) => {
     db.prepare(`
       UPDATE subscriptions SET status = ?, updated_at = ? WHERE restaurant_id = ?
     `).run(subStatus, now, tenantId);
+
+    try {
+      const updatedResto = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(tenantId);
+      if (updatedResto) MongoSync.syncRestaurant(updatedResto);
+    } catch (e) {}
 
     logAudit(
       admin_name,

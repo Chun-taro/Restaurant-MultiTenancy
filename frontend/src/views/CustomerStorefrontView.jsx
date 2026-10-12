@@ -186,7 +186,26 @@ export default function CustomerStorefrontView({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('GCash'); // 'GCash' | 'Maya' | 'Cash on Dine'
+  const [gcashScreenshot, setGcashScreenshot] = useState(null);
+  const [gcashRefNumber, setGcashRefNumber] = useState('');
+  const [viewProofModalUrl, setViewProofModalUrl] = useState(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
+  const handleScreenshotFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      showToast?.('Screenshot is too large. Please select an image under 15MB.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setGcashScreenshot(reader.result);
+      const label = paymentMethod === 'Maya' ? 'Maya' : 'GCash';
+      showToast?.(`${label} payment screenshot attached!`, 'success');
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Unified Single Sign-In & Registration State
   const [customerUser, setCustomerUser] = useState(() => {
@@ -359,6 +378,37 @@ export default function CustomerStorefrontView({
   // Completed Order Celebration & Next Order Confirmation Modal
   const [isOrderCompletedModalOpen, setIsOrderCompletedModalOpen] = useState(false);
   const [completedOrderConfirmedId, setCompletedOrderConfirmedId] = useState(null);
+
+  // Live Poll Active Order Status for Staff GCash Confirmation
+  useEffect(() => {
+    if (!activeOrder?.order_number) return;
+    if (activeOrder.status === 'completed' || activeOrder.status === 'cancelled') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.storefront.getOrderStatus(slug, activeOrder.order_number);
+        if (res?.data) {
+          const fresh = res.data;
+          // Notify customer when staff confirms GCash or Maya payment
+          if (activeOrder.payment_status !== 'paid' && fresh.payment_status === 'paid') {
+            const methodLabel = String(fresh.payment_method || activeOrder.payment_method || '').toLowerCase().includes('maya') ? 'Maya' : 'GCash';
+            showToast?.(`🎉 ${methodLabel} Payment confirmed by restaurant staff! Kitchen is preparing your order.`, 'success');
+          }
+          if (fresh.status !== activeOrder.status || fresh.payment_status !== activeOrder.payment_status) {
+            setActiveOrder(prev => {
+              const updated = { ...prev, ...fresh };
+              localStorage.setItem(`dine_active_order_${slug}`, JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
+      } catch (err) {
+        // Silently ignore poll errors
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [activeOrder?.order_number, activeOrder?.status, activeOrder?.payment_status, slug]);
 
   // Load Storefront Data from Tenant's Isolated DB
   const loadStorefront = async () => {
@@ -564,21 +614,28 @@ export default function CustomerStorefrontView({
       showToast?.('Your cart is empty', 'warning');
       return;
     }
+    if ((paymentMethod === 'GCash' || paymentMethod === 'Maya') && !gcashScreenshot) {
+      showToast?.(`Please upload a screenshot of your ${paymentMethod} payment proof before placing order.`, 'warning');
+      return;
+    }
 
     try {
       setIsPlacingOrder(true);
+      const isGCash = paymentMethod === 'GCash';
       const payload = {
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         customer_email: customerUser?.email || '',
         customer_id: customerUser?.id || null,
         order_type: diningMode,
-        table_number: diningMode === 'dine_in' ? selectedTable : 'Takeaway',
+        table_number: diningMode === 'dine_in' ? 'Dine-In' : 'Takeaway',
         payment_method: paymentMethod.toLowerCase().replace(/\s+/g, '_'),
+        payment_proof: gcashScreenshot || null,
+        payment_reference: gcashRefNumber.trim() || null,
         notes: [
           diningMode === 'takeaway'
             ? `[TAKEOUT • Pickup: ${selectedArrival} • Utensils: ${includeUtensils ? 'Yes' : 'No'}${takeoutNotes ? ` • Note: ${takeoutNotes}` : ''}]`
-            : `[DINE-IN • Table: ${selectedTable}]`,
+            : `[DINE-IN • Seated Dine-In Service]`,
           cart.map(it => it.instructions ? `[${it.name}: ${it.instructions}]` : '').filter(Boolean).join(' ')
         ].filter(Boolean).join(' ').trim(),
         items: cart.map(it => ({
@@ -600,7 +657,7 @@ export default function CustomerStorefrontView({
       const enrichedOrder = {
         ...createdOrder,
         arrivalTime: selectedArrival,
-        tableNo: diningMode === 'dine_in' ? selectedTable : 'Takeaway',
+        tableNo: diningMode === 'dine_in' ? 'Dine-In' : 'Takeaway',
         order_type: diningMode,
         placedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
@@ -614,12 +671,22 @@ export default function CustomerStorefrontView({
       });
       setCart([]);
       setIsCartOpen(false);
-      showToast?.(
-        diningMode === 'takeaway'
-          ? `Takeout Order #${createdOrder.order_number} confirmed! We will prepare it for counter pickup.`
-          : `Dine-In Order #${createdOrder.order_number} confirmed! Sent to the kitchen for ${selectedTable}.`,
-        'success'
-      );
+      setGcashScreenshot(null);
+      setGcashRefNumber('');
+
+      if (isGCash) {
+        showToast?.(
+          `Order #${createdOrder.order_number} submitted! GCash proof sent — waiting for staff confirmation.`,
+          'success'
+        );
+      } else {
+        showToast?.(
+          diningMode === 'takeaway'
+            ? `Takeout Order #${createdOrder.order_number} confirmed! We will prepare it for counter pickup.`
+            : `Dine-In Order #${createdOrder.order_number} confirmed! Sent to the kitchen.`,
+          'success'
+        );
+      }
     } catch (err) {
       showToast?.(err.message || 'Failed to place order', 'error');
     } finally {
@@ -645,10 +712,10 @@ export default function CustomerStorefrontView({
     { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your takeout meal!' }
   ] : [
     { label: 'Order Received', icon: 'ri-file-list-3-line', desc: 'Sent to restaurant kitchen' },
-    { label: 'Confirmed', icon: 'ri-checkbox-circle-line', desc: 'Accepted by table staff' },
+    { label: 'Confirmed', icon: 'ri-checkbox-circle-line', desc: 'Accepted by kitchen staff' },
     { label: 'Cooking Fresh', icon: 'ri-fire-line', desc: 'Chefs crafting your meal' },
-    { label: 'Serving to Table', icon: 'ri-restaurant-2-line', desc: `Served fresh to ${activeOrder?.table_number || selectedTable}` },
-    { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your dine-in experience!' }
+    { label: 'Ready & Served', icon: 'ri-restaurant-2-line', desc: 'Dishes prepared hot and served fresh' },
+    { label: 'Completed', icon: 'ri-check-double-line', desc: 'Enjoy your dining experience!' }
   ];
 
   if (suspendedData) {
@@ -1033,25 +1100,8 @@ export default function CustomerStorefrontView({
                 boxShadow: '0 2px 6px rgba(16, 185, 129, 0.1)'
               }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
-                <i className="ri-qr-code-line" style={{ color: isDarkMode ? '#34D399' : '#059669', fontSize: '14px' }} />
-                <span>Table:</span>
-                <select
-                  value={selectedTable}
-                  onChange={e => setSelectedTable(e.target.value)}
-                  style={{
-                    border: 'none',
-                    outline: 'none',
-                    fontWeight: 800,
-                    color: isDarkMode ? '#A7F3D0' : '#065F46',
-                    backgroundColor: 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
-                >
-                  {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'Table 5' }, { table_number: 'Table 6' }, { table_number: 'VIP Table' }]).map(t => (
-                    <option key={t.table_number} value={t.table_number} style={{ backgroundColor: isDarkMode ? '#161F30' : '#FFF', color: isDarkMode ? '#F8FAFC' : '#065F46' }}>{t.table_number}</option>
-                  ))}
-                </select>
+                <i className="ri-restaurant-2-line" style={{ color: isDarkMode ? '#34D399' : '#059669', fontSize: '14px' }} />
+                <span>Dine-In Service</span>
               </div>
             ) : (
               <div style={{
@@ -1532,7 +1582,7 @@ export default function CustomerStorefrontView({
                     ? (isDarkMode ? '#A7F3D0' : '#15803D')
                     : (isDarkMode ? '#FED7AA' : '#C2410C')
                 }}>
-                  {diningMode === 'dine_in' ? `Table ${selectedTable}` : 'Counter Pickup'}
+                  {diningMode === 'dine_in' ? 'Dine-In Service' : 'Counter Pickup'}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -1612,58 +1662,13 @@ export default function CustomerStorefrontView({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '15px', fontWeight: 800, color: isDarkMode ? '#6EE7B7' : '#065F46' }}>
-                    Table Service Experience
-                  </span>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    backgroundColor: isDarkMode ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7',
-                    color: isDarkMode ? '#A7F3D0' : '#166534',
-                    border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid #BBF7D0'
-                  }}>
-                    Assigned: {selectedTable}
+                    Dine-In Experience
                   </span>
                 </div>
                 <p style={{ margin: '2px 0 0', fontSize: '12px', color: isDarkMode ? '#94A3B8' : '#047857' }}>
-                  Take a seat! Dishes are freshly cooked and delivered directly to your table with dining tableware.
+                  Freshly cooked and served directly to you upon arrival.
                 </p>
               </div>
-            </div>
-
-            {/* Quick Table Switcher Chips */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: isDarkMode ? '#6EE7B7' : '#065F46', marginRight: '4px' }}>
-                Quick Switch Table:
-              </span>
-              {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'VIP Table' }]).slice(0, 6).map(t => (
-                <button
-                  key={t.table_number}
-                  type="button"
-                  onClick={() => setSelectedTable(t.table_number)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: selectedTable === t.table_number
-                      ? '2px solid #059669'
-                      : (isDarkMode ? '1px solid #2A364F' : '1px solid #CBD5E1'),
-                    backgroundColor: selectedTable === t.table_number
-                      ? '#059669'
-                      : (isDarkMode ? '#1F293D' : '#FFF'),
-                    color: selectedTable === t.table_number
-                      ? '#FFF'
-                      : (isDarkMode ? '#E2E8F0' : '#334155'),
-                    transition: 'all 0.15s ease',
-                    boxShadow: selectedTable === t.table_number ? '0 2px 6px rgba(5, 150, 105, 0.25)' : 'none'
-                  }}
-                >
-                  {t.table_number}
-                </button>
-              ))}
             </div>
           </div>
         ) : (
@@ -1784,16 +1789,55 @@ export default function CustomerStorefrontView({
                   <i className={TRACKING_STEPS[currentStep - 1]?.icon || 'ri-file-list-3-line'} />
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '15px', fontWeight: 800, color: DINE_THEME.dark }}>
                       Order #{activeOrder.order_number}
                     </span>
                     <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 8px', borderRadius: '6px', backgroundColor: currentStep === 5 ? '#D1FAE5' : DINE_THEME.tealLight, color: currentStep === 5 ? '#065F46' : DINE_THEME.tealDark }}>
                       {activeOrder.status}
                     </span>
+
+                    {/* Digital Wallet (GCash & Maya) Verification Live Badge */}
+                    {['gcash', 'maya'].some(m => activeOrder.payment_method?.toLowerCase()?.includes(m)) && (() => {
+                      const isMaya = activeOrder.payment_method?.toLowerCase()?.includes('maya');
+                      const walletLabel = isMaya ? 'Maya' : 'GCash';
+                      return activeOrder.payment_status === 'pending_verification' ? (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+                          color: isDarkMode ? '#FCD34D' : '#92400E',
+                          border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid #FCD34D',
+                          borderRadius: '20px',
+                          padding: '2px 10px',
+                          fontSize: '11px',
+                          fontWeight: 800
+                        }}>
+                          <i className="ri-time-line" style={{ animation: 'spin 3s linear infinite' }} />
+                          <span>{walletLabel} Proof Pending Staff Confirmation</span>
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.2)' : '#D1FAE5',
+                          color: isDarkMode ? '#6EE7B7' : '#065F46',
+                          border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid #6EE7B7',
+                          borderRadius: '20px',
+                          padding: '2px 10px',
+                          fontSize: '11px',
+                          fontWeight: 800
+                        }}>
+                          <i className="ri-checkbox-circle-fill" />
+                          <span>{walletLabel} Payment Confirmed & Approved</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <p style={{ margin: 0, fontSize: '12px', color: DINE_THEME.slate }}>
-                    {TRACKING_STEPS[currentStep - 1]?.desc} • Assigned to {activeOrder.table_number || activeOrder.tableNo || selectedTable} • Estimated: {activeOrder.arrivalTime || selectedArrival}
+                    {TRACKING_STEPS[currentStep - 1]?.desc} • Mode: {activeOrder.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'} • Estimated: {activeOrder.arrivalTime || selectedArrival}
                   </p>
                 </div>
               </div>
@@ -2573,35 +2617,28 @@ export default function CustomerStorefrontView({
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: diningMode === 'dine_in' ? (isDarkMode ? '#6EE7B7' : '#065F46') : (isDarkMode ? '#FDBA74' : '#9A3412') }}>
-                    {diningMode === 'dine_in' ? `Dine-In • Table Service` : `Takeout / To-Go Express`}
+                    {diningMode === 'dine_in' ? `Dine-In Service` : `Takeout / To-Go Express`}
                   </div>
                   <div style={{ fontSize: '11px', color: diningMode === 'dine_in' ? (isDarkMode ? '#A7F3D0' : '#047857') : (isDarkMode ? '#FED7AA' : '#C2410C') }}>
                     {diningMode === 'dine_in'
-                      ? `Served fresh to ${selectedTable}`
+                      ? `Freshly prepared for you`
                       : `Pick up at counter • Est: ${selectedArrival}`}
                   </div>
                 </div>
               </div>
 
               {diningMode === 'dine_in' ? (
-                <select
-                  value={selectedTable}
-                  onChange={e => setSelectedTable(e.target.value)}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '8px',
-                    border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
-                    backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
-                    color: isDarkMode ? '#A7F3D0' : '#065F46',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {(data?.tables?.length > 0 ? data.tables : [{ table_number: 'Table 1' }, { table_number: 'Table 2' }, { table_number: 'Table 3' }, { table_number: 'Table 4' }, { table_number: 'VIP Table' }]).map(t => (
-                    <option key={t.table_number} value={t.table_number} style={{ backgroundColor: isDarkMode ? '#161F30' : '#FFF', color: isDarkMode ? '#F8FAFC' : '#065F46' }}>{t.table_number}</option>
-                  ))}
-                </select>
+                <div style={{
+                  padding: '4px 10px',
+                  borderRadius: '8px',
+                  border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
+                  backgroundColor: isDarkMode ? '#1F293D' : '#F0FDF4',
+                  color: isDarkMode ? '#A7F3D0' : '#065F46',
+                  fontSize: '11px',
+                  fontWeight: 800
+                }}>
+                  Dine-In
+                </div>
               ) : (
                 <select
                   value={selectedArrival}
@@ -2834,6 +2871,157 @@ export default function CustomerStorefrontView({
                         </button>
                       ))}
                     </div>
+
+                    {/* Digital Wallet (GCash & Maya) Payment Instructions & Screenshot Upload */}
+                    {(paymentMethod === 'GCash' || paymentMethod === 'Maya') && (() => {
+                      const isMaya = paymentMethod === 'Maya';
+                      const brandColor = isMaya ? '#00C853' : '#007DFE';
+                      const brandBg = isMaya
+                        ? (isDarkMode ? 'rgba(0, 200, 83, 0.12)' : '#F0FDF4')
+                        : (isDarkMode ? 'rgba(0, 125, 254, 0.12)' : '#EFF6FF');
+                      const brandName = isMaya ? 'Maya Wallet & QR' : 'GCash Express Pay';
+                      const brandInitial = isMaya ? 'M' : 'G';
+                      const brandBorder = isMaya ? '1.5px solid #00C853' : '1.5px solid #007DFE';
+                      const dashedBorder = isMaya ? '2px dashed #00C85388' : '2px dashed #007DFE88';
+                      return (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '14px',
+                          borderRadius: '12px',
+                          border: brandBorder,
+                          backgroundColor: brandBg,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: brandColor, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 900 }}>
+                                {brandInitial}
+                              </div>
+                              <div>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: brandColor }}>{brandName}</span>
+                                <span style={{ display: 'block', fontSize: '10px', color: DINE_THEME.slate }}>Send Payment to Store</span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '13px', fontWeight: 900, color: brandColor }}>₱{cartSubtotal.toFixed(0)}</span>
+                          </div>
+
+                          {/* Store Account Info Card */}
+                          <div style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: isDarkMode ? '#161F30' : '#FFF', border: `1px solid ${DINE_THEME.border}`, fontSize: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ color: DINE_THEME.slate, fontSize: '11px' }}>Account Name:</span>
+                              <strong style={{ color: DINE_THEME.dark }}>{restaurant?.name || 'Restaurant Store'}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: DINE_THEME.slate, fontSize: '11px' }}>{isMaya ? 'Maya Mobile / Acct #:' : 'GCash Mobile #:'}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <strong style={{ color: brandColor, letterSpacing: '0.3px', fontFamily: 'monospace', fontSize: '13px' }}>
+                                  {restaurant?.phone || '0917 888 2233'}
+                                </strong>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(restaurant?.phone || '0917 888 2233');
+                                    showToast?.(`${paymentMethod} number copied to clipboard!`, 'success');
+                                  }}
+                                  style={{ padding: '2px 6px', borderRadius: '4px', border: `1px solid ${brandColor}44`, backgroundColor: 'transparent', color: brandColor, fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Screenshot Proof Upload Area */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: DINE_THEME.dark, marginBottom: '6px' }}>
+                              Payment Receipt Screenshot <span style={{ color: '#EF4444' }}>*</span>
+                            </label>
+
+                            {gcashScreenshot ? (
+                              <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1.5px solid #10B981', padding: '8px', backgroundColor: isDarkMode ? '#161F30' : '#FFF', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <img
+                                  src={gcashScreenshot}
+                                  alt={`${paymentMethod} Receipt`}
+                                  style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', border: '1px solid #10B981' }}
+                                  onClick={() => setViewProofModalUrl(gcashScreenshot)}
+                                />
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontSize: '12px', fontWeight: 800 }}>
+                                    <i className="ri-checkbox-circle-fill" /> Screenshot Attached
+                                  </div>
+                                  <span style={{ fontSize: '11px', color: DINE_THEME.slate }}>Tap image to inspect preview</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setGcashScreenshot(null)}
+                                  style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #EF444444', backgroundColor: '#FEE2E2', color: '#DC2626', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  Change
+                                </button>
+                              </div>
+                            ) : (
+                              <label style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '16px',
+                                borderRadius: '10px',
+                                border: dashedBorder,
+                                backgroundColor: isDarkMode ? `${brandColor}14` : `${brandColor}0D`,
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                                gap: '6px'
+                              }}>
+                                <i className="ri-upload-cloud-2-line" style={{ fontSize: '26px', color: brandColor }} />
+                                <span style={{ fontSize: '12px', fontWeight: 800, color: brandColor }}>
+                                  Tap to Upload {paymentMethod} Receipt Screenshot
+                                </span>
+                                <span style={{ fontSize: '10px', color: DINE_THEME.slate }}>
+                                  Required • PNG, JPG, or screenshot from your {paymentMethod} app
+                                </span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleScreenshotFileChange}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            )}
+                          </div>
+
+                          {/* Optional Reference Number */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: DINE_THEME.slate, marginBottom: '4px' }}>
+                              {paymentMethod} Reference No. (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={isMaya ? "e.g. 2024 9384 1029" : "e.g. 1002 9384 1029"}
+                              value={gcashRefNumber}
+                              onChange={e => setGcashRefNumber(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: `1px solid ${DINE_THEME.border}`,
+                                backgroundColor: isDarkMode ? '#161F30' : '#FFF',
+                                color: DINE_THEME.dark,
+                                fontSize: '12px',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ fontSize: '11px', color: isDarkMode ? '#93C5FD' : '#1E40AF', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                            <i className="ri-shield-check-line" style={{ fontSize: '13px', marginTop: '1px' }} />
+                            <span>Staff or restaurant owner will review your payment screenshot and confirm your order in real-time.</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -2897,7 +3085,7 @@ export default function CustomerStorefrontView({
                       <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-takeaway-fill'} style={{ fontSize: '16px' }} />
                       <span>
                         {diningMode === 'dine_in'
-                          ? `Place Dine-In Order (${selectedTable}) • ₱${cartSubtotal.toFixed(0)}`
+                          ? `Place Dine-In Order • ₱${cartSubtotal.toFixed(0)}`
                           : `Place Takeout Order (${selectedArrival}) • ₱${cartSubtotal.toFixed(0)}`}
                       </span>
                     </>
@@ -3024,12 +3212,97 @@ export default function CustomerStorefrontView({
                 <div style={{ fontSize: '12px', color: DINE_THEME.slate, marginBottom: '12px' }}>
                   Diner: <strong>{activeOrder.customer_name}</strong> •{' '}
                   {activeOrder.order_type === 'takeaway' ? (
-                    <span>Pickup: <strong style={{ color: isDarkMode ? '#FDBA74' : '#C2410C' }}>Counter #1 ({activeOrder.arrivalTime || 'ASAP'})</strong></span>
+                    <span>Pickup: <strong style={{ color: isDarkMode ? '#FDBA74' : '#C2410C' }}>Counter Pickup ({activeOrder.arrivalTime || 'ASAP'})</strong></span>
                   ) : (
-                    <span>Table: <strong style={{ color: isDarkMode ? '#6EE7B7' : '#15803D' }}>{activeOrder.table_number || selectedTable}</strong></span>
+                    <span>Service: <strong style={{ color: isDarkMode ? '#6EE7B7' : '#15803D' }}>Dine-In</strong></span>
                   )}{' '}
                   • Method: <strong>{activeOrder.payment_method}</strong>
+                  {activeOrder.payment_reference && (
+                    <span> • Ref: <strong>{activeOrder.payment_reference}</strong></span>
+                  )}
                 </div>
+
+                {/* Digital Wallet (GCash & Maya) Verification Status Banner in Receipt Modal */}
+                {['gcash', 'maya'].some(m => activeOrder.payment_method?.toLowerCase()?.includes(m)) && (() => {
+                  const isMaya = activeOrder.payment_method?.toLowerCase()?.includes('maya');
+                  const walletName = isMaya ? 'Maya' : 'GCash';
+                  return (
+                    <div style={{
+                      marginBottom: '14px',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: activeOrder.payment_status === 'paid'
+                        ? (isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5')
+                        : (isDarkMode ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB'),
+                      border: activeOrder.payment_status === 'paid'
+                        ? (isDarkMode ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid #A7F3D0')
+                        : (isDarkMode ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid #FDE68A'),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: activeOrder.payment_status === 'paid' ? '#10B981' : '#F59E0B',
+                          color: '#FFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '16px',
+                          flexShrink: 0
+                        }}>
+                          <i className={activeOrder.payment_status === 'paid' ? 'ri-shield-check-fill' : 'ri-time-line'} />
+                        </div>
+                        <div>
+                          <div style={{
+                            fontSize: '13px',
+                            fontWeight: 800,
+                            color: activeOrder.payment_status === 'paid'
+                              ? (isDarkMode ? '#6EE7B7' : '#065F46')
+                              : (isDarkMode ? '#FCD34D' : '#92400E')
+                          }}>
+                            {activeOrder.payment_status === 'paid'
+                              ? `${walletName} Payment Confirmed & Approved by Staff`
+                              : `${walletName} Payment Pending Staff Confirmation`}
+                          </div>
+                          <div style={{ fontSize: '11px', color: DINE_THEME.slate, marginTop: '2px' }}>
+                            {activeOrder.payment_status === 'paid'
+                              ? 'Your payment was verified. The kitchen is preparing your dishes.'
+                              : `Staff is reviewing your uploaded ${walletName} screenshot receipt in real-time.`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {activeOrder.payment_proof && (
+                        <button
+                          type="button"
+                          onClick={() => setViewProofModalUrl(activeOrder.payment_proof)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: `1px solid ${DINE_THEME.border}`,
+                            backgroundColor: isDarkMode ? '#1F293D' : '#FFF',
+                            color: DINE_THEME.dark,
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <i className="ri-image-line" />
+                          <span>View Uploaded Proof</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ backgroundColor: isDarkMode ? '#1F293D' : '#FFF', borderRadius: '12px', padding: '10px 12px', border: `1px solid ${DINE_THEME.border}` }}>
                   {(activeOrder.items || []).map((it, idx) => (
@@ -3136,7 +3409,7 @@ export default function CustomerStorefrontView({
                               backgroundColor: ord.order_type === 'takeaway' ? '#FFEDD5' : '#DCFCE7',
                               color: ord.order_type === 'takeaway' ? '#C2410C' : '#15803D'
                             }}>
-                              {ord.order_type === 'takeaway' ? 'Takeout' : (ord.table_number || 'Dine-in')}
+                              {ord.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'}
                             </span>
                             <span style={{ fontSize: '11px', color: DINE_THEME.slate }}>
                               {new Date(ord.created_at || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -3918,7 +4191,7 @@ export default function CustomerStorefrontView({
               Order <strong style={{ color: DINE_THEME.dark }}>#{activeOrder.order_number}</strong> has been completed.
               {activeOrder.order_type === 'takeaway'
                 ? ' Thank you for ordering with us. Please pick up your food at the front counter.'
-                : ` Thank you for dining at ${restaurant?.name || 'our restaurant'}! Dishes have been served to Table ${activeOrder.table_number || selectedTable}.`}
+                : ` Thank you for dining at ${restaurant?.name || 'our restaurant'}! Hope you enjoyed your meal.`}
             </p>
 
             {/* Order Recap Card */}
@@ -3932,7 +4205,7 @@ export default function CustomerStorefrontView({
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: `1px solid ${DINE_THEME.border}` }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: DINE_THEME.dark }}>
-                  {activeOrder.order_type === 'takeaway' ? 'Takeout Order' : `Table Service (${activeOrder.table_number || selectedTable})`}
+                  {activeOrder.order_type === 'takeaway' ? 'Takeout Order' : 'Dine-In Order'}
                 </span>
                 <span style={{ fontSize: '14px', fontWeight: 800, color: '#10B981' }}>
                   ₱{Number(activeOrder.total || 0).toFixed(0)}
@@ -4041,6 +4314,119 @@ export default function CustomerStorefrontView({
             <span>View Cart ({cartItemCount})</span>
             <i className="ri-arrow-right-line" />
           </button>
+        </div>
+      )}
+
+      {/* ─── GCASH PAYMENT PROOF LIGHTBOX MODAL ───────────────────────── */}
+      {viewProofModalUrl && (
+        <div
+          onClick={() => setViewProofModalUrl(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              backgroundColor: isDarkMode ? '#161F30' : '#FFF',
+              borderRadius: '20px',
+              padding: '16px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}
+          >
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ri-file-shield-2-line" style={{ color: '#007DFE', fontSize: '20px' }} />
+                <span style={{ fontSize: '14px', fontWeight: 800, color: DINE_THEME.dark }}>
+                  GCash Payment Proof Receipt
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewProofModalUrl(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  backgroundColor: isDarkMode ? '#1F293D' : '#F1F5F9',
+                  color: DINE_THEME.dark,
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <i className="ri-close-line" />
+              </button>
+            </div>
+
+            <img
+              src={viewProofModalUrl}
+              alt="GCash Payment Proof"
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '75vh',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                border: `1px solid ${DINE_THEME.border}`
+              }}
+            />
+
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+              <a
+                href={viewProofModalUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: '12px',
+                  color: '#007DFE',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <i className="ri-external-link-line" /> Open full resolution
+              </a>
+              <button
+                type="button"
+                onClick={() => setViewProofModalUrl(null)}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: DINE_THEME.teal,
+                  color: '#FFF',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

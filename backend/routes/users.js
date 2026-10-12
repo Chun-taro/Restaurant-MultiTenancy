@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { hashPassword } = require('../utils/auth');
+const MongoSync = require('../mongoSync');
 
 function logAudit(actorName, actorRole, action, entityType, entityId, details) {
   try {
@@ -10,6 +11,7 @@ function logAudit(actorName, actorRole, action, entityType, entityId, details) {
       VALUES (?, ?, ?, ?, ?, ?, '127.0.0.1', ?)
     `);
     insert.run(actorName || 'Super Admin', actorRole || 'superadmin', action, entityType, String(entityId), details, new Date().toISOString());
+    MongoSync.syncAuditLog({ actor_name: actorName, actor_role: actorRole, action, entity_type: entityType, entity_id: entityId, details, ip_address: '127.0.0.1' });
   } catch (e) {
     console.error('Audit log failed:', e);
   }
@@ -174,6 +176,10 @@ router.post('/', (req, res) => {
       WHERE id = ?
     `).get(newUserId);
 
+    try {
+      if (created) MongoSync.syncUser(created);
+    } catch (uErr) {}
+
     res.status(201).json({
       success: true,
       message: `Super Administrator '${name}' created successfully!`,
@@ -252,6 +258,10 @@ router.put('/:id', (req, res) => {
       WHERE id = ?
     `).get(userId);
 
+    try {
+      if (updated) MongoSync.syncUser(updated);
+    } catch (uErr) {}
+
     res.json({
       success: true,
       message: 'Account updated successfully!',
@@ -289,6 +299,10 @@ router.delete('/:id', (req, res) => {
 
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
 
+    try {
+      MongoSync.deleteUser(user.email);
+    } catch (dErr) {}
+
     logAudit(
       req.body?.admin_name || 'Superadmin',
       'superadmin',
@@ -323,6 +337,11 @@ router.patch('/:id/status', (req, res) => {
     }
 
     db.prepare('UPDATE users SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), userId);
+
+    try {
+      const toggled = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      if (toggled) MongoSync.syncUser(toggled);
+    } catch (tErr) {}
 
     logAudit(
       admin_name,

@@ -92,7 +92,7 @@ export default function ProvisionModal({ isOpen, onClose, onSubmit, plans = [] }
                   onChange={(e) => setFormData(prev => ({ ...prev, subdomain: e.target.value, slug: e.target.value }))}
                 />
                 <div className="form-hint">
-                  Storefront: <code style={{ color: 'var(--primary-light)', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>https://{formData.subdomain || 'your-restaurant'}.restosaas.ph</code>
+                  Storefront: <code style={{ color: 'var(--primary-light)', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>https://{formData.subdomain || 'your-restaurant'}.dine.ph</code>
                 </div>
               </div>
             </div>

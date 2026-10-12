@@ -80,7 +80,23 @@ export default function App() {
     // Check if hostname is an IP address (IPv4 or IPv6)
     const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname === '::1' || hostname === '0.0.0.0';
 
-    if (!isIpAddress) {
+    // Cloud hosting platform domains where the primary subdomain is the app service name (e.g. dine-2wv3.onrender.com), NOT a restaurant
+    const cloudPlatforms = [
+      'onrender.com',
+      'render.com',
+      'vercel.app',
+      'netlify.app',
+      'railway.app',
+      'up.railway.app',
+      'fly.dev',
+      'github.io',
+      'pages.dev',
+      'herokuapp.com',
+      'supabase.co'
+    ];
+    const isCloudPlatform = cloudPlatforms.some(platform => hostname.endsWith(platform));
+
+    if (!isIpAddress && !isCloudPlatform) {
       const hostParts = hostname.split('.');
       // 1. <subdomain>.localhost (e.g. brandobar.localhost:5173)
       if (hostParts.length === 2 && hostParts[1] === 'localhost') {
@@ -91,6 +107,12 @@ export default function App() {
       }
       // 2. <subdomain>.domain.com (e.g. brandobar.restosaas.com)
       else if (hostParts.length > 2 && hostParts[0] !== 'www') {
+        detectedSubdomain = hostParts[0].toLowerCase();
+      }
+    } else if (isCloudPlatform) {
+      const hostParts = hostname.split('.');
+      // On cloud platforms (e.g. *.onrender.com), a tenant subdomain would require >= 4 parts (e.g. brandobar.myapp.onrender.com)
+      if (hostParts.length >= 4 && hostParts[0] !== 'www') {
         detectedSubdomain = hostParts[0].toLowerCase();
       }
     }
@@ -144,7 +166,17 @@ export default function App() {
       return { mode: 'storefront', slug: queryStore || queryTenant, table: queryTable };
     }
 
-    // 6. Public Landing page: http://localhost:5173/
+    // 6. Direct slug path: /:slug (e.g. /brandobar, /tokyo-ramen)
+    const singleSegmentMatch = pathname.match(/^\/([a-zA-Z0-9_-]+)\/?$/);
+    if (singleSegmentMatch) {
+      const seg = singleSegmentMatch[1].toLowerCase();
+      const systemRoutes = ['admin', 'portal', 'store', 'api', 'uploads', 'login'];
+      if (!systemRoutes.includes(seg)) {
+        return { mode: 'storefront', slug: seg, table: queryTable };
+      }
+    }
+
+    // 7. Public Landing page: http://localhost:5173/
     return { mode: 'landing', slug: null, table: null };
   };
 
@@ -188,7 +220,7 @@ export default function App() {
   // Set Super Admin title when in super admin or landing mode
   useEffect(() => {
     if (appMode === 'admin' || appMode === 'landing' || appMode === 'login') {
-      document.title = 'RestoSaaS — Multi-Tenant Restaurant Management Platform';
+      document.title = 'Dine — Multi-Tenant Restaurant Management Platform';
     }
   }, [appMode]);
 

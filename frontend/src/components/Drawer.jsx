@@ -35,7 +35,7 @@ export default function Drawer({ isOpen, onClose, tenant, onStatusChange, onPlan
               </div>
               <div className="dossier-quick-links">
                 <a href="#" className="dossier-url-pill" onClick={(e) => { e.preventDefault(); onOpenStorefront?.(tenant.slug); }}>
-                  <i className="ri-external-link-line"></i> https://{tenant.subdomain}.restosaas.ph
+                  <i className="ri-external-link-line"></i> https://{tenant.subdomain}.dine.ph
                 </a>
                 {tenant.custom_domain && (
                   <a href="#" className="dossier-url-pill" style={{ color: 'var(--emerald)', background: 'rgba(16,185,129,0.1)' }}>

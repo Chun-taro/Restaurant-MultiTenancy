@@ -24,7 +24,7 @@ export default function LandingPageView({
         subdomain: t.subdomain || t.slug,
         logo: t.logo_url || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80',
         color: t.primary_color || '#6366F1',
-        tagline: `${t.cuisine_type || 'Gourmet'} restaurant powered by RestoSaaS`
+        tagline: `${t.cuisine_type || 'Gourmet'} restaurant powered by Dine`
       }))
     : [];
 
@@ -67,7 +67,7 @@ export default function LandingPageView({
   const faqs = [
     {
       q: 'How does multi-tenant data isolation protect each restaurant?',
-      a: 'RestoSaaS uses strict data partitioning. Each tenant has an isolated data context, guaranteeing that order logs, sales metrics, customer lists, and staff credentials cannot be accessed across different restaurant stores.'
+      a: 'Dine uses strict data partitioning. Each tenant has an isolated data context, guaranteeing that order logs, sales metrics, customer lists, and staff credentials cannot be accessed across different restaurant stores.'
     },
     {
       q: 'How does QR table ordering work for customers?',
@@ -75,7 +75,7 @@ export default function LandingPageView({
     },
     {
       q: 'Can restaurant owners link their own custom web domains?',
-      a: 'Yes. In addition to their default subdomains (such as brandobar.restosaas.ph), Pro and Enterprise tenants can bind custom domains (e.g. order.brandobar.com) with automatic SSL certificate routing.'
+      a: 'Yes. In addition to their default subdomains (such as brandobar.dine.ph), Pro and Enterprise tenants can bind custom domains (e.g. order.brandobar.com) with automatic SSL certificate routing.'
     },
     {
       q: 'Can I test multiple restaurant environments at once?',
@@ -116,7 +116,7 @@ export default function LandingPageView({
           </div>
           <div>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              RestoSaaS <span className="brand-badge" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--primary-light)', border: '1px solid rgba(59,130,246,0.25)', fontSize: '10px' }}>ENTERPRISE</span>
+              Dine <span className="brand-badge" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--primary-light)', border: '1px solid rgba(59,130,246,0.25)', fontSize: '10px' }}>ENTERPRISE</span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Multi-Tenant Restaurant Platform</div>
           </div>
@@ -454,7 +454,7 @@ export default function LandingPageView({
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
                           <i className="ri-global-line" style={{ color: '#38BDF8' }}></i>
                           <span>Tenant Subdomain: </span>
-                          <code style={{ color: '#38BDF8', fontFamily: 'var(--font-mono)' }}>https://{activeShowcaseTenant.subdomain}.restosaas.ph</code>
+                          <code style={{ color: '#38BDF8', fontFamily: 'var(--font-mono)' }}>https://{activeShowcaseTenant.subdomain}.dine.ph</code>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
                           <i className="ri-shield-check-line" style={{ color: 'var(--emerald)' }}></i>
@@ -538,7 +538,7 @@ export default function LandingPageView({
         <div style={{ maxWidth: '1080px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '54px' }}>
             <h2 style={{ fontSize: '34px', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
-              The Three Core Engines of RestoSaaS
+              The Three Core Engines of Dine
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '15px', maxWidth: '640px', margin: '10px auto 0', lineHeight: 1.6 }}>
               Built for enterprise scalability, complete data security, and frictionless dining workflows.
@@ -665,7 +665,7 @@ export default function LandingPageView({
               Frequently Asked Questions
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '14.5px', marginTop: '6px' }}>
-              Everything you need to know about the RestoSaaS platform architecture.
+              Everything you need to know about the Dine platform architecture.
             </p>
           </div>
 
@@ -735,7 +735,7 @@ export default function LandingPageView({
               <i className="ri-store-3-fill"></i>
             </div>
             <div>
-              <div style={{ fontWeight: 700, color: '#fff' }}>RestoSaaS Platform</div>
+              <div style={{ fontWeight: 700, color: '#fff' }}>Dine Platform</div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Enterprise Multi-Tenant Restaurant OS</div>
             </div>
           </div>
@@ -753,7 +753,7 @@ export default function LandingPageView({
           </div>
 
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            © 2026 RestoSaaS Inc. All rights reserved.
+            © 2026 Dine Inc. All rights reserved.
           </div>
         </div>
       </footer>

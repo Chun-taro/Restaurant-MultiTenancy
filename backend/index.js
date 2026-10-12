@@ -54,7 +54,7 @@ app.get('/api/health', (req, res) => {
   const atlasOnline = isConnected();
   res.json({
     status: 'online',
-    platform: 'RestoSaaS Platform Engine (React + Node.js + MongoDB Atlas)',
+    platform: 'Dine Platform Engine (React + Node.js + MongoDB Atlas)',
     database: atlasOnline ? 'MongoDB Atlas Cloud (Online)' : 'MongoDB Atlas (Connecting...)',
     cloudCluster: 'restosaas.6ucox8v.mongodb.net',
     connected: atlasOnline,
@@ -81,9 +81,9 @@ if (staticPath) {
     res.send(`
       <!DOCTYPE html>
       <html>
-      <head><title>RestoSaaS API Server</title></head>
+      <head><title>Dine API Server</title></head>
       <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 90vh; text-align: center; background: #0f172a; color: #f8fafc;">
-        <h2 style="color: #6366f1;">RestoSaaS Backend API is Running on Port ${PORT}</h2>
+        <h2 style="color: #6366f1;">Dine Backend API is Running on Port ${PORT}</h2>
         <p style="color: #94a3b8; max-width: 500px;">To view the application, start the Vite development server:</p>
         <code style="background: #1e293b; padding: 12px 20px; border-radius: 8px; color: #38bdf8; font-size: 15px;">cd frontend && npm run dev</code>
         <p style="margin-top: 15px;"><a href="http://localhost:5173" style="color: #6366f1; text-decoration: underline;">Open http://localhost:5173</a></p>

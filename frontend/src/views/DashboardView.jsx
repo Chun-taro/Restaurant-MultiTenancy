@@ -233,7 +233,7 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
                     </td>
                     <td>
                       <code style={{ fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: 'var(--primary-light)' }}>
-                        {t.subdomain}.restosaas.ph
+                        {t.subdomain}.dine.ph
                       </code>
                     </td>
                     <td><span className="badge badge-plan">{t.plan_name}</span></td>

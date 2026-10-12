@@ -63,7 +63,7 @@ export default function Sidebar({
           </div>
           <div className="brand-info">
             <div className="brand-name">
-              RestoSaaS <span className="brand-badge">CORE</span>
+              Dine <span className="brand-badge">CORE</span>
             </div>
             <div className="brand-subtitle">Restaurant SaaS Console</div>
           </div>

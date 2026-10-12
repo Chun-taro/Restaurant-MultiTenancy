@@ -1146,7 +1146,7 @@ export default function TenantPortalView({
               }}
             >
               <i className="ri-arrow-left-line" />
-              <span>Back to RestoSaaS Home</span>
+              <span>Back to Dine Home</span>
             </a>
           </div>
         </div>

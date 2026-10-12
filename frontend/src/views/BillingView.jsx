@@ -108,7 +108,7 @@ export default function BillingView({ billingData, onMarkPaid }) {
                   <td><code style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary-light)', fontWeight: 700 }}>{inv.invoice_number}</code></td>
                   <td>
                     <strong style={{ color: '#fff' }}>{inv.restaurant_name}</strong>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{inv.restaurant_slug}.restosaas.ph</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{inv.restaurant_slug}.dine.ph</div>
                   </td>
                   <td><span className="badge badge-plan">{inv.plan_name}</span></td>
                   <td style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>{inv.billing_period}</td>

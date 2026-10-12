@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 
 export default function SettingsView({ settings = {}, onSave, adminUser, onOpenProfile, onOpenCreateSuperadmin }) {
   const [formData, setFormData] = useState({
-    platform_name: 'RestoSaaS Platform Suite',
-    platform_support_email: 'support@restosaas.com',
+    platform_name: 'Dine Platform Suite',
+    platform_support_email: 'support@dine.com',
     default_currency: 'PHP',
     trial_days_default: '14',
     payment_gateway_mode: 'sandbox',
@@ -15,8 +15,8 @@ export default function SettingsView({ settings = {}, onSave, adminUser, onOpenP
   useEffect(() => {
     if (settings && Object.keys(settings).length > 0) {
       setFormData({
-        platform_name: settings.platform_name ? settings.platform_name.value : 'RestoSaaS Platform Suite',
-        platform_support_email: settings.platform_support_email ? settings.platform_support_email.value : 'support@restosaas.com',
+        platform_name: settings.platform_name ? settings.platform_name.value : 'Dine Platform Suite',
+        platform_support_email: settings.platform_support_email ? settings.platform_support_email.value : 'support@dine.com',
         default_currency: settings.default_currency ? settings.default_currency.value : 'PHP',
         trial_days_default: settings.trial_days_default ? settings.trial_days_default.value : '14',
         payment_gateway_mode: settings.payment_gateway_mode ? settings.payment_gateway_mode.value : 'sandbox',

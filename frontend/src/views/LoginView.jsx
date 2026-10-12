@@ -74,7 +74,7 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
             <i className="ri-store-3-fill"></i>
           </div>
           <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>
-            RestoSaaS Platform
+            Dine Platform
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
             Super Admin & Operations Console

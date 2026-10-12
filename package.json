@@ -1,30 +1,28 @@
 {
   "name": "restaurant-multitenancy",
   "version": "1.0.0",
-  "description": "",
+  "description": "Multi-Tenant Restaurant SaaS Platform",
   "main": "index.js",
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "dev:backend": "npm --prefix backend run dev",
+    "start": "node index.js",
     "backend": "npm --prefix backend start",
-    "server": "npm --prefix backend start",
-    "start": "npm --prefix backend start",
-    "build": "npm --prefix frontend run build"
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "postinstall": "npm --prefix backend install"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
     "dotenv": "^18.0.6",
     "express": "^5.2.1",
-    "mongoose": "^9.11.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.3"
+    "express-rate-limit": "^8.7.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.1"
   }
 }

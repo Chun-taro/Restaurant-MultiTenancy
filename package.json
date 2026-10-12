@@ -9,8 +9,8 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "postinstall": "npm --prefix backend install"
+    "build": "npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build",
+    "postinstall": "npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build"
   },
   "keywords": [],
   "author": "",

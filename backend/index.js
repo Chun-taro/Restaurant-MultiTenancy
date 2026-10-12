@@ -71,6 +71,9 @@ const staticPath = fs.existsSync(frontendDist) ? frontendDist : (fs.existsSync(r
 if (staticPath) {
   app.use(express.static(staticPath));
   app.use((req, res) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return res.status(404).json({ success: false, error: 'Endpoint not found' });
+    }
     res.sendFile(path.join(staticPath, 'index.html'));
   });
 } else {

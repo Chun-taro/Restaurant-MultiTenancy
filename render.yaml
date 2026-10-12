@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: restosaas-backend
+    name: restosaas
     runtime: node
     plan: free
-    rootDir: backend
-    buildCommand: npm install
+    rootDir: .
+    buildCommand: npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV

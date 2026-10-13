@@ -25,6 +25,13 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  auth: {
+    login: (credentials) => request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials)
+    }),
+    me: () => request('/api/auth/me')
+  },
   dashboard: {
     getStats: () => request('/api/dashboard/stats')
   },

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { THEMES, applyTheme, getStoredTheme } from '../utils/theme';
 
 const routeTitles = {
   dashboard: { title: 'Executive Overview', subtitle: 'Platform-wide multi-tenant intelligence and revenue metrics' },
@@ -19,9 +20,41 @@ export default function Topbar({
   onSignOut,
   adminUser,
   onOpenProfile,
-  onToggleMobileSidebar
+  onToggleMobileSidebar,
+  onNavigate,
+  onThemeChange
 }) {
   const meta = routeTitles[currentRoute] || { title: 'Super Admin', subtitle: '' };
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const themeRef = useRef(null);
+  const [currentThemeId, setCurrentThemeId] = useState(() => getStoredTheme().themeId || 'teal-pink');
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (themeRef.current && !themeRef.current.contains(event.target)) {
+        setIsThemeOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectTheme = (theme) => {
+    setCurrentThemeId(theme.id);
+    const stored = getStoredTheme();
+    const primary = theme.isCustom ? stored.customPrimary : theme.primary;
+    const accent = theme.isCustom ? stored.customAccent : theme.accent;
+    applyTheme(theme.id, primary, accent);
+    if (onThemeChange) {
+      onThemeChange(theme.id, primary, accent);
+    }
+    setIsThemeOpen(false);
+  };
+
+  const activeThemeObj = THEMES.find(t => t.id === currentThemeId) || THEMES[0];
+  const storedTheme = getStoredTheme();
+  const displayPrimary = activeThemeObj.isCustom ? storedTheme.customPrimary : activeThemeObj.primary;
+  const displayAccent = activeThemeObj.isCustom ? storedTheme.customAccent : activeThemeObj.accent;
 
   return (
     <header className="topbar">
@@ -53,6 +86,69 @@ export default function Topbar({
       </div>
 
       <div className="topbar-right">
+        {/* Quick Theme Switcher Dropdown */}
+        <div className="theme-dropdown-container" ref={themeRef}>
+          <button
+            type="button"
+            className="topbar-theme-btn"
+            onClick={() => setIsThemeOpen(prev => !prev)}
+            title="Switch Superadmin Color Theme"
+          >
+            <i className="ri-palette-line" style={{ color: 'var(--primary-light)', fontSize: '15px' }}></i>
+            <div className="topbar-theme-dots">
+              <span className="topbar-theme-dot" style={{ background: displayPrimary }}></span>
+              <span className="topbar-theme-dot" style={{ background: displayAccent }}></span>
+            </div>
+            <span style={{ fontSize: '12px' }}>{activeThemeObj.name.split(' ')[0]}</span>
+            <i className="ri-arrow-down-s-line" style={{ fontSize: '12px', opacity: 0.7 }}></i>
+          </button>
+
+          {isThemeOpen && (
+            <div className="theme-dropdown-menu">
+              <div className="theme-dropdown-header">
+                <span>Color Themes</span>
+                <span style={{ fontSize: '10px', color: 'var(--primary-light)', textTransform: 'none', fontWeight: 600 }}>Live Preview</span>
+              </div>
+
+              {THEMES.map(t => {
+                const isSelected = t.id === currentThemeId;
+                const pColor = t.isCustom ? storedTheme.customPrimary : t.primary;
+                const aColor = t.isCustom ? storedTheme.customAccent : t.accent;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`theme-dropdown-item ${isSelected ? 'active' : ''}`}
+                    onClick={() => handleSelectTheme(t)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: pColor, display: 'inline-block' }}></span>
+                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: aColor, display: 'inline-block', marginLeft: '-4px', border: '1px solid #15171B' }}></span>
+                      </div>
+                      <span style={{ color: isSelected ? '#fff' : 'inherit' }}>{t.name}</span>
+                    </div>
+                    {isSelected && <i className="ri-check-line" style={{ color: 'var(--primary-light)', fontSize: '14px' }}></i>}
+                  </button>
+                );
+              })}
+
+              <div className="theme-dropdown-footer">
+                <button
+                  type="button"
+                  className="theme-dropdown-footer-btn"
+                  onClick={() => {
+                    setIsThemeOpen(false);
+                    if (onNavigate) onNavigate('settings');
+                  }}
+                >
+                  <i className="ri-settings-3-line"></i> Customize Colors in Settings
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Superadmin Profile Badge */}
         {adminUser && (
           <button

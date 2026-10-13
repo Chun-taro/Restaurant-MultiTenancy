@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DineBrandLogo from '../components/DineBrandLogo';
 
 export default function LoginView({ onLoginSuccess, onBackToLanding }) {
   const [email, setEmail] = useState('');
@@ -58,26 +59,14 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
       }}>
         {/* Brand header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            margin: '0 auto 16px',
-            borderRadius: 'var(--radius-lg)',
-            background: 'var(--primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: '24px',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <i className="ri-store-3-fill"></i>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <DineBrandLogo color="#FF2A85" textColor="#FFFFFF" height={44} />
           </div>
           <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>
-            Dine Platform
+            Super Admin Console
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Super Admin & Operations Console
+            Multi-Tenant Platform Operations & Security
           </p>
         </div>
 
@@ -173,7 +162,16 @@ export default function LoginView({ onLoginSuccess, onBackToLanding }) {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '22px' }}>
+        <div style={{
+          marginTop: '20px',
+          paddingTop: '16px',
+          borderTop: '1px solid var(--border-subtle)',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
           <button
             type="button"
             style={{

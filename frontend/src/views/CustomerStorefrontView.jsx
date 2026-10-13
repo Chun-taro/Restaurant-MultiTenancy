@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
+import DineBrandLogo from '../components/DineBrandLogo';
 
 const SUGAR_LEVELS = ['0%', '25%', '50%', '75%', '100%'];
 
@@ -42,13 +43,13 @@ export default function CustomerStorefrontView({
         console.warn('Failed to parse storefront theme_config', e);
       }
     }
-    const preset = conf.preset || 'emerald_clean';
-    const bgStyle = conf.bg_style || conf.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(preset) ? 'midnight_dark' : 'slate_clean');
+    const preset = conf.preset || 'teal_pink_dine';
+    const bgStyle = conf.bg_style || conf.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon', 'cyber_teal_pink'].includes(preset) ? 'midnight_dark' : 'slate_clean');
     return {
       preset,
-      primary_color: conf.primary_color || conf.primary || data?.restaurant?.primary_color || '#2A9D9A',
+      primary_color: conf.primary_color || conf.primary || data?.restaurant?.primary_color || '#00C4CC',
       secondary_color: conf.secondary_color || conf.secondary || data?.restaurant?.secondary_color || '#1E293B',
-      accent_color: conf.accent_color || conf.accent || '#F59E0B',
+      accent_color: conf.accent_color || conf.accent || '#FF2A85',
       bg_style: bgStyle,
       font_family: conf.font_family || conf.font || 'Plus Jakarta Sans',
       border_radius: conf.border_radius || conf.radius || 'smooth',
@@ -62,7 +63,7 @@ export default function CustomerStorefrontView({
   const accentBrand = themeConfig.accent_color;
   const isDarkMode = themeConfig.bg_style === 'midnight_dark' ||
     themeConfig.bgStyle === 'midnight_dark' ||
-    ['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(themeConfig.preset);
+    ['tokyo_midnight', 'obsidian_luxury', 'cyber_neon', 'cyber_teal_pink'].includes(themeConfig.preset);
 
   // Compute background & contrast palette
   const themePalette = useMemo(() => {
@@ -136,17 +137,24 @@ export default function CustomerStorefrontView({
   const pillRadius = themeConfig.border_radius === 'sharp' ? '6px' : themeConfig.border_radius === 'rounded' ? '28px' : '14px';
   const fontFamilyStr = `'${themeConfig.font_family}', -apple-system, BlinkMacSystemFont, sans-serif`;
 
+  const isTealPink = themeConfig.preset === 'teal_pink_dine' || primaryBrand === '#00C4CC' || accentBrand === '#FF2A85';
+
   const DINE_THEME = {
-    pink: themePalette.cardSoft,
-    pinkLight: themePalette.cardSoft,
-    pinkSoft: themePalette.bg,
+    pink: isTealPink ? '#FF2A85' : themePalette.cardSoft,
+    pinkLight: isTealPink ? (isDarkMode ? 'rgba(255, 42, 133, 0.16)' : '#FFF1F6') : themePalette.cardSoft,
+    pinkSoft: isTealPink ? (isDarkMode ? '#0B0F19' : '#F8FAFC') : themePalette.bg,
+    pinkGlow: isTealPink ? 'rgba(255, 42, 133, 0.35)' : 'none',
+    pinkBorder: isTealPink ? 'rgba(255, 42, 133, 0.22)' : themePalette.border,
     bgSoft: themePalette.bg,
     bgMuted: themePalette.cardSoft,
     cardBg: themePalette.card,
     teal: primaryBrand,
-    tealDark: primaryBrand,
+    tealDark: '#008B94',
     tealLight: `${primaryBrand}18`,
     tealGlow: `${primaryBrand}33`,
+    berry: '#6E1838',
+    gradientBrand: 'linear-gradient(135deg, #00C4CC 0%, #FF2A85 100%)',
+    gradientHero: 'linear-gradient(130deg, #00C4CC 0%, #009DA3 22%, #6E1838 72%, #4A0E23 100%)',
     dark: isDarkMode ? themePalette.text : secondaryBrand,
     slate: themePalette.mutedText,
     border: themePalette.border,
@@ -156,8 +164,9 @@ export default function CustomerStorefrontView({
     radius,
     pillRadius,
     fontFamily: fontFamilyStr,
-    navBg: themePalette.navBg,
-    isDark: isDarkMode
+    navBg: isTealPink ? '#00C4CC' : themePalette.navBg,
+    isDark: isDarkMode,
+    isTealPink
   };
 
   const [activeCategory, setActiveCategory] = useState('All');
@@ -993,49 +1002,74 @@ export default function CustomerStorefrontView({
         top: 0,
         zIndex: 40,
         backgroundColor: DINE_THEME.navBg,
+        background: isTealPink ? 'linear-gradient(135deg, #00C4CC 0%, #00ACB5 100%)' : DINE_THEME.navBg,
         backdropFilter: 'blur(12px)',
-        borderBottom: `1px solid ${DINE_THEME.border}`,
-        boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 20px rgba(38, 50, 56, 0.04)'
+        borderBottom: isTealPink ? '1px solid rgba(255, 255, 255, 0.25)' : `1px solid ${DINE_THEME.border}`,
+        boxShadow: isTealPink ? '0 4px 20px rgba(0, 196, 204, 0.28)' : (isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 20px rgba(38, 50, 56, 0.04)'),
+        color: isTealPink ? '#FFFFFF' : DINE_THEME.dark
       }}>
         <div className="storefront-header-inner">
 
           {/* Logo & Brand Identity */}
           <div className="storefront-brand-section">
-            <div style={{ position: 'relative' }}>
-              <img
-                src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
-                alt={restaurant?.name || 'DINE'}
-                style={{ width: '46px', height: '46px', borderRadius: DINE_THEME.radius, objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
-              />
-              <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: `2px solid ${isDarkMode ? '#161F30' : '#FFF'}` }} />
-            </div>
+            {isTealPink ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <DineBrandLogo color="#FF2A85" textColor="#FFFFFF" height={38} />
+                {restaurant?.name && restaurant.name !== 'DINE' && (
+                  <div style={{ borderLeft: '1.5px solid rgba(255, 255, 255, 0.35)', paddingLeft: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <h1 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.3px' }}>
+                        {restaurant.name}
+                      </h1>
+                      <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 7px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.22)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.3)' }}>
+                        Open Now
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'rgba(255, 255, 255, 0.9)', marginTop: '2px' }}>
+                      <i className="ri-map-pin-line" /> {restaurant?.city || 'Bonifacio Global City'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
+                    alt={restaurant?.name || 'DINE'}
+                    style={{ width: '46px', height: '46px', borderRadius: DINE_THEME.radius, objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
+                  />
+                  <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: `2px solid ${isDarkMode ? '#161F30' : '#FFF'}` }} />
+                </div>
 
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: DINE_THEME.dark, letterSpacing: '-0.3px' }}>
-                  {restaurant?.name || 'DINE'}
-                </h1>
-                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', backgroundColor: DINE_THEME.tealLight, color: DINE_THEME.tealDark }}>
-                  Open Now
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: DINE_THEME.slate, marginTop: '2px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <i className="ri-map-pin-line" style={{ color: DINE_THEME.teal }} /> {restaurant?.city || 'Bonifacio Global City'}
-                </span>
-              </div>
-            </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: DINE_THEME.dark, letterSpacing: '-0.3px' }}>
+                      {restaurant?.name || 'DINE'}
+                    </h1>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', backgroundColor: DINE_THEME.tealLight, color: DINE_THEME.tealDark }}>
+                      Open Now
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: DINE_THEME.slate, marginTop: '2px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="ri-map-pin-line" style={{ color: DINE_THEME.teal }} /> {restaurant?.city || 'Bonifacio Global City'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Dining Mode & Table / Pickup Selector */}
           <div className="storefront-dining-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{
               display: 'flex',
-              backgroundColor: isDarkMode ? '#1F293D' : '#F1F5F9',
+              backgroundColor: isTealPink ? 'rgba(255, 255, 255, 0.22)' : (isDarkMode ? '#1F293D' : '#F1F5F9'),
               borderRadius: '14px',
               padding: '3px',
-              border: `1.5px solid ${diningMode === 'dine_in' ? (isDarkMode ? 'rgba(16, 185, 129, 0.5)' : '#86EFAC') : (isDarkMode ? 'rgba(234, 88, 12, 0.5)' : '#FDBA74')}`,
-              boxShadow: diningMode === 'dine_in' ? '0 2px 10px rgba(16, 185, 129, 0.15)' : '0 2px 10px rgba(234, 88, 12, 0.15)',
+              border: isTealPink ? '1.5px solid rgba(255, 255, 255, 0.35)' : `1.5px solid ${diningMode === 'dine_in' ? (isDarkMode ? 'rgba(16, 185, 129, 0.5)' : '#86EFAC') : (isDarkMode ? 'rgba(234, 88, 12, 0.5)' : '#FDBA74')}`,
+              boxShadow: isTealPink ? '0 2px 10px rgba(0, 0, 0, 0.1)' : (diningMode === 'dine_in' ? '0 2px 10px rgba(16, 185, 129, 0.15)' : '0 2px 10px rgba(234, 88, 12, 0.15)'),
               transition: 'all 0.25s ease'
             }}>
               <button
@@ -1048,9 +1082,13 @@ export default function CustomerStorefrontView({
                   fontWeight: 800,
                   border: 'none',
                   cursor: 'pointer',
-                  background: diningMode === 'dine_in' ? 'linear-gradient(135deg, #059669 0%, #10B981 100%)' : 'transparent',
-                  color: diningMode === 'dine_in' ? '#FFF' : (isDarkMode ? '#94A3B8' : '#475569'),
-                  boxShadow: diningMode === 'dine_in' ? '0 3px 10px rgba(5, 150, 105, 0.35)' : 'none',
+                  background: diningMode === 'dine_in'
+                    ? (isTealPink ? '#FFFFFF' : 'linear-gradient(135deg, #059669 0%, #10B981 100%)')
+                    : 'transparent',
+                  color: diningMode === 'dine_in'
+                    ? (isTealPink ? '#008B94' : '#FFF')
+                    : (isTealPink ? 'rgba(255, 255, 255, 0.9)' : (isDarkMode ? '#94A3B8' : '#475569')),
+                  boxShadow: diningMode === 'dine_in' ? '0 3px 10px rgba(0, 0, 0, 0.18)' : 'none',
                   transition: 'all 0.2s ease',
                   display: 'flex',
                   alignItems: 'center',
@@ -1070,9 +1108,13 @@ export default function CustomerStorefrontView({
                   fontWeight: 800,
                   border: 'none',
                   cursor: 'pointer',
-                  background: diningMode === 'takeaway' ? 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)' : 'transparent',
-                  color: diningMode === 'takeaway' ? '#FFF' : (isDarkMode ? '#94A3B8' : '#475569'),
-                  boxShadow: diningMode === 'takeaway' ? '0 3px 10px rgba(234, 88, 12, 0.35)' : 'none',
+                  background: diningMode === 'takeaway'
+                    ? (isTealPink ? '#FFFFFF' : 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)')
+                    : 'transparent',
+                  color: diningMode === 'takeaway'
+                    ? (isTealPink ? '#FF2A85' : '#FFF')
+                    : (isTealPink ? 'rgba(255, 255, 255, 0.9)' : (isDarkMode ? '#94A3B8' : '#475569')),
+                  boxShadow: diningMode === 'takeaway' ? '0 3px 10px rgba(0, 0, 0, 0.18)' : 'none',
                   transition: 'all 0.2s ease',
                   display: 'flex',
                   alignItems: 'center',
@@ -1090,17 +1132,17 @@ export default function CustomerStorefrontView({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                backgroundColor: isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4',
+                backgroundColor: isTealPink ? 'rgba(255, 255, 255, 0.22)' : (isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4'),
                 padding: '6px 12px',
                 borderRadius: '12px',
-                border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
+                border: isTealPink ? '1.5px solid rgba(255, 255, 255, 0.35)' : (isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC'),
                 fontSize: '12px',
                 fontWeight: 700,
-                color: isDarkMode ? '#A7F3D0' : '#065F46',
-                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.1)'
+                color: isTealPink ? '#FFFFFF' : (isDarkMode ? '#A7F3D0' : '#065F46'),
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
               }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
-                <i className="ri-restaurant-2-line" style={{ color: isDarkMode ? '#34D399' : '#059669', fontSize: '14px' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isTealPink ? '#FFFFFF' : '#10B981', display: 'inline-block' }} />
+                <i className="ri-restaurant-2-line" style={{ color: isTealPink ? '#FFFFFF' : (isDarkMode ? '#34D399' : '#059669'), fontSize: '14px' }} />
                 <span>Dine-In Service</span>
               </div>
             ) : (
@@ -1108,17 +1150,17 @@ export default function CustomerStorefrontView({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                backgroundColor: isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED',
+                backgroundColor: isTealPink ? 'rgba(255, 255, 255, 0.22)' : (isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED'),
                 padding: '6px 12px',
                 borderRadius: '12px',
-                border: isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74',
+                border: isTealPink ? '1.5px solid rgba(255, 255, 255, 0.35)' : (isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74'),
                 fontSize: '12px',
                 fontWeight: 700,
-                color: isDarkMode ? '#FED7AA' : '#9A3412',
-                boxShadow: '0 2px 6px rgba(234, 88, 12, 0.1)'
+                color: isTealPink ? '#FFFFFF' : (isDarkMode ? '#FED7AA' : '#9A3412'),
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
               }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EA580C', display: 'inline-block' }} />
-                <i className="ri-time-line" style={{ color: isDarkMode ? '#FB923C' : '#EA580C', fontSize: '14px' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isTealPink ? '#FFFFFF' : '#EA580C', display: 'inline-block' }} />
+                <i className="ri-time-line" style={{ color: isTealPink ? '#FFFFFF' : (isDarkMode ? '#FB923C' : '#EA580C'), fontSize: '14px' }} />
                 <span>Pickup:</span>
                 <select
                   value={selectedArrival}
@@ -1127,7 +1169,7 @@ export default function CustomerStorefrontView({
                     border: 'none',
                     outline: 'none',
                     fontWeight: 800,
-                    color: isDarkMode ? '#FED7AA' : '#9A3412',
+                    color: isTealPink ? '#FFFFFF' : (isDarkMode ? '#FED7AA' : '#9A3412'),
                     backgroundColor: 'transparent',
                     cursor: 'pointer',
                     fontSize: '12px'
@@ -1423,9 +1465,9 @@ export default function CustomerStorefrontView({
                 type="button"
                 onClick={() => setIsAuthModalOpen(true)}
                 style={{
-                  backgroundColor: isDarkMode ? DINE_THEME.white : '#FFF',
-                  color: isDarkMode ? DINE_THEME.teal : DINE_THEME.tealDark,
-                  border: `1.5px solid ${DINE_THEME.teal}`,
+                  backgroundColor: isTealPink ? 'rgba(255, 255, 255, 0.22)' : (isDarkMode ? DINE_THEME.white : '#FFF'),
+                  color: isTealPink ? '#FFFFFF' : (isDarkMode ? DINE_THEME.teal : DINE_THEME.tealDark),
+                  border: isTealPink ? '1.5px solid rgba(255, 255, 255, 0.35)' : `1.5px solid ${DINE_THEME.teal}`,
                   padding: '7px 14px',
                   borderRadius: '12px',
                   fontSize: '12px',
@@ -1437,7 +1479,7 @@ export default function CustomerStorefrontView({
                   transition: 'all 0.2s ease'
                 }}
               >
-                <i className="ri-user-3-line" style={{ color: DINE_THEME.teal }} />
+                <i className="ri-user-3-line" style={{ color: isTealPink ? '#FFFFFF' : DINE_THEME.teal }} />
                 <span>Sign In</span>
               </button>
             )}
@@ -1447,18 +1489,19 @@ export default function CustomerStorefrontView({
               type="button"
               onClick={() => setIsCartOpen(true)}
               style={{
-                backgroundColor: DINE_THEME.teal,
+                backgroundColor: isTealPink ? '#FF2A85' : DINE_THEME.teal,
+                background: isTealPink ? 'linear-gradient(135deg, #FF2A85 0%, #E61872 100%)' : DINE_THEME.teal,
                 color: '#FFF',
-                border: 'none',
+                border: isTealPink ? '1px solid rgba(255, 255, 255, 0.35)' : 'none',
                 padding: '8px 18px',
                 borderRadius: '12px',
                 fontSize: '13px',
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: `0 4px 14px ${DINE_THEME.tealGlow}`,
+                boxShadow: isTealPink ? '0 4px 14px rgba(255, 42, 133, 0.45)' : `0 4px 14px ${DINE_THEME.tealGlow}`,
                 transition: 'transform 0.15s ease'
               }}
             >
@@ -1466,12 +1509,12 @@ export default function CustomerStorefrontView({
               <span>Cart</span>
               {cartItemCount > 0 && (
                 <span style={{
-                  backgroundColor: isDarkMode ? '#0B0F19' : '#FFF',
-                  color: isDarkMode ? '#5EEAD4' : DINE_THEME.tealDark,
+                  backgroundColor: isTealPink ? '#FFFFFF' : (isDarkMode ? '#0B0F19' : '#FFF'),
+                  color: isTealPink ? '#FF2A85' : (isDarkMode ? '#5EEAD4' : DINE_THEME.tealDark),
                   borderRadius: '10px',
                   padding: '1px 7px',
                   fontSize: '11px',
-                  fontWeight: 800
+                  fontWeight: 900
                 }}>
                   {cartItemCount} • ₱{cartSubtotal.toFixed(0)}
                 </span>
@@ -1488,12 +1531,14 @@ export default function CustomerStorefrontView({
           ? DINE_THEME.white
           : (restaurant?.banner_url
               ? `linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.75)), url(${restaurant.banner_url}) center/cover no-repeat`
-              : `linear-gradient(135deg, ${DINE_THEME.pink} 0%, ${DINE_THEME.white} 100%)`),
-        borderBottom: `1px solid ${DINE_THEME.border}`,
+              : (isTealPink
+                  ? 'linear-gradient(130deg, #00C4CC 0%, #009DA3 22%, #6E1838 72%, #4A0E23 100%)'
+                  : `linear-gradient(135deg, ${DINE_THEME.teal} 0%, ${DINE_THEME.white} 100%)`)),
+        borderBottom: isTealPink ? '1px solid rgba(255, 255, 255, 0.15)' : `1px solid ${DINE_THEME.border}`,
         padding: themeConfig.hero_style === 'minimal'
           ? '24px 20px 20px'
-          : (themeConfig.hero_style === 'glass' ? '36px 20px' : (restaurant?.banner_url ? '44px 20px 36px' : '28px 20px 24px')),
-        color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FFFFFF' : DINE_THEME.dark,
+          : (themeConfig.hero_style === 'glass' ? '36px 20px' : (restaurant?.banner_url ? '44px 20px 36px' : (isTealPink ? '36px 20px 32px' : '28px 20px 24px'))),
+        color: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '#FFFFFF' : DINE_THEME.dark,
         transition: 'all 0.3s ease'
       }}>
         <div style={{
@@ -1509,65 +1554,95 @@ export default function CustomerStorefrontView({
           } : {})
         }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
-            <div>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? 'rgba(255,255,255,0.2)' : DINE_THEME.white,
-                backdropFilter: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? 'blur(8px)' : 'none',
-                padding: '4px 12px',
-                borderRadius: DINE_THEME.pillRadius,
-                border: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${DINE_THEME.border}`,
-                fontSize: '11px',
-                fontWeight: 800,
-                color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FFF' : DINE_THEME.teal,
-                marginBottom: '8px'
-              }}>
-                <i className="ri-store-2-line" style={{ color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FCD34D' : DINE_THEME.teal }} />
-                <span>{restaurant?.cuisine_type ? `${restaurant.cuisine_type.toUpperCase()} • DIGITAL STOREFRONT` : 'AUTHENTIC RESTAURANT STOREFRONT'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '18px', maxWidth: '640px' }}>
+              {isTealPink && (
+                <div style={{
+                  width: '68px',
+                  height: '68px',
+                  borderRadius: '50%',
+                  border: '3.5px solid #FFFFFF',
+                  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.28)',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  backgroundColor: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <img
+                    src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
+                    alt={restaurant?.name || 'Restaurant Logo'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
+                  />
+                </div>
+              )}
+              <div>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? 'rgba(255,255,255,0.2)' : DINE_THEME.white,
+                  backdropFilter: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? 'blur(8px)' : 'none',
+                  padding: '4px 12px',
+                  borderRadius: DINE_THEME.pillRadius,
+                  border: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${DINE_THEME.border}`,
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '#FFF' : DINE_THEME.teal,
+                  marginBottom: '8px'
+                }}>
+                  <i className="ri-store-2-line" style={{ color: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '#FCD34D' : DINE_THEME.teal }} />
+                  <span>{restaurant?.cuisine_type ? `${restaurant.cuisine_type.toUpperCase()} • DIGITAL STOREFRONT` : 'AUTHENTIC RESTAURANT STOREFRONT'}</span>
+                </div>
+                <h2 style={{
+                  margin: '0 0 6px 0',
+                  fontSize: '28px',
+                  fontWeight: 800,
+                  color: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '#FFFFFF' : DINE_THEME.dark,
+                  letterSpacing: '-0.5px',
+                  textShadow: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '0 2px 10px rgba(0,0,0,0.45)' : 'none'
+                }}>
+                  {restaurant?.name ? `Welcome to ${restaurant.name}` : 'Crave It? Tap, Customize & Dine.'}
+                </h2>
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? 'rgba(255,255,255,0.92)' : DINE_THEME.slate,
+                  maxWidth: '580px',
+                  lineHeight: 1.5,
+                  textShadow: (isTealPink || (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url)) ? '0 1px 4px rgba(0,0,0,0.3)' : 'none'
+                }}>
+                  {restaurant?.cuisine_type
+                    ? `Freshly prepared ${restaurant.cuisine_type.toLowerCase()} specialties made to order. Direct kitchen dispatch.`
+                    : 'Handcrafted meals, drinks & specialty items brewed fresh to order.'}
+                </p>
               </div>
-              <h2 style={{
-                margin: '0 0 6px 0',
-                fontSize: '28px',
-                fontWeight: 800,
-                color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '#FFFFFF' : DINE_THEME.dark,
-                letterSpacing: '-0.5px',
-                textShadow: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '0 2px 10px rgba(0,0,0,0.5)' : 'none'
-              }}>
-                {restaurant?.name ? `Welcome to ${restaurant.name}` : 'Crave It? Tap, Customize & Dine.'}
-              </h2>
-              <p style={{
-                margin: 0,
-                fontSize: '14px',
-                color: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? 'rgba(255,255,255,0.9)' : DINE_THEME.slate,
-                maxWidth: '580px',
-                lineHeight: 1.5,
-                textShadow: (themeConfig.hero_style !== 'minimal' && restaurant?.banner_url) ? '0 1px 4px rgba(0,0,0,0.4)' : 'none'
-              }}>
-                {restaurant?.cuisine_type
-                  ? `Freshly prepared ${restaurant.cuisine_type.toLowerCase()} specialties made to order. Direct kitchen dispatch.`
-                  : 'Handcrafted meals, drinks & specialty items brewed fresh to order.'}
-              </p>
             </div>
 
             {/* Mode-Tailored Arrival & Service Indicator */}
             <div style={{
-              backgroundColor: diningMode === 'dine_in'
-                ? (isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4')
-                : (isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED'),
+              backgroundColor: isTealPink
+                ? '#FFFFFF'
+                : (diningMode === 'dine_in'
+                    ? (isDarkMode ? 'rgba(6, 78, 59, 0.35)' : '#F0FDF4')
+                    : (isDarkMode ? 'rgba(124, 45, 18, 0.35)' : '#FFF7ED')),
               padding: '14px 18px',
               borderRadius: '16px',
-              border: `1.5px solid ${diningMode === 'dine_in'
-                ? (isDarkMode ? 'rgba(16, 185, 129, 0.4)' : '#86EFAC')
-                : (isDarkMode ? 'rgba(249, 115, 22, 0.4)' : '#FDBA74')}`,
-              boxShadow: diningMode === 'dine_in' ? '0 4px 16px rgba(16, 185, 129, 0.1)' : '0 4px 16px rgba(234, 88, 12, 0.1)',
-              color: DINE_THEME.dark,
+              border: isTealPink
+                ? '1.5px solid rgba(255, 255, 255, 0.8)'
+                : `1.5px solid ${diningMode === 'dine_in'
+                    ? (isDarkMode ? 'rgba(16, 185, 129, 0.4)' : '#86EFAC')
+                    : (isDarkMode ? 'rgba(249, 115, 22, 0.4)' : '#FDBA74')}`,
+              boxShadow: isTealPink
+                ? '0 10px 28px rgba(0, 0, 0, 0.22)'
+                : (diningMode === 'dine_in' ? '0 4px 16px rgba(16, 185, 129, 0.1)' : '0 4px 16px rgba(234, 88, 12, 0.1)'),
+              color: '#1E293B',
               minWidth: '280px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: diningMode === 'dine_in' ? (isDarkMode ? '#6EE7B7' : '#065F46') : (isDarkMode ? '#FDBA74' : '#9A3412') }}>
-                  <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-time-fill'} style={{ color: diningMode === 'dine_in' ? (isDarkMode ? '#34D399' : '#059669') : (isDarkMode ? '#FB923C' : '#EA580C'), fontSize: '15px' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: isTealPink ? '#0E7490' : (diningMode === 'dine_in' ? (isDarkMode ? '#6EE7B7' : '#065F46') : (isDarkMode ? '#FDBA74' : '#9A3412')) }}>
+                  <i className={diningMode === 'dine_in' ? 'ri-restaurant-2-fill' : 'ri-time-fill'} style={{ color: isTealPink ? '#00C4CC' : (diningMode === 'dine_in' ? (isDarkMode ? '#34D399' : '#059669') : (isDarkMode ? '#FB923C' : '#EA580C')), fontSize: '15px' }} />
                   <span>{diningMode === 'dine_in' ? 'Dine-In Arrival & Seating:' : 'Takeout Pickup Window:'}</span>
                 </div>
                 <span style={{
@@ -1575,12 +1650,16 @@ export default function CustomerStorefrontView({
                   fontWeight: 800,
                   padding: '2px 7px',
                   borderRadius: '10px',
-                  backgroundColor: diningMode === 'dine_in'
-                    ? (isDarkMode ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7')
-                    : (isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5'),
-                  color: diningMode === 'dine_in'
-                    ? (isDarkMode ? '#A7F3D0' : '#15803D')
-                    : (isDarkMode ? '#FED7AA' : '#C2410C')
+                  backgroundColor: isTealPink
+                    ? 'rgba(0, 196, 204, 0.15)'
+                    : (diningMode === 'dine_in'
+                        ? (isDarkMode ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7')
+                        : (isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5')),
+                  color: isTealPink
+                    ? '#008B94'
+                    : (diningMode === 'dine_in'
+                        ? (isDarkMode ? '#A7F3D0' : '#15803D')
+                        : (isDarkMode ? '#FED7AA' : '#C2410C'))
                 }}>
                   {diningMode === 'dine_in' ? 'Dine-In Service' : 'Counter Pickup'}
                 </span>
@@ -1599,15 +1678,15 @@ export default function CustomerStorefrontView({
                         fontSize: '12px',
                         fontWeight: 700,
                         border: isSelected
-                          ? `1.5px solid ${diningMode === 'dine_in' ? '#059669' : '#EA580C'}`
+                          ? (isTealPink ? '1.5px solid #FF2A85' : `1.5px solid ${diningMode === 'dine_in' ? '#059669' : '#EA580C'}`)
                           : (isDarkMode ? '1px solid #2A364F' : '1px solid #CBD5E1'),
                         backgroundColor: isSelected
-                          ? (diningMode === 'dine_in' ? '#059669' : '#EA580C')
+                          ? (isTealPink ? '#FF2A85' : (diningMode === 'dine_in' ? '#059669' : '#EA580C'))
                           : (isDarkMode ? '#1F293D' : '#FFF'),
                         color: isSelected ? '#FFF' : (isDarkMode ? '#CBD5E1' : '#475569'),
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
-                        boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.1)' : 'none'
+                        boxShadow: isSelected ? (isTealPink ? '0 2px 8px rgba(255, 42, 133, 0.35)' : '0 2px 6px rgba(0,0,0,0.1)') : 'none'
                       }}
                     >
                       {t}
@@ -1628,13 +1707,15 @@ export default function CustomerStorefrontView({
       }}>
         {diningMode === 'dine_in' ? (
           <div style={{
-            background: isDarkMode
-              ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, #161F30 60%, rgba(6, 78, 59, 0.3) 100%)'
-              : 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 55%, #ECFDF5 100%)',
-            border: isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC',
+            background: isTealPink
+              ? 'linear-gradient(135deg, #FFFFFF 0%, #F0FDFA 100%)'
+              : (isDarkMode
+                  ? 'linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, #161F30 60%, rgba(6, 78, 59, 0.3) 100%)'
+                  : 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 55%, #ECFDF5 100%)'),
+            border: isTealPink ? '1.5px solid rgba(0, 196, 204, 0.28)' : (isDarkMode ? '1.5px solid rgba(16, 185, 129, 0.4)' : '1.5px solid #86EFAC'),
             borderRadius: '18px',
             padding: '16px 22px',
-            boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 18px rgba(16, 185, 129, 0.08)',
+            boxShadow: isTealPink ? '0 4px 18px rgba(0, 196, 204, 0.08)' : (isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 18px rgba(16, 185, 129, 0.08)'),
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -1648,24 +1729,24 @@ export default function CustomerStorefrontView({
                 width: '46px',
                 height: '46px',
                 borderRadius: '14px',
-                background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                background: isTealPink ? 'linear-gradient(135deg, #00C4CC 0%, #00ACB5 100%)' : 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
                 color: '#FFF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '22px',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                boxShadow: isTealPink ? '0 4px 12px rgba(0, 196, 204, 0.3)' : '0 4px 12px rgba(16, 185, 129, 0.3)',
                 flexShrink: 0
               }}>
                 <i className="ri-restaurant-2-fill" />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: isDarkMode ? '#6EE7B7' : '#065F46' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: isTealPink ? '#0E7490' : (isDarkMode ? '#6EE7B7' : '#065F46') }}>
                     Dine-In Experience
                   </span>
                 </div>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: isDarkMode ? '#94A3B8' : '#047857' }}>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: isTealPink ? '#64748B' : (isDarkMode ? '#94A3B8' : '#047857') }}>
                   Freshly cooked and served directly to you upon arrival.
                 </p>
               </div>
@@ -1673,13 +1754,15 @@ export default function CustomerStorefrontView({
           </div>
         ) : (
           <div style={{
-            background: isDarkMode
-              ? 'linear-gradient(135deg, rgba(124, 45, 18, 0.45) 0%, #161F30 60%, rgba(124, 45, 18, 0.3) 100%)'
-              : 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 55%, #FFEDD5 100%)',
-            border: isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74',
+            background: isTealPink
+              ? 'linear-gradient(135deg, #FFFFFF 0%, #FFF5F8 100%)'
+              : (isDarkMode
+                  ? 'linear-gradient(135deg, rgba(124, 45, 18, 0.45) 0%, #161F30 60%, rgba(124, 45, 18, 0.3) 100%)'
+                  : 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 55%, #FFEDD5 100%)'),
+            border: isTealPink ? '1.5px solid rgba(255, 42, 133, 0.28)' : (isDarkMode ? '1.5px solid rgba(249, 115, 22, 0.4)' : '1.5px solid #FDBA74'),
             borderRadius: '18px',
             padding: '16px 22px',
-            boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 18px rgba(234, 88, 12, 0.08)',
+            boxShadow: isTealPink ? '0 4px 18px rgba(255, 42, 133, 0.08)' : (isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 18px rgba(234, 88, 12, 0.08)'),
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
@@ -1693,20 +1776,20 @@ export default function CustomerStorefrontView({
                 width: '46px',
                 height: '46px',
                 borderRadius: '14px',
-                background: 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)',
+                background: isTealPink ? 'linear-gradient(135deg, #FF2A85 0%, #E61872 100%)' : 'linear-gradient(135deg, #EA580C 0%, #F97316 100%)',
                 color: '#FFF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '22px',
-                boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)',
+                boxShadow: isTealPink ? '0 4px 12px rgba(255, 42, 133, 0.3)' : '0 4px 12px rgba(234, 88, 12, 0.3)',
                 flexShrink: 0
               }}>
                 <i className="ri-takeaway-fill" />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: isDarkMode ? '#FDBA74' : '#9A3412' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: isTealPink ? '#C40A5B' : (isDarkMode ? '#FDBA74' : '#9A3412') }}>
                     Takeout & To-Go Express
                   </span>
                   <span style={{
@@ -1714,9 +1797,9 @@ export default function CustomerStorefrontView({
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '12px',
-                    backgroundColor: isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5',
-                    color: isDarkMode ? '#FED7AA' : '#C2410C',
-                    border: isDarkMode ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid #FED7AA'
+                    backgroundColor: isTealPink ? 'rgba(255, 42, 133, 0.12)' : (isDarkMode ? 'rgba(234, 88, 12, 0.3)' : '#FFEDD5'),
+                    color: isTealPink ? '#FF2A85' : (isDarkMode ? '#FED7AA' : '#C2410C'),
+                    border: isTealPink ? '1px solid rgba(255, 42, 133, 0.25)' : (isDarkMode ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid #FED7AA')
                   }}>
                     Ready in: {selectedArrival}
                   </span>
@@ -1725,13 +1808,13 @@ export default function CustomerStorefrontView({
                     fontWeight: 700,
                     padding: '2px 6px',
                     borderRadius: '10px',
-                    backgroundColor: isDarkMode ? 'rgba(180, 83, 9, 0.3)' : '#FEF3C7',
-                    color: isDarkMode ? '#FCD34D' : '#92400E'
+                    backgroundColor: isTealPink ? 'rgba(0, 196, 204, 0.12)' : (isDarkMode ? 'rgba(180, 83, 9, 0.3)' : '#FEF3C7'),
+                    color: isTealPink ? '#0E7490' : (isDarkMode ? '#FCD34D' : '#92400E')
                   }}>
                     Front Counter #1
                   </span>
                 </div>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: isDarkMode ? '#94A3B8' : '#C2410C' }}>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: isTealPink ? '#64748B' : (isDarkMode ? '#94A3B8' : '#C2410C') }}>
                   Fast pickup at counter. Sealed in tamper-evident thermal boxes with eco-friendly utensils.
                 </p>
               </div>
@@ -1739,7 +1822,7 @@ export default function CustomerStorefrontView({
 
             {/* Quick Pickup Window Chips */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: isDarkMode ? '#FDBA74' : '#9A3412', marginRight: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: isTealPink ? '#C40A5B' : (isDarkMode ? '#FDBA74' : '#9A3412'), marginRight: '4px' }}>
                 Pickup Timing:
               </span>
               {ARRIVAL_TIMES.map(t => (
@@ -1754,16 +1837,16 @@ export default function CustomerStorefrontView({
                     fontWeight: 700,
                     cursor: 'pointer',
                     border: selectedArrival === t
-                      ? '2px solid #EA580C'
+                      ? (isTealPink ? '2px solid #FF2A85' : '2px solid #EA580C')
                       : (isDarkMode ? '1px solid #2A364F' : '1px solid #CBD5E1'),
                     backgroundColor: selectedArrival === t
-                      ? '#EA580C'
+                      ? (isTealPink ? '#FF2A85' : '#EA580C')
                       : (isDarkMode ? '#1F293D' : '#FFF'),
                     color: selectedArrival === t
                       ? '#FFF'
                       : (isDarkMode ? '#E2E8F0' : '#334155'),
                     transition: 'all 0.15s ease',
-                    boxShadow: selectedArrival === t ? '0 2px 6px rgba(234, 88, 12, 0.25)' : 'none'
+                    boxShadow: selectedArrival === t ? (isTealPink ? '0 2px 8px rgba(255, 42, 133, 0.35)' : '0 2px 6px rgba(234, 88, 12, 0.25)') : 'none'
                   }}
                 >
                   {t}
@@ -1970,10 +2053,16 @@ export default function CustomerStorefrontView({
                   fontWeight: 700,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
-                  border: isCatActive ? `1px solid ${DINE_THEME.teal}` : `1px solid ${DINE_THEME.border}`,
-                  backgroundColor: isCatActive ? DINE_THEME.teal : DINE_THEME.white,
+                  border: isCatActive
+                    ? (isTealPink ? '1.5px solid #FF2A85' : `1px solid ${DINE_THEME.teal}`)
+                    : (isTealPink ? '1px solid rgba(255, 42, 133, 0.22)' : `1px solid ${DINE_THEME.border}`),
+                  backgroundColor: isCatActive
+                    ? (isTealPink ? '#FF2A85' : DINE_THEME.teal)
+                    : DINE_THEME.white,
                   color: isCatActive ? '#FFF' : DINE_THEME.dark,
-                  boxShadow: isCatActive ? `0 4px 12px ${DINE_THEME.tealGlow}` : 'none',
+                  boxShadow: isCatActive
+                    ? (isTealPink ? '0 4px 14px rgba(255, 42, 133, 0.4)' : `0 4px 12px ${DINE_THEME.tealGlow}`)
+                    : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -2061,12 +2150,13 @@ export default function CustomerStorefrontView({
                     </h3>
                     {item.badge && (
                       <span style={{
-                        backgroundColor: item.badge === 'Bestseller' ? DINE_THEME.teal : DINE_THEME.gold,
+                        backgroundColor: item.badge === 'Bestseller' ? (isTealPink ? '#FF2A85' : DINE_THEME.teal) : DINE_THEME.gold,
                         color: '#FFF',
                         fontSize: '10px',
                         fontWeight: 800,
-                        padding: '2px 6px',
-                        borderRadius: DINE_THEME.pillRadius
+                        padding: '2px 7px',
+                        borderRadius: DINE_THEME.pillRadius,
+                        boxShadow: item.badge === 'Bestseller' && isTealPink ? '0 2px 6px rgba(255, 42, 133, 0.35)' : 'none'
                       }}>
                         {item.badge}
                       </span>
@@ -2164,13 +2254,13 @@ export default function CustomerStorefrontView({
                       position: 'absolute',
                       top: '10px',
                       left: '10px',
-                      backgroundColor: item.badge === 'Bestseller' ? DINE_THEME.teal : DINE_THEME.gold,
+                      backgroundColor: item.badge === 'Bestseller' ? (isTealPink ? '#FF2A85' : DINE_THEME.teal) : DINE_THEME.gold,
                       color: '#FFF',
                       fontSize: '11px',
                       fontWeight: 800,
                       padding: '3px 8px',
                       borderRadius: DINE_THEME.pillRadius,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                      boxShadow: item.badge === 'Bestseller' && isTealPink ? '0 3px 10px rgba(255, 42, 133, 0.4)' : '0 2px 8px rgba(0,0,0,0.15)'
                     }}>
                       {item.badge}
                     </span>
@@ -4278,18 +4368,19 @@ export default function CustomerStorefrontView({
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: DINE_THEME.white,
-          borderTop: `1px solid ${DINE_THEME.border}`,
+          backgroundColor: isTealPink ? '#00C4CC' : DINE_THEME.white,
+          background: isTealPink ? 'linear-gradient(135deg, #00C4CC 0%, #FF2A85 100%)' : DINE_THEME.white,
+          borderTop: isTealPink ? '1px solid rgba(255, 255, 255, 0.25)' : `1px solid ${DINE_THEME.border}`,
           padding: '12px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           zIndex: 35,
-          boxShadow: isDarkMode ? '0 -4px 20px rgba(0,0,0,0.5)' : '0 -4px 16px rgba(0,0,0,0.06)'
+          boxShadow: isTealPink ? '0 -4px 20px rgba(0, 196, 204, 0.35)' : (isDarkMode ? '0 -4px 20px rgba(0,0,0,0.5)' : '0 -4px 16px rgba(0,0,0,0.06)')
         }}>
           <div>
-            <span style={{ fontSize: '11px', color: DINE_THEME.slate, display: 'block' }}>Basket Total</span>
-            <span style={{ fontSize: '18px', fontWeight: 800, color: DINE_THEME.tealDark }}>
+            <span style={{ fontSize: '11px', color: isTealPink ? 'rgba(255, 255, 255, 0.88)' : DINE_THEME.slate, display: 'block' }}>Basket Total</span>
+            <span style={{ fontSize: '18px', fontWeight: 900, color: isTealPink ? '#FFFFFF' : DINE_THEME.tealDark }}>
               ₱{cartSubtotal.toFixed(0)}
             </span>
           </div>
@@ -4298,17 +4389,18 @@ export default function CustomerStorefrontView({
             type="button"
             onClick={() => setIsCartOpen(true)}
             style={{
-              backgroundColor: DINE_THEME.teal,
-              color: '#FFF',
+              backgroundColor: isTealPink ? '#FFFFFF' : DINE_THEME.teal,
+              color: isTealPink ? '#FF2A85' : '#FFF',
               border: 'none',
               padding: '10px 22px',
               borderRadius: '12px',
               fontSize: '14px',
-              fontWeight: 800,
+              fontWeight: 900,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              boxShadow: isTealPink ? '0 4px 14px rgba(0, 0, 0, 0.18)' : 'none'
             }}
           >
             <span>View Cart ({cartItemCount})</span>

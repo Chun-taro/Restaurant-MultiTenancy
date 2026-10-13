@@ -20,6 +20,7 @@ import SettingsView from './views/SettingsView';
 import TenantPortalView from './views/TenantPortalView';
 import CustomerStorefrontView from './views/CustomerStorefrontView';
 import ConfirmModal from './components/ConfirmModal';
+import { applyTheme } from './utils/theme';
 
 import { api } from './services/api';
 
@@ -317,11 +318,21 @@ export default function App() {
     loadRouteData();
   }, [currentRoute, appMode]);
 
-  // Load initial plans, tenants, and users
+  // Load initial plans, tenants, users, and settings
   useEffect(() => {
     api.plans.list().then(r => setPlans(r.data)).catch(() => {});
     api.tenants.list().then(r => setTenants(r.data)).catch(() => {});
     api.users.list().then(r => setUsers(r.data)).catch(() => {});
+    api.settings.get().then(r => {
+      setSettings(r.data);
+      if (r.data?.superadmin_theme?.value) {
+        applyTheme(
+          r.data.superadmin_theme.value,
+          r.data.theme_primary_color?.value || '#00C4CC',
+          r.data.theme_accent_color?.value || '#FF2A85'
+        );
+      }
+    }).catch(() => {});
   }, []);
 
   // Handlers
@@ -484,11 +495,30 @@ export default function App() {
       } else {
         await api.users.create({ ...formData, admin_name: adminUser?.name });
         showToast(`Super Admin '${formData.name}' created successfully!`);
+
+        // If created while unauthenticated (from main landing page or login), auto-sign in
+        if (!adminUser && formData.email && formData.password) {
+          try {
+            const loginRes = await api.auth.login({ email: formData.email, password: formData.password });
+            if (loginRes.data?.user && loginRes.data?.token) {
+              localStorage.setItem('restosaas_admin_token', loginRes.data.token);
+              localStorage.setItem('restosaas_admin_user', JSON.stringify(loginRes.data.user));
+              setAdminUser(loginRes.data.user);
+              navigateTo('/admin');
+              showToast(`Logged in as Super Admin: ${loginRes.data.user.name}`);
+            }
+          } catch (loginErr) {
+            navigateTo('/admin');
+          }
+        }
       }
-      const res = await api.users.list();
-      setUsers(res.data);
+      try {
+        const res = await api.users.list();
+        setUsers(res.data);
+      } catch (listErr) {}
     } catch (err) {
       showToast(err.message, 'error');
+      throw err;
     }
   };
 
@@ -523,10 +553,32 @@ export default function App() {
     }
   };
 
+  const handleThemeChange = async (themeId, customPrimary, customAccent) => {
+    applyTheme(themeId, customPrimary, customAccent);
+    try {
+      await api.settings.update({
+        superadmin_theme: themeId,
+        theme_primary_color: customPrimary,
+        theme_accent_color: customAccent
+      });
+      const tName = themeId === 'teal-pink' ? 'Teal & Pink Mix' : (themeId.charAt(0).toUpperCase() + themeId.slice(1));
+      showToast(`Color theme set to ${tName}!`);
+    } catch (err) {
+      // Local theme already saved in localStorage and applied
+    }
+  };
+
   const handleSaveSettings = async (settingsPayload) => {
     try {
       await api.settings.update(settingsPayload);
-      showToast('Settings saved successfully!');
+      if (settingsPayload.superadmin_theme) {
+        applyTheme(
+          settingsPayload.superadmin_theme,
+          settingsPayload.theme_primary_color,
+          settingsPayload.theme_accent_color
+        );
+      }
+      showToast('Settings & color theme saved successfully!');
       const res = await api.settings.get();
       setSettings(res.data);
     } catch (err) {
@@ -640,6 +692,8 @@ export default function App() {
           adminUser={adminUser}
           onOpenProfile={() => setIsProfileModalOpen(true)}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+          onNavigate={handleNavigateAdmin}
+          onThemeChange={handleThemeChange}
         />
 
         <main className="content-area">
@@ -705,7 +759,10 @@ export default function App() {
               onSave={handleSaveSettings}
               adminUser={adminUser}
               onOpenProfile={() => setIsProfileModalOpen(true)}
-              onOpenCreateSuperadmin={() => { setEditUser(null); setIsUserModalOpen(true); }}
+              onNavigateToUsers={() => {
+                setCurrentRoute('users');
+                navigateTo('/admin/users');
+              }}
             />
           )}
         </main>

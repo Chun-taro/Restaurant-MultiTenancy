@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DineBrandLogo from './DineBrandLogo';
 
 export default function Sidebar({
   currentRoute,
@@ -57,15 +58,10 @@ export default function Sidebar({
       />
 
       <aside className={`sidebar ${isMobileOpen ? 'is-mobile-open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="brand-icon">
-            <i className="ri-store-3-fill"></i>
-          </div>
-          <div className="brand-info">
-            <div className="brand-name">
-              Dine <span className="brand-badge">CORE</span>
-            </div>
-            <div className="brand-subtitle">Restaurant SaaS Console</div>
+        <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <DineBrandLogo color="#FF2A85" textColor="#FFFFFF" height={28} />
+            <span className="brand-badge" style={{ background: 'rgba(255,42,133,0.15)', color: '#FF2A85', border: '1px solid rgba(255,42,133,0.3)', fontSize: '9px', fontWeight: 800 }}>CORE</span>
           </div>
 
           <button 

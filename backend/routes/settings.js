@@ -29,7 +29,7 @@ router.get('/', (req, res) => {
 });
 
 // PUT /api/settings
-router.put('/', (req, res) => {
+router.put('/', async (req, res) => {
   try {
     const { settings, admin_name = 'Alexandre Vance' } = req.body;
     if (!settings || typeof settings !== 'object') {
@@ -37,12 +37,25 @@ router.put('/', (req, res) => {
     }
 
     const now = new Date().toISOString();
-    const updateStmt = db.prepare(`
-      UPDATE system_settings SET value = ?, updated_at = ? WHERE key = ?
+    const upsertStmt = db.prepare(`
+      INSERT INTO system_settings (key, value, category, description, updated_at)
+      VALUES (?, ?, 'branding', '', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
     `);
 
     for (const [key, value] of Object.entries(settings)) {
-      updateStmt.run(String(value), now, key);
+      upsertStmt.run(key, String(value), now);
+
+      try {
+        const SystemSetting = require('../models/SystemSetting');
+        await SystemSetting.findOneAndUpdate(
+          { key },
+          { value: String(value), category: 'branding', updatedAt: new Date() },
+          { upsert: true, new: true }
+        );
+      } catch (mongoErr) {
+        // Mongo sync is optional if offline
+      }
     }
 
     logAudit(

@@ -35,17 +35,43 @@ export default function UsersView({
           </p>
         </div>
 
-        <button className="btn btn-primary" onClick={onOpenCreateUser}>
-          <i className="ri-user-add-line"></i> Add Super Admin
+        <button
+          id="btn-add-superadmin"
+          className="btn btn-primary"
+          onClick={onOpenCreateUser}
+          style={{
+            position: 'relative',
+            zIndex: 20,
+            backgroundColor: '#00C4CC',
+            backgroundImage: 'linear-gradient(135deg, #00C4CC 0%, #FF2A85 100%)',
+            background: 'linear-gradient(135deg, #00C4CC 0%, #FF2A85 100%)',
+            color: '#FFFFFF',
+            fontWeight: 700,
+            fontSize: '13.5px',
+            padding: '9px 18px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.35)',
+            boxShadow: '0 4px 16px rgba(0, 196, 204, 0.4)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            opacity: 1,
+            visibility: 'visible',
+            pointerEvents: 'auto',
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.35)'
+          }}
+        >
+          <i className="ri-user-add-line" style={{ fontSize: '15px' }}></i> Add Super Admin
         </button>
       </div>
 
       {/* KPI stats */}
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
-        <div className="kpi-card" style={{ '--card-accent': '#E05A2B' }}>
+        <div className="kpi-card" style={{ '--card-accent': 'var(--primary)' }}>
           <div className="kpi-top">
             <span className="kpi-label">Super Administrators</span>
-            <div className="kpi-icon" style={{ background: 'rgba(224,90,43,0.12)', color: 'var(--primary-light)', borderColor: 'rgba(224,90,43,0.25)' }}><i className="ri-shield-user-fill"></i></div>
+            <div className="kpi-icon" style={{ background: 'var(--primary-glow)', color: 'var(--primary-light)', borderColor: 'var(--primary-border)' }}><i className="ri-shield-user-fill"></i></div>
           </div>
           <div className="kpi-value">{superadmins.length}</div>
           <div className="trend-subtext">Root platform access & credentials</div>

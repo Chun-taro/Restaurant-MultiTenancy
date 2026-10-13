@@ -11,8 +11,11 @@ export default function UserModal({ isOpen, onClose, onSubmit, editUser = null }
     avatar: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    setError('');
     if (editUser) {
       setFormData({
         name: editUser.name || '',
@@ -40,14 +43,22 @@ export default function UserModal({ isOpen, onClose, onSubmit, editUser = null }
 
   const isEdit = !!editUser;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = { ...formData };
-    if (isEdit && !payload.password) {
-      delete payload.password; // Do not overwrite with empty
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const payload = { ...formData };
+      if (isEdit && !payload.password) {
+        delete payload.password; // Do not overwrite with empty
+      }
+      await onSubmit(payload, editUser ? editUser.id : null);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to create user account');
+    } finally {
+      setIsSubmitting(false);
     }
-    onSubmit(payload, editUser ? editUser.id : null);
-    onClose();
   };
 
   return (
@@ -74,6 +85,23 @@ export default function UserModal({ isOpen, onClose, onSubmit, editUser = null }
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {error && (
+              <div style={{
+                background: 'rgba(244, 63, 94, 0.12)',
+                border: '1px solid rgba(244, 63, 94, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                padding: '10px 14px',
+                color: '#FB7185',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <i className="ri-error-warning-fill" style={{ fontSize: '18px', flexShrink: 0 }}></i>
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Full Name */}
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Full Name *</label>
@@ -166,10 +194,21 @@ export default function UserModal({ isOpen, onClose, onSubmit, editUser = null }
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary">
-              <i className={isEdit ? "ri-save-line" : "ri-user-add-line"}></i>
-              <span>{isEdit ? 'Save Changes' : 'Create Super Admin'}</span>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <i className="ri-loader-4-line ri-spin"></i>
+                  <span>{isEdit ? 'Saving...' : 'Creating Super Admin...'}</span>
+                </>
+              ) : (
+                <>
+                  <i className={isEdit ? "ri-save-line" : "ri-user-add-line"}></i>
+                  <span>{isEdit ? 'Save Changes' : 'Create Super Admin'}</span>
+                </>
+              )}
             </button>
           </div>
         </form>

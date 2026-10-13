@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DineBrandLogo from '../components/DineBrandLogo';
 
 export default function LandingPageView({
   onGoToLogin,
@@ -38,7 +39,9 @@ export default function LandingPageView({
       price: billingCycle === 'monthly' ? '₱1,499' : '₱14,990',
       period: billingCycle === 'monthly' ? '/month' : '/year',
       desc: 'Ideal for food trucks, pop-up kiosks, coffee bars, and small bistros starting digital ordering.',
-      features: ['Up to 40 Menu Items', '2 Staff / Cashier Accounts', '300 Monthly Orders', 'QR Table Ordering & Menus', 'Maya & Card Payments', 'Standard Email Support']
+      features: ['Up to 40 Menu Items', '2 Staff / Cashier Accounts', '300 Monthly Orders', 'Digital Web Storefront & Menus', 'Maya & Card Payments', 'Standard Email Support'],
+      cta: 'Get Started',
+      ctaIcon: 'ri-arrow-right-line'
     },
     {
       name: 'Growth Bistro',
@@ -46,21 +49,27 @@ export default function LandingPageView({
       period: billingCycle === 'monthly' ? '/month' : '/year',
       popular: true,
       desc: 'Standard tier for full-service dining, bistros, and expanding culinary brands.',
-      features: ['Up to 150 Menu Items', '6 Staff Accounts', '1,500 Monthly Orders', 'Custom Subdomain & Domain Mapping', 'Real-Time Kitchen Display', 'Advanced Sales Analytics', '2.0% Low Platform Fee']
+      features: ['Up to 150 Menu Items', '6 Staff Accounts', '1,500 Monthly Orders', 'Custom Subdomain & Domain Mapping', 'Real-Time Kitchen Display', 'Advanced Sales Analytics', '2.0% Low Platform Fee'],
+      cta: 'Start 14-Day Free Trial',
+      ctaIcon: 'ri-flashlight-line'
     },
     {
       name: 'Pro Restaurant',
       price: billingCycle === 'monthly' ? '₱5,499' : '₱54,990',
       period: billingCycle === 'monthly' ? '/month' : '/year',
       desc: 'Comprehensive powerhouse for high-volume dining rooms, multi-branch groups & bars.',
-      features: ['Unlimited Menu Items', '15 Staff Accounts', 'Unlimited Monthly Orders', 'Inventory & Modifiers Control', 'Multi-terminal Kitchen Routing', '1.2% Priority Platform Fee', 'Priority 24/7 SLA']
+      features: ['Unlimited Menu Items', '15 Staff Accounts', 'Unlimited Monthly Orders', 'Inventory & Modifiers Control', 'Multi-terminal Kitchen Routing', '1.2% Priority Platform Fee', 'Priority 24/7 SLA'],
+      cta: 'Get Started with Pro',
+      ctaIcon: 'ri-rocket-line'
     },
     {
       name: 'Enterprise Franchise',
       price: billingCycle === 'monthly' ? '₱12,999' : '₱129,990',
       period: billingCycle === 'monthly' ? '/month' : '/year',
       desc: 'Tailored for restaurant chains, hospitality franchises, and multi-concept food halls.',
-      features: ['Unlimited Outlets & Products', '50 Staff Accounts', 'Dedicated Cloud Cluster Partition', 'Custom Domain SSL Auto-Provisioning', '0.5% Enterprise Platform Fee', 'Custom POS Integrations', 'Dedicated Account Manager']
+      features: ['Unlimited Outlets & Products', '50 Staff Accounts', 'Dedicated Cloud Cluster Partition', 'Custom Domain SSL Auto-Provisioning', '0.5% Enterprise Platform Fee', 'Custom POS Integrations', 'Dedicated Account Manager'],
+      cta: 'Contact Enterprise Sales',
+      ctaIcon: 'ri-mail-send-line'
     }
   ];
 
@@ -70,8 +79,8 @@ export default function LandingPageView({
       a: 'Dine uses strict data partitioning. Each tenant has an isolated data context, guaranteeing that order logs, sales metrics, customer lists, and staff credentials cannot be accessed across different restaurant stores.'
     },
     {
-      q: 'How does QR table ordering work for customers?',
-      a: 'Each dining table has a unique QR code (e.g. Table 1, Table 4). Customers scan the QR code using any smartphone camera without downloading any mobile app. The digital menu opens immediately in their browser, allows them to add customizations and modifiers, and lets them pay via Maya, GCash, cards, or at the counter.'
+      q: 'How does digital storefront ordering work for customers?',
+      a: 'Customers access the restaurant’s web address directly on any smartphone or browser without installing any app. The digital storefront displays real-time menus, modifiers, and allows diners to order with direct digital payments via Maya, GCash, cards, or at the counter.'
     },
     {
       q: 'Can restaurant owners link their own custom web domains?',
@@ -99,26 +108,13 @@ export default function LandingPageView({
         top: 0,
         zIndex: 100
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: '20px',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <i className="ri-store-3-fill"></i>
-          </div>
-          <div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Dine <span className="brand-badge" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--primary-light)', border: '1px solid rgba(59,130,246,0.25)', fontSize: '10px' }}>ENTERPRISE</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <DineBrandLogo color="#FF2A85" textColor="#FFFFFF" height={38} />
+          <div style={{ borderLeft: '1.5px solid rgba(255, 255, 255, 0.2)', paddingLeft: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="brand-badge" style={{ background: 'rgba(255,42,133,0.15)', color: '#FF2A85', border: '1px solid rgba(255,42,133,0.3)', fontSize: '10px', fontWeight: 800 }}>ENTERPRISE</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Multi-Tenant Restaurant Platform</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Multi-Tenant Restaurant Platform</div>
           </div>
         </div>
 
@@ -131,10 +127,10 @@ export default function LandingPageView({
         </div>
 
         {/* Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div className="system-status-pill" style={{ padding: '5px 12px', fontSize: '12px' }}>
             <span className="pulse-dot"></span>
-            <span>Cloud Network Operational</span>
+            <span>Cloud Operational</span>
           </div>
 
           <button
@@ -197,7 +193,7 @@ export default function LandingPageView({
             lineHeight: 1.65
           }}>
             Launch, manage, and monetize hundreds of standalone restaurant brands from a single master dashboard.
-            Every restaurant receives independent branding, contactless QR table ordering, live kitchen portals,
+            Every restaurant receives independent branding, real-time digital storefront ordering, live kitchen portals,
             and automated billing.
           </p>
 
@@ -207,12 +203,12 @@ export default function LandingPageView({
               style={{ padding: '14px 28px', fontSize: '15px', fontWeight: 700 }}
               onClick={isAuthenticated ? onGoToConsole : onGoToLogin}
             >
-              <i className="ri-shield-user-fill"></i> Super Admin Console
+              <i className="ri-shield-user-fill"></i> {isAuthenticated ? 'Super Admin Console' : 'Super Admin Sign In'}
             </button>
             <a
               href="#demos"
               className="btn btn-secondary"
-              style={{ padding: '14px 28px', fontSize: '15px', fontWeight: 600, textDecoration: 'none' }}
+              style={{ padding: '14px 24px', fontSize: '15px', fontWeight: 600, textDecoration: 'none' }}
             >
               <i className="ri-play-circle-line" style={{ color: 'var(--emerald)' }}></i> Explore Live Restaurant Demos
             </a>
@@ -241,7 +237,7 @@ export default function LandingPageView({
 
             <div className="card" style={{ padding: '18px 20px', background: 'rgba(17, 24, 39, 0.7)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Dining Experience</div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>QR Table Ordering</div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>Digital Web Storefront</div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>Zero-app mobile browser flow</div>
             </div>
 
@@ -334,7 +330,7 @@ export default function LandingPageView({
               </h3>
 
               <p style={{ color: 'var(--text-secondary)', fontSize: '14.5px', maxWidth: '620px', margin: '0 auto 28px', lineHeight: 1.65 }}>
-                The platform database is freshly initialized with zero fake tenants. You can create your first restaurant in the Super Admin Console, or click the button below to instantly deploy a live demo restaurant with sample menus and QR tables.
+                The platform database is freshly initialized with zero fake tenants. You can create your first restaurant in the Super Admin Console, or click the button below to instantly deploy a live demo restaurant with sample menus and online ordering.
               </p>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
@@ -447,7 +443,7 @@ export default function LandingPageView({
                       </div>
 
                       <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, marginBottom: '22px' }}>
-                        {activeShowcaseTenant.tagline}. Each restaurant tenant operates under its own isolated partition, menu matrix, table layout, and staff roles.
+                        {activeShowcaseTenant.tagline}. Each restaurant tenant operates under its own isolated partition, menu matrix, catalog categories, and staff roles.
                       </p>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', marginBottom: '28px' }}>
@@ -497,11 +493,11 @@ export default function LandingPageView({
 
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                         <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', background: 'rgba(99,102,241,0.15)', color: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <i className="ri-qr-code-line"></i>
+                          <i className="ri-store-2-line"></i>
                         </div>
                         <div>
-                          <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>QR Table Ordering Engine</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Instant table-assigned orders with zero staff bottlenecks.</div>
+                          <div style={{ color: '#fff', fontSize: '13.5px', fontWeight: 600 }}>Digital Storefront & Ordering Engine</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>Instant web storefront orders with zero staff bottlenecks.</div>
                         </div>
                       </div>
 
@@ -572,17 +568,17 @@ export default function LandingPageView({
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
                 <li><i className="ri-check-line" style={{ color: 'var(--emerald)' }}></i> Dynamic Categories & Modifiers</li>
                 <li><i className="ri-check-line" style={{ color: 'var(--emerald)' }}></i> Real-Time Kitchen Order Screen</li>
-                <li><i className="ri-check-line" style={{ color: 'var(--emerald)' }}></i> Table QR Code Generator & Export</li>
+                <li><i className="ri-check-line" style={{ color: 'var(--emerald)' }}></i> Real-Time Menu & Catalog Management</li>
               </ul>
             </div>
 
             <div className="card" style={{ borderTop: '4px solid var(--amber)', padding: '28px 24px' }}>
               <div style={{ width: '44px', height: '44px', borderRadius: 'var(--radius-md)', background: 'rgba(245,158,11,0.15)', color: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', marginBottom: '18px' }}>
-                <i className="ri-qr-code-line"></i>
+                <i className="ri-store-2-line"></i>
               </div>
-              <h3 style={{ color: '#fff', fontSize: '19px', fontWeight: 700, marginBottom: '10px' }}>Customer QR Storefront</h3>
+              <h3 style={{ color: '#fff', fontSize: '19px', fontWeight: 700, marginBottom: '10px' }}>Customer Digital Storefront</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', lineHeight: 1.6, marginBottom: '18px' }}>
-                Mobile-optimized web storefront customized with the restaurant's brand colors, fast menu filtering, table assignment, and instant digital payments.
+                Mobile-optimized web storefront customized with the restaurant's brand colors, fast menu filtering, dietary tags, and instant digital payments.
               </p>
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '9px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
                 <li><i className="ri-check-line" style={{ color: 'var(--emerald)' }}></i> App-Free Frictionless Mobile Ordering</li>
@@ -599,10 +595,10 @@ export default function LandingPageView({
         <div style={{ maxWidth: '1160px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '44px' }}>
             <h2 style={{ fontSize: '34px', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
-              Simple, Transparent SaaS Pricing
+              Simple, Transparent Restaurant Pricing
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginTop: '8px' }}>
-              Manage subscription tiers, feature gates, and transaction rates directly within the Super Admin console.
+            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginTop: '8px', maxWidth: '640px', margin: '8px auto 0', lineHeight: 1.6 }}>
+              Transparent, scalable plans designed for coffee bars, bistros, and expanding multi-branch dining networks. No hidden setup fees.
             </p>
 
             <div style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-pill)', padding: '4px', marginTop: '24px' }}>
@@ -646,10 +642,11 @@ export default function LandingPageView({
 
                 <button
                   className={`btn ${p.popular ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ width: '100%', marginTop: 'auto', padding: '11px', fontWeight: 700 }}
-                  onClick={onGoToLogin}
+                  style={{ width: '100%', marginTop: 'auto', padding: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  onClick={isAuthenticated ? onGoToConsole : onGoToLogin}
                 >
-                  Manage in Super Admin
+                  <span>{p.cta || 'Get Started'}</span>
+                  <i className={p.ctaIcon || "ri-arrow-right-line"}></i>
                 </button>
               </div>
             ))}
@@ -702,6 +699,53 @@ export default function LandingPageView({
         </div>
       </section>
 
+      {/* Superadmin Governance & Access Banner */}
+      <section style={{ padding: '60px 24px', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.4) 0%, rgba(224, 90, 43, 0.05) 100%)', borderTop: '1px solid var(--border-subtle)' }}>
+        <div style={{
+          maxWidth: '1000px',
+          margin: '0 auto',
+          background: 'radial-gradient(ellipse at 50% 0%, rgba(224, 90, 43, 0.15) 0%, rgba(20, 26, 40, 0.95) 75%)',
+          border: '1px solid rgba(224, 90, 43, 0.3)',
+          borderRadius: 'var(--radius-xl)',
+          padding: '40px 36px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '24px',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.4)'
+        }}>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'var(--primary-light)', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+              <i className="ri-shield-star-fill"></i> Enterprise Restaurant SaaS OS
+            </div>
+            <h3 style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 8px 0' }}>
+              Ready to Scale Your Restaurant Network?
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0, maxWidth: '580px', lineHeight: 1.6 }}>
+              Experience true physical database isolation per restaurant, instant digital web storefronts, and centralized SaaS revenue governance.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              style={{ padding: '12px 24px', fontSize: '14px', fontWeight: 700 }}
+              onClick={isAuthenticated ? onGoToConsole : onGoToLogin}
+            >
+              <i className={isAuthenticated ? "ri-dashboard-line" : "ri-shield-keyhole-line"}></i> {isAuthenticated ? 'Super Admin Console' : 'Sign In to Super Admin'}
+            </button>
+            <a
+              href="#demos"
+              className="btn btn-secondary"
+              style={{ padding: '12px 20px', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}
+            >
+              <i className="ri-play-circle-line"></i> Explore Demos
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* Global Footer */}
       <footer style={{
         marginTop: 'auto',
@@ -720,23 +764,11 @@ export default function LandingPageView({
           flexWrap: 'wrap',
           gap: '20px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: '16px'
-            }}>
-              <i className="ri-store-3-fill"></i>
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, color: '#fff' }}>Dine Platform</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Enterprise Multi-Tenant Restaurant OS</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <DineBrandLogo color="#FF2A85" textColor="#FFFFFF" height={28} />
+            <div style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.2)', paddingLeft: '10px' }}>
+              <div style={{ fontWeight: 700, color: '#fff', fontSize: '13px' }}>Enterprise Platform</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Multi-Tenant Restaurant OS</div>
             </div>
           </div>
 

@@ -8,7 +8,7 @@ export default function ProvisionModal({ isOpen, onClose, onSubmit, plans = [] }
     custom_domain: '',
     cuisine_type: '',
     city: 'Metro Manila',
-    primary_color: '#FF5A1F',
+    primary_color: '#00C4CC',
     owner_name: '',
     owner_email: '',
     owner_password: 'Welcome2026!',
@@ -119,13 +119,52 @@ export default function ProvisionModal({ isOpen, onClose, onSubmit, plans = [] }
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Primary Brand Color</label>
-                <input
-                  type="color"
-                  className="form-control"
-                  style={{ height: '42px', padding: '2px' }}
-                  value={formData.primary_color}
-                  onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="color"
+                    className="form-control"
+                    style={{ width: '42px', height: '38px', padding: '2px', cursor: 'pointer' }}
+                    value={formData.primary_color}
+                    onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
+                  />
+                  <input
+                    type="text"
+                    className="form-control"
+                    style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: '12px' }}
+                    value={formData.primary_color}
+                    onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { name: 'Aqua Teal', hex: '#00C4CC' },
+                    { name: 'Neon Pink', hex: '#FF2A85' },
+                    { name: 'Emerald', hex: '#10B981' },
+                    { name: 'Orange', hex: '#E05A2B' },
+                    { name: 'Violet', hex: '#8B5CF6' }
+                  ].map(c => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, primary_color: c.hex }))}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        border: formData.primary_color === c.hex ? '1px solid #fff' : '1px solid var(--border-subtle)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#fff',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: c.hex }}></span>
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

@@ -119,6 +119,10 @@ router.put('/profile', (req, res) => {
       `Superadmin updated profile details (Name: ${newName}, Email: ${newEmail})`
     );
 
+    try {
+      if (updatedUser) MongoSync.syncUser({ ...updatedUser, password_hash: newPasswordHash });
+    } catch (mErr) {}
+
     res.json({
       success: true,
       message: 'Superadmin profile updated successfully!',
@@ -177,7 +181,7 @@ router.post('/', (req, res) => {
     `).get(newUserId);
 
     try {
-      if (created) MongoSync.syncUser(created);
+      if (created) MongoSync.syncUser({ ...created, password_hash: hashedPassword });
     } catch (uErr) {}
 
     res.status(201).json({
@@ -259,7 +263,7 @@ router.put('/:id', (req, res) => {
     `).get(userId);
 
     try {
-      if (updated) MongoSync.syncUser(updated);
+      if (updated) MongoSync.syncUser({ ...updated, password_hash: newPasswordHash });
     } catch (uErr) {}
 
     res.json({

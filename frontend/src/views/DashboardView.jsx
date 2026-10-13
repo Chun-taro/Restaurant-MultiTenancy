@@ -31,7 +31,7 @@ export default function DashboardView({ stats, onNavigate, onOpenProvision, onIn
       {/* Top KPI Stat Cards */}
       <div className="kpi-grid">
         {/* KPI 1 */}
-        <div className="kpi-card" style={{ '--card-accent': '#E05A2B', '--kpi-icon-bg': 'rgba(224, 90, 43, 0.12)', '--kpi-icon-color': '#F08358' }}>
+        <div className="kpi-card" style={{ '--card-accent': 'var(--primary)', '--kpi-icon-bg': 'var(--primary-glow)', '--kpi-icon-color': 'var(--primary-light)' }}>
           <div className="kpi-top">
             <span className="kpi-label">Monthly Recurring Revenue</span>
             <div className="kpi-icon"><i className="ri-money-dollar-circle-line"></i></div>

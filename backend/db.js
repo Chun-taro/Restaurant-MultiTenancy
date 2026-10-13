@@ -345,6 +345,18 @@ function seedCleanData() {
     insertSetting.run('maintenance_mode', 'false', 'system', 'Maintenance mode', now);
     insertSetting.run('payment_gateway_mode', 'sandbox', 'payments', 'Payment gateway operational mode', now);
     insertSetting.run('webhook_signing_secret', 'whsec_9934f828a1d77a0c8b21e8e4a9918b82', 'security', 'HMAC webhook secret', now);
+    insertSetting.run('superadmin_theme', 'teal-pink', 'branding', 'Superadmin active color theme preset', now);
+    insertSetting.run('theme_primary_color', '#00C4CC', 'branding', 'Custom primary brand color', now);
+    insertSetting.run('theme_accent_color', '#FF2A85', 'branding', 'Custom accent brand color', now);
+  }
+
+  // Automatic upgrade: migrate legacy muted defaults to Dine vibrant brand palette (#00C4CC & #FF2A85)
+  try {
+    db.prepare(`UPDATE system_settings SET value = '#00C4CC' WHERE key = 'theme_primary_color' AND value = '#0D9488'`).run();
+    db.prepare(`UPDATE system_settings SET value = '#FF2A85' WHERE key = 'theme_accent_color' AND value = '#EC4899'`).run();
+    db.prepare(`UPDATE restaurants SET primary_color = '#00C4CC' WHERE primary_color = '#0D9488'`).run();
+  } catch (e) {
+    // Non-blocking if tables are not yet populated
   }
 
   // 4. Initial audit log if audit_logs table is empty

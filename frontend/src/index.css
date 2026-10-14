@@ -103,9 +103,7 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Superadmin Dashboard, Login & Public Landing Page Background Atmosphere */
-#app::before,
-.admin-login-wrapper::before,
+/* Public Landing Page Background Atmosphere (With Restaurant Hero Photo) */
 .landing-page-wrapper::before {
   content: '';
   position: fixed;
@@ -122,6 +120,23 @@ html, body {
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Superadmin Console & Dashboard (Clean Solid Dark Atmosphere without background photo) */
+#app::before,
+.admin-login-wrapper::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: 
+    radial-gradient(ellipse 70% 45% at 50% -15%, rgba(0, 196, 204, 0.05), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 88% 12%, rgba(255, 42, 133, 0.04), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 12% 40%, rgba(110, 24, 56, 0.08), transparent 65%);
   pointer-events: none;
   z-index: 0;
 }

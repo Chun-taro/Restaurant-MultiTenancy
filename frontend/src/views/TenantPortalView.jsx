@@ -469,12 +469,60 @@ export default function TenantPortalView({
   const [addons, setAddons] = useState([]);
   const [isAddonModalOpen, setIsAddonModalOpen] = useState(false);
   const [editingAddon, setEditingAddon] = useState(null);
+  const [addonCategoryFilter, setAddonCategoryFilter] = useState('all');
   const [addonForm, setAddonForm] = useState({
     name: '',
     price: '',
     type: 'food',
+    category_id: '',
     is_available: 1
   });
+
+  // Dynamic order waiting minutes calculator for Tenant Admin
+  const getOrderWaitTime = (createdAt) => {
+    if (!createdAt) return { minutes: 0, text: 'Just placed', badgeColor: '#10B981', bgColor: '#ECFDF5', isUrgent: false };
+    const orderTime = new Date(createdAt).getTime();
+    if (isNaN(orderTime)) return { minutes: 0, text: 'Just placed', badgeColor: '#10B981', bgColor: '#ECFDF5', isUrgent: false };
+
+    const diffMs = Date.now() - orderTime;
+    const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+
+    if (diffMins < 10) {
+      return {
+        minutes: diffMins,
+        text: diffMins === 0 ? '< 1 min wait' : `${diffMins} min${diffMins > 1 ? 's' : ''} wait`,
+        badgeColor: '#059669',
+        bgColor: '#ECFDF5',
+        isUrgent: false
+      };
+    } else if (diffMins < 20) {
+      return {
+        minutes: diffMins,
+        text: `${diffMins} mins wait`,
+        badgeColor: '#D97706',
+        bgColor: '#FEF3C7',
+        isUrgent: false
+      };
+    } else {
+      return {
+        minutes: diffMins,
+        text: `${diffMins} mins (Long Wait)`,
+        badgeColor: '#DC2626',
+        bgColor: '#FEE2E2',
+        isUrgent: true
+      };
+    }
+  };
+
+  // Helper to extract customer pickup window or target prep time
+  const getOrderTargetPickup = (order) => {
+    if (!order) return null;
+    const notes = order.notes || '';
+    const match = notes.match(/Pickup:\s*([^•\]\n]+)/i);
+    if (match) return match[1].trim();
+    if (order.arrivalTime) return order.arrivalTime;
+    return null;
+  };
 
   // Instruction badges parser
   const renderInstructionBadges = (instructionsStr) => {
@@ -806,22 +854,28 @@ export default function TenantPortalView({
     if (tenantId) loadData();
   }, [tenantId]);
 
-  // Periodic poll for orders (every 6 seconds)
+  // Fast periodic poll for kitchen queue & live orders (every 2.5 seconds)
   useEffect(() => {
     if (!tenantId) return;
     const interval = setInterval(async () => {
       try {
-        const res = await api.tenantPortal.orders(tenantId);
-        setOrders(res.data);
-        const overRes = await api.tenantPortal.overview(tenantId);
+        const [ordersRes, overRes] = await Promise.all([
+          api.tenantPortal.orders(tenantId),
+          api.tenantPortal.overview(tenantId)
+        ]);
+        setOrders(ordersRes.data);
         setOverview(overRes.data);
       } catch (e) {}
-    }, 6000);
+    }, 2500);
     return () => clearInterval(interval);
   }, [tenantId]);
 
-  // Order status advancement
+  // Fast order status advancement with instant optimistic UI update
   const handleUpdateStatus = async (orderId, newStatus) => {
+    // 1. Instant optimistic local state update (0ms perceived latency)
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    setSelectedOrderModal(prev => prev && prev.id === orderId ? { ...prev, status: newStatus } : prev);
+
     try {
       const updateRes = await api.tenantPortal.updateOrderStatus(tenantId, orderId, newStatus);
       const friendlyLabels = {
@@ -835,31 +889,44 @@ export default function TenantPortalView({
       };
       const label = friendlyLabels[newStatus] || newStatus;
       showToast?.(updateRes?.message || `Order status updated to ${label}!`, 'success');
-      const res = await api.tenantPortal.orders(tenantId);
+
+      // 2. Parallel background sync
+      const [res, overRes, repRes] = await Promise.all([
+        api.tenantPortal.orders(tenantId),
+        api.tenantPortal.overview(tenantId),
+        api.tenantPortal.reports(tenantId)
+      ]);
       setOrders(res.data);
-      const overRes = await api.tenantPortal.overview(tenantId);
       setOverview(overRes.data);
-      const repRes = await api.tenantPortal.reports(tenantId);
       setReports(repRes.data);
     } catch (err) {
       showToast?.(err.message, 'error');
+      // Rollback/refresh on error
+      const res = await api.tenantPortal.orders(tenantId);
+      setOrders(res.data);
     }
   };
 
-  // Confirm and approve customer GCash or Maya payment screenshot
+  // Confirm and approve customer GCash or Maya payment screenshot with optimistic UI
   const handleConfirmPayment = async (orderId) => {
+    // 1. Instant optimistic update
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, payment_status: 'paid', status: o.status === 'pending' ? 'confirmed' : o.status } : o));
+    if (selectedOrderModal?.id === orderId) {
+      setSelectedOrderModal(prev => prev ? ({ ...prev, payment_status: 'paid', status: prev.status === 'pending' ? 'confirmed' : prev.status }) : null);
+    }
+
     try {
       const updateRes = await api.tenantPortal.confirmPayment(tenantId, orderId);
       showToast?.(updateRes?.message || 'Payment confirmed & approved! Order moved to confirmed.', 'success');
-      const res = await api.tenantPortal.orders(tenantId);
+      // 2. Parallel background sync
+      const [res, overRes, repRes] = await Promise.all([
+        api.tenantPortal.orders(tenantId),
+        api.tenantPortal.overview(tenantId),
+        api.tenantPortal.reports(tenantId)
+      ]);
       setOrders(res.data);
-      const overRes = await api.tenantPortal.overview(tenantId);
       setOverview(overRes.data);
-      const repRes = await api.tenantPortal.reports(tenantId);
       setReports(repRes.data);
-      if (selectedOrderModal?.id === orderId) {
-        setSelectedOrderModal(prev => prev ? ({ ...prev, payment_status: 'paid', status: prev.status === 'pending' ? 'confirmed' : prev.status }) : null);
-      }
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -965,29 +1032,38 @@ export default function TenantPortalView({
   const handleSaveAddon = async (e) => {
     e.preventDefault();
     try {
+      const parsedCatId = addonForm.category_id ? Number(addonForm.category_id) : null;
+      const matchedCat = (menuData?.categories || []).find(c => Number(c.id) === parsedCatId);
       const payload = {
         name: addonForm.name.trim(),
         price: parseFloat(addonForm.price) || 0,
         type: addonForm.type || 'food',
+        category_id: parsedCatId,
         is_available: addonForm.is_available ? 1 : 0
       };
       if (!payload.name) {
         showToast?.('Add-on name is required', 'error');
         return;
       }
+
+      // Optimistic update
       if (editingAddon) {
+        setAddons(prev => prev.map(a => a.id === editingAddon.id ? { ...a, ...payload, category_name: matchedCat?.name || null } : a));
         await api.tenantPortal.updateAddon(tenantId, editingAddon.id, payload);
         showToast?.('Add-on updated successfully!', 'success');
       } else {
-        await api.tenantPortal.createAddon(tenantId, payload);
+        const createRes = await api.tenantPortal.createAddon(tenantId, payload);
+        if (createRes.data) {
+          setAddons(prev => [...prev, createRes.data]);
+        }
         showToast?.('New add-on added to menu catalog!', 'success');
       }
       setIsAddonModalOpen(false);
       setEditingAddon(null);
-      setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+      setAddonForm({ name: '', price: '', type: 'food', category_id: '', is_available: 1 });
       const mRes = await api.tenantPortal.menu(tenantId);
       setMenuData(mRes.data);
-      setAddons(mRes.data?.addons || []);
+      if (mRes.data?.addons) setAddons(mRes.data.addons);
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -996,11 +1072,13 @@ export default function TenantPortalView({
   const handleToggleAddonStock = async (addon) => {
     try {
       const nextStatus = addon.is_available ? 0 : 1;
+      // Optimistic update
+      setAddons(prev => prev.map(a => a.id === addon.id ? { ...a, is_available: nextStatus } : a));
       await api.tenantPortal.updateAddon(tenantId, addon.id, { is_available: nextStatus });
       showToast?.(`Add-on "${addon.name}" is now ${nextStatus ? 'In Stock' : 'Sold Out'}`);
       const mRes = await api.tenantPortal.menu(tenantId);
       setMenuData(mRes.data);
-      setAddons(mRes.data?.addons || []);
+      if (mRes.data?.addons) setAddons(mRes.data.addons);
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -1015,11 +1093,13 @@ export default function TenantPortalView({
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
+          // Optimistic update
+          setAddons(prev => prev.filter(a => a.id !== addonId));
           await api.tenantPortal.deleteAddon(tenantId, addonId);
           showToast?.(`Add-on "${addonName}" deleted`);
           const mRes = await api.tenantPortal.menu(tenantId);
           setMenuData(mRes.data);
-          setAddons(mRes.data?.addons || []);
+          if (mRes.data?.addons) setAddons(mRes.data.addons);
         } catch (err) {
           showToast?.(err.message, 'error');
         }
@@ -2360,11 +2440,34 @@ export default function TenantPortalView({
                     {orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').slice(0, 5).map(o => (
                       <div key={o.id} style={{ padding: '14px', borderRadius: '12px', border: `1px solid ${C.border}`, backgroundColor: C.pinkLight, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                         <div style={{ flex: '1 1 240px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '16px', fontWeight: 800, color: C.dark }}>{o.customer_name}</span>
                             <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', backgroundColor: C.cardBg, color: C.tealDark, border: `1px solid ${C.border}` }}>
                               {o.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'}
                             </span>
+                            {/* Live Waiting Minutes Badge */}
+                            {(() => {
+                              const wait = getOrderWaitTime(o.created_at);
+                              const targetPickup = getOrderTargetPickup(o);
+                              return (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  backgroundColor: wait.bgColor,
+                                  color: wait.badgeColor,
+                                  border: `1px solid ${wait.badgeColor}44`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <i className={wait.isUrgent ? "ri-alarm-warning-fill" : "ri-timer-line"} />
+                                  <span>⏱️ {wait.text}</span>
+                                  {targetPickup && <span style={{ opacity: 0.85, fontSize: '10px' }}>• Pickup: {targetPickup}</span>}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <div style={{ fontSize: '12px', color: C.slate }}>
                             Order <strong style={{ color: C.tealDark, fontFamily: 'monospace' }}>#{o.order_number}</strong> • ₱{o.total} • Status: <strong style={{ textTransform: 'uppercase' }}>{o.status}</strong>
@@ -2552,6 +2655,35 @@ export default function TenantPortalView({
                           <span>Order <strong style={{ color: C.tealDark, fontFamily: 'monospace' }}>#{order.order_number}</strong></span>
                           {order.customer_phone && <span>• {order.customer_phone}</span>}
                         </div>
+                        {/* Live Waiting Time Badge */}
+                        {(() => {
+                          const wait = getOrderWaitTime(order.created_at);
+                          const targetPickup = getOrderTargetPickup(order);
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '5px' }}>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                backgroundColor: wait.bgColor,
+                                color: wait.badgeColor,
+                                border: `1px solid ${wait.badgeColor}44`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <i className={wait.isUrgent ? "ri-alarm-warning-fill" : "ri-timer-line"} />
+                                <span>⏱️ {wait.text}</span>
+                              </span>
+                              {targetPickup && (
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#C2410C', backgroundColor: '#FFEDD5', padding: '2px 7px', borderRadius: '6px' }}>
+                                  Pickup: {targetPickup}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <span style={{
@@ -2936,20 +3068,20 @@ export default function TenantPortalView({
 
             {menuSubTab === 'addons' ? (
               <div>
-                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', padding: '16px 20px', border: `1px solid ${C.border}`, marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ backgroundColor: C.cardBg, borderRadius: '14px', padding: '16px 20px', border: `1px solid ${C.border}`, marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                   <div>
                     <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: C.dark }}>
                       Restaurant Add-ons & Customization Extras
                     </h3>
                     <p style={{ margin: 0, fontSize: '12px', color: C.slate }}>
-                      Configure add-on options that customers can attach to dishes and drinks in the storefront (e.g. extra rice, egg, cheese, dips, extra shots, oat milk).
+                      Configure add-on options that customers can attach to dishes and drinks in the storefront (e.g. extra rice, egg, cheese, dips, extra shots, oat milk) matched to their specific categories.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
                       setEditingAddon(null);
-                      setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+                      setAddonForm({ name: '', price: '', type: 'food', category_id: '', is_available: 1 });
                       setIsAddonModalOpen(true);
                     }}
                     style={{
@@ -2970,6 +3102,84 @@ export default function TenantPortalView({
                   </button>
                 </div>
 
+                {/* Category Filter Pills for Add-ons */}
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAddonCategoryFilter('all')}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      border: addonCategoryFilter === 'all' ? '1px solid #D97706' : `1px solid ${C.border}`,
+                      backgroundColor: addonCategoryFilter === 'all' ? '#D97706' : C.cardBg,
+                      color: addonCategoryFilter === 'all' ? '#FFF' : C.dark,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    All Extras ({addons.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddonCategoryFilter('food')}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      border: addonCategoryFilter === 'food' ? '1px solid #D97706' : `1px solid ${C.border}`,
+                      backgroundColor: addonCategoryFilter === 'food' ? '#D97706' : C.cardBg,
+                      color: addonCategoryFilter === 'food' ? '#FFF' : C.dark,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Food Extras ({addons.filter(a => a.type === 'food').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddonCategoryFilter('drink')}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      border: addonCategoryFilter === 'drink' ? '1px solid #D97706' : `1px solid ${C.border}`,
+                      backgroundColor: addonCategoryFilter === 'drink' ? '#D97706' : C.cardBg,
+                      color: addonCategoryFilter === 'drink' ? '#FFF' : C.dark,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Beverage Extras ({addons.filter(a => a.type === 'drink').length})
+                  </button>
+                  {(menuData?.categories || []).map(cat => {
+                    const count = addons.filter(a => Number(a.category_id) === Number(cat.id)).length;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setAddonCategoryFilter(String(cat.id))}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          border: addonCategoryFilter === String(cat.id) ? '1px solid #D97706' : `1px solid ${C.border}`,
+                          backgroundColor: addonCategoryFilter === String(cat.id) ? '#D97706' : C.cardBg,
+                          color: addonCategoryFilter === String(cat.id) ? '#FFF' : C.dark,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {cat.name} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {addons.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '50px 20px', backgroundColor: C.cardBg, borderRadius: '16px', border: `1px dashed ${C.borderDark}` }}>
                     <i className="ri-price-tag-3-line" style={{ fontSize: '42px', color: '#D97706', display: 'block', marginBottom: '12px' }} />
@@ -2981,7 +3191,7 @@ export default function TenantPortalView({
                       type="button"
                       onClick={() => {
                         setEditingAddon(null);
-                        setAddonForm({ name: '', price: '', type: 'food', is_available: 1 });
+                        setAddonForm({ name: '', price: '', type: 'food', category_id: '', is_available: 1 });
                         setIsAddonModalOpen(true);
                       }}
                       style={{ backgroundColor: '#D97706', color: '#FFF', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
@@ -2991,7 +3201,12 @@ export default function TenantPortalView({
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
-                    {addons.map(addon => (
+                    {addons.filter(addon => {
+                      if (addonCategoryFilter === 'all') return true;
+                      if (addonCategoryFilter === 'food') return addon.type === 'food';
+                      if (addonCategoryFilter === 'drink') return addon.type === 'drink';
+                      return Number(addon.category_id) === Number(addonCategoryFilter);
+                    }).map(addon => (
                       <div
                         key={addon.id}
                         style={{
@@ -3030,12 +3245,12 @@ export default function TenantPortalView({
                                   textTransform: 'uppercase',
                                   padding: '1px 6px',
                                   borderRadius: '4px',
-                                  backgroundColor: addon.type === 'drink' ? '#DBEAFE' : (addon.type === 'both' ? '#EDE9FE' : '#FDE68A'),
-                                  color: addon.type === 'drink' ? '#1E40AF' : (addon.type === 'both' ? '#5B21B6' : '#92400E'),
+                                  backgroundColor: addon.category_name ? '#DCFCE7' : (addon.type === 'drink' ? '#DBEAFE' : (addon.type === 'both' ? '#EDE9FE' : '#FDE68A')),
+                                  color: addon.category_name ? '#15803D' : (addon.type === 'drink' ? '#1E40AF' : (addon.type === 'both' ? '#5B21B6' : '#92400E')),
                                   display: 'inline-block',
                                   marginTop: '2px'
                                 }}>
-                                  {addon.type === 'drink' ? 'Beverage Extra' : (addon.type === 'both' ? 'Universal' : 'Food Extra')}
+                                  {addon.category_name ? `Category: ${addon.category_name}` : (addon.type === 'drink' ? 'Beverage Extra' : (addon.type === 'both' ? 'Universal' : 'Food Extra'))}
                                 </span>
                               </div>
                             </div>
@@ -3079,6 +3294,7 @@ export default function TenantPortalView({
                                   name: addon.name,
                                   price: addon.price,
                                   type: addon.type || 'food',
+                                  category_id: addon.category_id || '',
                                   is_available: addon.is_available ? 1 : 0
                                 });
                                 setIsAddonModalOpen(true);
@@ -5274,15 +5490,44 @@ export default function TenantPortalView({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Applicable Category</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: C.slate, marginBottom: '4px' }}>Match To Category *</label>
                   <select
-                    value={addonForm.type}
-                    onChange={e => setAddonForm({ ...addonForm, type: e.target.value })}
+                    value={addonForm.category_id ? `cat_${addonForm.category_id}` : addonForm.type}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val.startsWith('cat_')) {
+                        const catId = val.replace('cat_', '');
+                        const matchedCat = (menuData?.categories || []).find(c => String(c.id) === String(catId));
+                        const isDrink = matchedCat && (matchedCat.name.toLowerCase().includes('drink') || matchedCat.name.toLowerCase().includes('coffee') || matchedCat.name.toLowerCase().includes('tea') || matchedCat.name.toLowerCase().includes('beverage'));
+                        setAddonForm({
+                          ...addonForm,
+                          category_id: catId,
+                          type: isDrink ? 'drink' : 'food'
+                        });
+                      } else {
+                        setAddonForm({
+                          ...addonForm,
+                          category_id: '',
+                          type: val
+                        });
+                      }
+                    }}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', boxSizing: 'border-box', backgroundColor: C.cardBg, color: C.dark }}
                   >
-                    <option value="food">Food Extra</option>
-                    <option value="drink">Beverage Extra</option>
-                    <option value="both">Universal (Food & Drink)</option>
+                    <optgroup label="General Types">
+                      <option value="both">All Categories (Universal)</option>
+                      <option value="food">All Food Categories</option>
+                      <option value="drink">All Beverage / Drink Categories</option>
+                    </optgroup>
+                    {(menuData?.categories || []).length > 0 && (
+                      <optgroup label="Specific Menu Categories">
+                        {(menuData?.categories || []).map(cat => (
+                          <option key={cat.id} value={`cat_${cat.id}`}>
+                            {cat.name} (Only)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -5586,6 +5831,35 @@ export default function TenantPortalView({
                     Customer: <strong style={{ color: C.dark }}>{selectedOrderModal.customer_name}</strong> •{' '}
                     <span>{selectedOrderModal.order_type === 'takeaway' ? 'Takeout' : 'Dine-In'}</span>
                   </div>
+                  {/* Modal Live Waiting Minutes Status */}
+                  {(() => {
+                    const wait = getOrderWaitTime(selectedOrderModal.created_at);
+                    const targetPickup = getOrderTargetPickup(selectedOrderModal);
+                    return (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: wait.bgColor,
+                          color: wait.badgeColor,
+                          border: `1px solid ${wait.badgeColor}44`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <i className={wait.isUrgent ? "ri-alarm-warning-fill" : "ri-timer-line"} />
+                          <span>⏱️ {wait.minutes} mins elapsed ({wait.text})</span>
+                        </span>
+                        {targetPickup && (
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#C2410C', backgroundColor: '#FFEDD5', padding: '2px 7px', borderRadius: '6px' }}>
+                            Target Pickup: {targetPickup}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

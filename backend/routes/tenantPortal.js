@@ -387,8 +387,17 @@ router.get('/:restaurantId/menu', (req, res) => {
 
     let addons = [];
     try {
-      addons = tenantDb.prepare('SELECT * FROM menu_addons ORDER BY id ASC').all();
-    } catch (e) {}
+      addons = tenantDb.prepare(`
+        SELECT a.*, c.name as category_name
+        FROM menu_addons a
+        LEFT JOIN menu_categories c ON a.category_id = c.id
+        ORDER BY a.id ASC
+      `).all();
+    } catch (e) {
+      try {
+        addons = tenantDb.prepare('SELECT * FROM menu_addons ORDER BY id ASC').all();
+      } catch (err) {}
+    }
 
     res.json({
       success: true,
@@ -603,7 +612,17 @@ router.get('/:restaurantId/addons', (req, res) => {
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { db: tenantDb } = tenantCtx;
 
-    const addons = tenantDb.prepare('SELECT * FROM menu_addons ORDER BY id ASC').all();
+    let addons = [];
+    try {
+      addons = tenantDb.prepare(`
+        SELECT a.*, c.name as category_name
+        FROM menu_addons a
+        LEFT JOIN menu_categories c ON a.category_id = c.id
+        ORDER BY a.id ASC
+      `).all();
+    } catch (e) {
+      addons = tenantDb.prepare('SELECT * FROM menu_addons ORDER BY id ASC').all();
+    }
     res.json({ success: true, data: addons });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -618,18 +637,29 @@ router.post('/:restaurantId/addons', (req, res) => {
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { db: tenantDb } = tenantCtx;
 
-    const { name, price = 0, type = 'food', is_available = 1 } = req.body;
+    const { name, price = 0, type = 'food', category_id = null, is_available = 1 } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Add-on name is required' });
     }
 
     const now = new Date().toISOString();
     const insert = tenantDb.prepare(`
-      INSERT INTO menu_addons (name, price, type, is_available, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO menu_addons (name, price, type, category_id, is_available, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const result = insert.run(name.trim(), parseFloat(price) || 0, type || 'food', is_available ? 1 : 0, now);
-    const created = tenantDb.prepare('SELECT * FROM menu_addons WHERE id = ?').get(result.lastInsertRowid);
+    const parsedCatId = category_id ? Number(category_id) : null;
+    const result = insert.run(name.trim(), parseFloat(price) || 0, type || 'food', parsedCatId, is_available ? 1 : 0, now);
+    let created;
+    try {
+      created = tenantDb.prepare(`
+        SELECT a.*, c.name as category_name
+        FROM menu_addons a
+        LEFT JOIN menu_categories c ON a.category_id = c.id
+        WHERE a.id = ?
+      `).get(result.lastInsertRowid);
+    } catch (e) {
+      created = tenantDb.prepare('SELECT * FROM menu_addons WHERE id = ?').get(result.lastInsertRowid);
+    }
     res.status(201).json({ success: true, data: created, message: 'Add-on created successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -644,7 +674,8 @@ router.put('/:restaurantId/addons/:id', (req, res) => {
     if (!tenantCtx) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     const { db: tenantDb } = tenantCtx;
 
-    const { name, price, type, is_available } = req.body;
+    const { name, price, type, category_id, is_available } = req.body;
+    
     tenantDb.prepare(`
       UPDATE menu_addons SET
         name = COALESCE(?, name),
@@ -660,7 +691,24 @@ router.put('/:restaurantId/addons/:id', (req, res) => {
       id
     );
 
-    const updated = tenantDb.prepare('SELECT * FROM menu_addons WHERE id = ?').get(id);
+    if (category_id !== undefined) {
+      tenantDb.prepare('UPDATE menu_addons SET category_id = ? WHERE id = ?').run(
+        category_id ? Number(category_id) : null,
+        id
+      );
+    }
+
+    let updated;
+    try {
+      updated = tenantDb.prepare(`
+        SELECT a.*, c.name as category_name
+        FROM menu_addons a
+        LEFT JOIN menu_categories c ON a.category_id = c.id
+        WHERE a.id = ?
+      `).get(id);
+    } catch (e) {
+      updated = tenantDb.prepare('SELECT * FROM menu_addons WHERE id = ?').get(id);
+    }
     res.json({ success: true, data: updated, message: 'Add-on updated successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

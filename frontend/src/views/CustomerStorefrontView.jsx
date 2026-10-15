@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
 import DineBrandLogo from '../components/DineBrandLogo';
+import { playRestaurantBeeper, stopRestaurantBeeper } from '../utils/audio';
 
 const SUGAR_LEVELS = ['0%', '25%', '50%', '75%', '100%'];
 
@@ -388,35 +389,59 @@ export default function CustomerStorefrontView({
   const [isOrderCompletedModalOpen, setIsOrderCompletedModalOpen] = useState(false);
   const [completedOrderConfirmedId, setCompletedOrderConfirmedId] = useState(null);
 
-  // Live Poll Active Order Status for Staff GCash Confirmation
+  // Restaurant Order Pager & Beeper Sound State
+  const [isBuzzerBeeping, setIsBuzzerBeeping] = useState(false);
+  const beepedOrdersRef = useRef(new Set());
+
+  // High-Speed Real-time Order Tracking & Staff Payment Confirmation Polling (1.8s)
   useEffect(() => {
     if (!activeOrder?.order_number) return;
     if (activeOrder.status === 'completed' || activeOrder.status === 'cancelled') return;
 
-    const interval = setInterval(async () => {
+    let isSubscribed = true;
+    const pollOrder = async () => {
       try {
-        const res = await api.storefront.getOrderStatus(slug, activeOrder.order_number);
-        if (res?.data) {
-          const fresh = res.data;
-          // Notify customer when staff confirms GCash or Maya payment
-          if (activeOrder.payment_status !== 'paid' && fresh.payment_status === 'paid') {
-            const methodLabel = String(fresh.payment_method || activeOrder.payment_method || '').toLowerCase().includes('maya') ? 'Maya' : 'GCash';
-            showToast?.(`🎉 ${methodLabel} Payment confirmed by restaurant staff! Kitchen is preparing your order.`, 'success');
-          }
-          if (fresh.status !== activeOrder.status || fresh.payment_status !== activeOrder.payment_status) {
-            setActiveOrder(prev => {
-              const updated = { ...prev, ...fresh };
-              localStorage.setItem(`dine_active_order_${slug}`, JSON.stringify(updated));
-              return updated;
-            });
-          }
+        const res = await api.storefront.trackOrder(slug, activeOrder.order_number);
+        if (!isSubscribed || !res?.data) return;
+        const fresh = res.data;
+
+        // 1. Notify diner immediately when staff confirms GCash or Maya payment
+        if (activeOrder.payment_status !== 'paid' && fresh.payment_status === 'paid') {
+          const methodLabel = String(fresh.payment_method || activeOrder.payment_method || '').toLowerCase().includes('maya') ? 'Maya' : 'GCash';
+          showToast?.(`🎉 ${methodLabel} Payment confirmed by restaurant staff! Kitchen is preparing your order.`, 'success');
+        }
+
+        // 2. Play Beeper Sound when order becomes READY!
+        const isNowReady = fresh.status === 'ready' || (fresh.status === 'ready' && activeOrder.status !== 'ready');
+        if (isNowReady && !beepedOrdersRef.current.has(activeOrder.order_number)) {
+          beepedOrdersRef.current.add(activeOrder.order_number);
+          playRestaurantBeeper({
+            cycles: 4,
+            volume: 0.8,
+            onStart: () => setIsBuzzerBeeping(true),
+            onEnd: () => setIsBuzzerBeeping(false)
+          });
+          showToast?.(`🔔 BEEP BEEP! Order #${activeOrder.order_number} is READY for pickup!`, 'success');
+        }
+
+        // 3. Sync latest status with local storage and component state
+        if (fresh.status !== activeOrder.status || fresh.payment_status !== activeOrder.payment_status) {
+          setActiveOrder(prev => {
+            const updated = { ...prev, ...fresh };
+            localStorage.setItem(`dine_active_order_${slug}`, JSON.stringify(updated));
+            return updated;
+          });
         }
       } catch (err) {
-        // Silently ignore poll errors
+        // Silently retry next tick
       }
-    }, 4000);
+    };
 
-    return () => clearInterval(interval);
+    const interval = setInterval(pollOrder, 1800);
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
   }, [activeOrder?.order_number, activeOrder?.status, activeOrder?.payment_status, slug]);
 
   // Load Storefront Data from Tenant's Isolated DB
@@ -469,22 +494,6 @@ export default function CustomerStorefrontView({
     fetchCustomerHistory();
   }, [slug, customerUser?.phone, customerUser?.name]);
 
-  // Real-time Order Tracking Polling
-  useEffect(() => {
-    if (!activeOrder?.order_number) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await api.storefront.trackOrder(slug, activeOrder.order_number);
-        if (res.data) {
-          setActiveOrder(prev => ({ ...prev, ...res.data }));
-        }
-      } catch (e) {
-        // Silently retry
-      }
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [activeOrder?.order_number, slug]);
-
   // Prompt completion popup immediately whenever active order finishes
   useEffect(() => {
     if (activeOrder && activeOrder.status === 'completed' && completedOrderConfirmedId !== activeOrder.order_number) {
@@ -528,8 +537,22 @@ export default function CustomerStorefrontView({
     }
   }, [restaurant?.name, slug]);
 
-  // Flatten items for filtering
-  const allItems = categories.flatMap(c => (c.items || []).map(it => ({ ...it, categoryName: c.name })));
+  // Flatten items for filtering with category metadata
+  const allItems = categories.flatMap(c => (c.items || []).map(it => ({
+    ...it,
+    categoryName: c.name,
+    category_id: it.category_id || c.id,
+    categoryId: it.category_id || c.id
+  })));
+
+  // Helper to determine if an item is a drink / beverage
+  const isDrinkCategoryOrItem = (item) => {
+    if (!item) return false;
+    const cat = (item.categoryName || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+    const drinkKeywords = ['coffee', 'beverage', 'drink', 'matcha', 'hojicha', 'tea', 'soda', 'milk', 'juice', 'shake', 'latte', 'espresso', 'cooler', 'smoothie', 'frappe'];
+    return drinkKeywords.some(kw => cat.includes(kw) || name.includes(kw));
+  };
 
   // Filter items by category and search query
   const filteredItems = allItems.filter(item => {
@@ -544,13 +567,44 @@ export default function CustomerStorefrontView({
     return true;
   });
 
+  // Filter available add-ons to STRICTLY match the selected product's category and type
+  const productAddons = useMemo(() => {
+    if (!selectedProduct) return [];
+    const isDrink = isDrinkCategoryOrItem(selectedProduct);
+    const prodCatId = selectedProduct.category_id || selectedProduct.categoryId;
+    const prodCatName = (selectedProduct.categoryName || '').toLowerCase().trim();
+
+    return availableAddons.filter(addon => {
+      // 1. Explicit Category ID match (if tenant mapped this add-on to a specific category)
+      if (addon.category_id != null && addon.category_id !== '' && prodCatId != null) {
+        return Number(addon.category_id) === Number(prodCatId);
+      }
+      // 2. Explicit Category Name match
+      if (addon.category_name && addon.category_name.toLowerCase().trim() === prodCatName) {
+        return true;
+      }
+      // 3. Match by Type
+      const type = (addon.type || '').toLowerCase();
+      if (type === 'both' || type === 'universal' || type === 'all') {
+        return true;
+      }
+      if (type === 'drink' || type === 'beverage') {
+        return isDrink;
+      }
+      if (type === 'food') {
+        return !isDrink;
+      }
+      return true;
+    });
+  }, [selectedProduct, availableAddons]);
+
   // Calculate Product Modal Price
   const getProductModalPrice = () => {
     if (!selectedProduct) return 0;
     let base = selectedProduct.price;
     if (modalSize === 'Large (16oz)') base += 30;
     const addonsTotal = modalAddons.reduce((sum, addId) => {
-      const opt = availableAddons.find(o => String(o.id) === String(addId));
+      const opt = productAddons.find(o => String(o.id) === String(addId)) || availableAddons.find(o => String(o.id) === String(addId));
       return sum + (opt ? Number(opt.price || 0) : 0);
     }, 0);
     return (base + addonsTotal) * modalQty;
@@ -569,7 +623,7 @@ export default function CustomerStorefrontView({
   // Add Configured Item to Cart
   const handleAddToCart = () => {
     if (!selectedProduct) return;
-    const isDrink = ['Coffee', 'Matcha', 'Hojicha', 'Milk Series', 'Soda Pop'].includes(selectedProduct.categoryName);
+    const isDrink = isDrinkCategoryOrItem(selectedProduct);
 
     const cartItem = {
       cartItemId: `${selectedProduct.id}-${modalSize}-${modalSugar}-${modalAddons.sort().join('-')}-${Date.now()}`,
@@ -1989,6 +2043,114 @@ export default function CustomerStorefrontView({
                 );
               })}
             </div>
+
+            {/* Restaurant Order Pager & Beeper Sound Alert */}
+            {activeOrder.status === 'ready' && (
+              <div style={{
+                marginTop: '16px',
+                backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.15)' : '#FFFBEB',
+                border: isDarkMode ? '1.5px solid #F59E0B' : '2px solid #F59E0B',
+                borderRadius: '14px',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                boxShadow: isBuzzerBeeping ? '0 0 20px rgba(245, 158, 11, 0.45)' : '0 4px 14px rgba(245, 158, 11, 0.15)',
+                transition: 'all 0.3s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    backgroundColor: '#D97706',
+                    color: '#FFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                    boxShadow: '0 4px 10px rgba(217, 119, 6, 0.35)'
+                  }}>
+                    <i className={isBuzzerBeeping ? "ri-notification-badge-fill" : "ri-restaurant-2-fill"} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: isDarkMode ? '#FCD34D' : '#92400E', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>🔔 ORDER READY FOR PICKUP!</span>
+                      {isBuzzerBeeping && (
+                        <span style={{ fontSize: '10px', fontWeight: 800, backgroundColor: '#EF4444', color: '#FFF', padding: '1px 6px', borderRadius: '4px' }}>
+                          BEEPER ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '12px', color: isDarkMode ? '#CBD5E1' : '#B45309', marginTop: '2px' }}>
+                      {isBuzzerBeeping
+                        ? 'Restaurant pager buzzer is sounding! Please proceed to the front counter to claim your dishes.'
+                        : 'Your meal is freshly prepared and ready. You may proceed to collect your order.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isBuzzerBeeping ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        stopRestaurantBeeper();
+                        setIsBuzzerBeeping(false);
+                      }}
+                      style={{
+                        backgroundColor: '#DC2626',
+                        color: '#FFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)'
+                      }}
+                    >
+                      <i className="ri-volume-mute-fill" style={{ fontSize: '14px' }} />
+                      <span>Silence Beeper</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playRestaurantBeeper({
+                          cycles: 4,
+                          volume: 0.8,
+                          onStart: () => setIsBuzzerBeeping(true),
+                          onEnd: () => setIsBuzzerBeeping(false)
+                        });
+                      }}
+                      style={{
+                        backgroundColor: '#D97706',
+                        color: '#FFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(217, 119, 6, 0.3)'
+                      }}
+                    >
+                      <i className="ri-volume-up-fill" style={{ fontSize: '14px' }} />
+                      <span>Re-play Beeper Sound</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2480,7 +2642,7 @@ export default function CustomerStorefrontView({
               </div>
 
               {/* Sugar Level (for Drinks) */}
-              {['Coffee', 'Matcha', 'Hojicha', 'Milk Series', 'Soda Pop'].includes(selectedProduct.categoryName) && (
+              {isDrinkCategoryOrItem(selectedProduct) && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: DINE_THEME.dark, marginBottom: '8px' }}>
                     Sweetness / Sugar Level
@@ -2511,49 +2673,56 @@ export default function CustomerStorefrontView({
                 </div>
               )}
 
-              {/* Add-on Choices */}
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: DINE_THEME.dark, marginBottom: '8px' }}>
-                  Customize & Add-ons
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {availableAddons.map(addon => {
-                    const isChecked = modalAddons.includes(addon.id);
-                    return (
-                      <label
-                        key={addon.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 12px',
-                          borderRadius: '10px',
-                          backgroundColor: isChecked ? DINE_THEME.pinkLight : (isDarkMode ? '#1F293D' : '#F8FAFC'),
-                          border: `1px solid ${isChecked ? DINE_THEME.teal : DINE_THEME.border}`,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              setModalAddons(prev => isChecked ? prev.filter(x => x !== addon.id) : [...prev, addon.id]);
-                            }}
-                            style={{ accentColor: DINE_THEME.teal, cursor: 'pointer' }}
-                          />
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: DINE_THEME.dark }}>
-                            {addon.name}
+              {/* Add-on Choices (Strictly matched to item category) */}
+              {productAddons.length > 0 ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: DINE_THEME.dark }}>
+                      Customize & Add-ons
+                    </label>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: DINE_THEME.tealDark, backgroundColor: DINE_THEME.tealLight, padding: '2px 8px', borderRadius: '12px' }}>
+                      {selectedProduct.categoryName || 'Item'} Extras
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {productAddons.map(addon => {
+                      const isChecked = modalAddons.includes(addon.id);
+                      return (
+                        <label
+                          key={addon.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '10px',
+                            backgroundColor: isChecked ? DINE_THEME.pinkLight : (isDarkMode ? '#1F293D' : '#F8FAFC'),
+                            border: `1px solid ${isChecked ? DINE_THEME.teal : DINE_THEME.border}`,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setModalAddons(prev => isChecked ? prev.filter(x => x !== addon.id) : [...prev, addon.id]);
+                              }}
+                              style={{ accentColor: DINE_THEME.teal, cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: DINE_THEME.dark }}>
+                              {addon.name}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: DINE_THEME.tealDark }}>
+                            +₱{addon.price}
                           </span>
-                        </div>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: DINE_THEME.tealDark }}>
-                          +₱{addon.price}
-                        </span>
-                      </label>
-                    );
-                  })}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               {/* Special Instructions Note */}
               <div style={{ marginBottom: '20px' }}>

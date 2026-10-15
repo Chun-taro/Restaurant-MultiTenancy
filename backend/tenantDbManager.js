@@ -151,6 +151,7 @@ function initTenantSchema(tenantDb, restaurant = null) {
       name TEXT NOT NULL,
       price REAL NOT NULL DEFAULT 0,
       type TEXT DEFAULT 'food',
+      category_id INTEGER,
       is_available INTEGER DEFAULT 1,
       created_at TEXT NOT NULL
     );
@@ -168,6 +169,17 @@ function initTenantSchema(tenantDb, restaurant = null) {
   } catch (e) {}
   try {
     tenantDb.prepare('ALTER TABLE orders ADD COLUMN payment_reference TEXT').run();
+  } catch (e) {}
+  try {
+    tenantDb.prepare('ALTER TABLE menu_addons ADD COLUMN category_id INTEGER').run();
+  } catch (e) {}
+
+  // Speed optimization indexes
+  try {
+    tenantDb.prepare('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)').run();
+    tenantDb.prepare('CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number)').run();
+    tenantDb.prepare('CREATE INDEX IF NOT EXISTS idx_menu_items_cat ON menu_items(category_id)').run();
+    tenantDb.prepare('CREATE INDEX IF NOT EXISTS idx_menu_addons_cat ON menu_addons(category_id)').run();
   } catch (e) {}
 
   const now = new Date().toISOString();

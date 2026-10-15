@@ -282,8 +282,18 @@ router.get('/:slug', (req, res) => {
 
     let addons = [];
     try {
-      addons = tenantDb.prepare('SELECT * FROM menu_addons WHERE is_available = 1 ORDER BY id ASC').all();
-    } catch (e) {}
+      addons = tenantDb.prepare(`
+        SELECT a.*, c.name as category_name
+        FROM menu_addons a
+        LEFT JOIN menu_categories c ON a.category_id = c.id
+        WHERE a.is_available = 1
+        ORDER BY a.id ASC
+      `).all();
+    } catch (e) {
+      try {
+        addons = tenantDb.prepare('SELECT * FROM menu_addons WHERE is_available = 1 ORDER BY id ASC').all();
+      } catch (err) {}
+    }
 
     res.json({
       success: true,

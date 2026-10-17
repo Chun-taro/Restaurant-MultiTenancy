@@ -35,6 +35,12 @@ export default function CustomerStorefrontView({
   // Dynamic Storefront Theme Tokens based on restaurant customized branding
   const themeConfig = useMemo(() => {
     let conf = {};
+    let localSaved = null;
+    try {
+      const stored = localStorage.getItem(`dine_tenant_theme_${slug}`);
+      if (stored) localSaved = JSON.parse(stored);
+    } catch (e) {}
+
     if (data?.restaurant?.theme_config) {
       try {
         conf = typeof data.restaurant.theme_config === 'string'
@@ -43,21 +49,26 @@ export default function CustomerStorefrontView({
       } catch (e) {
         console.warn('Failed to parse storefront theme_config', e);
       }
+    } else if (localSaved?.theme_config) {
+      conf = typeof localSaved.theme_config === 'string'
+        ? JSON.parse(localSaved.theme_config)
+        : localSaved.theme_config;
     }
-    const preset = conf.preset || 'teal_pink_dine';
-    const bgStyle = conf.bg_style || conf.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon', 'cyber_teal_pink'].includes(preset) ? 'midnight_dark' : 'slate_clean');
+
+    const preset = conf.preset || localSaved?.theme_config?.preset || 'teal_pink_dine';
+    const bgStyle = conf.bg_style || conf.bgStyle || localSaved?.theme_config?.bg_style || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon', 'cyber_teal_pink'].includes(preset) ? 'midnight_dark' : 'slate_clean');
     return {
       preset,
-      primary_color: conf.primary_color || conf.primary || data?.restaurant?.primary_color || '#00C4CC',
-      secondary_color: conf.secondary_color || conf.secondary || data?.restaurant?.secondary_color || '#1E293B',
-      accent_color: conf.accent_color || conf.accent || '#FF2A85',
+      primary_color: conf.primary_color || conf.primary || data?.restaurant?.primary_color || localSaved?.primary_color || '#00C4CC',
+      secondary_color: conf.secondary_color || conf.secondary || data?.restaurant?.secondary_color || localSaved?.secondary_color || '#1E293B',
+      accent_color: conf.accent_color || conf.accent || localSaved?.theme_config?.accent_color || '#FF2A85',
       bg_style: bgStyle,
-      font_family: conf.font_family || conf.font || 'Plus Jakarta Sans',
-      border_radius: conf.border_radius || conf.radius || 'smooth',
-      hero_style: conf.hero_style || conf.hero || 'cinematic',
-      card_density: conf.card_density || 'grid_spacious'
+      font_family: conf.font_family || conf.font || localSaved?.theme_config?.font_family || 'Plus Jakarta Sans',
+      border_radius: conf.border_radius || conf.radius || localSaved?.theme_config?.border_radius || 'smooth',
+      hero_style: conf.hero_style || conf.hero || localSaved?.theme_config?.hero_style || 'cinematic',
+      card_density: conf.card_density || localSaved?.theme_config?.card_density || 'grid_spacious'
     };
-  }, [data?.restaurant]);
+  }, [data?.restaurant, slug]);
 
   const primaryBrand = themeConfig.primary_color;
   const secondaryBrand = themeConfig.secondary_color;
@@ -452,6 +463,11 @@ export default function CustomerStorefrontView({
       setNotFound(false);
       const res = await api.storefront.get(slug);
       setData(res.data);
+      if (res.data?.restaurant) {
+        try {
+          localStorage.setItem(`dine_tenant_theme_${slug}`, JSON.stringify(res.data.restaurant));
+        } catch (e) {}
+      }
       if (res.data.tables?.length > 0 && !initialTable) {
         setSelectedTable(res.data.tables[0].table_number);
       }
@@ -1066,53 +1082,40 @@ export default function CustomerStorefrontView({
 
           {/* Logo & Brand Identity */}
           <div className="storefront-brand-section">
-            {isTealPink ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <DineBrandLogo color="#FF2A85" textColor="#FFFFFF" height={38} />
-                {restaurant?.name && restaurant.name !== 'DINE' && (
-                  <div style={{ borderLeft: '1.5px solid rgba(255, 255, 255, 0.35)', paddingLeft: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <h1 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.3px' }}>
-                        {restaurant.name}
-                      </h1>
-                      <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 7px', borderRadius: '10px', backgroundColor: 'rgba(255, 255, 255, 0.22)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.3)' }}>
-                        Open Now
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'rgba(255, 255, 255, 0.9)', marginTop: '2px' }}>
-                      <i className="ri-map-pin-line" /> {restaurant?.city || 'Bonifacio Global City'}
-                    </div>
-                  </div>
-                )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ position: 'relative' }}>
+                <img
+                  src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
+                  alt={restaurant?.name || 'Restaurant Logo'}
+                  onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
+                  style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: DINE_THEME.radius,
+                    objectFit: 'cover',
+                    border: `2px solid ${isTealPink ? '#FFFFFF' : DINE_THEME.teal}`,
+                    boxShadow: isTealPink ? '0 4px 12px rgba(0, 0, 0, 0.15)' : `0 4px 12px ${DINE_THEME.tealLight}`
+                  }}
+                />
+                <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: `2px solid ${isDarkMode ? '#161F30' : '#FFF'}` }} />
               </div>
-            ) : (
-              <>
-                <div style={{ position: 'relative' }}>
-                  <img
-                    src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
-                    alt={restaurant?.name || 'DINE'}
-                    style={{ width: '46px', height: '46px', borderRadius: DINE_THEME.radius, objectFit: 'cover', border: `2px solid ${DINE_THEME.teal}`, boxShadow: `0 4px 12px ${DINE_THEME.tealLight}` }}
-                  />
-                  <span style={{ position: 'absolute', bottom: -2, right: -2, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', border: `2px solid ${isDarkMode ? '#161F30' : '#FFF'}` }} />
-                </div>
 
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: DINE_THEME.dark, letterSpacing: '-0.3px' }}>
-                      {restaurant?.name || 'DINE'}
-                    </h1>
-                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', backgroundColor: DINE_THEME.tealLight, color: DINE_THEME.tealDark }}>
-                      Open Now
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: DINE_THEME.slate, marginTop: '2px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <i className="ri-map-pin-line" style={{ color: DINE_THEME.teal }} /> {restaurant?.city || 'Bonifacio Global City'}
-                    </span>
-                  </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: isTealPink ? '#FFFFFF' : DINE_THEME.dark, letterSpacing: '-0.3px' }}>
+                    {restaurant?.name || 'Restaurant'}
+                  </h1>
+                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', backgroundColor: isTealPink ? 'rgba(255, 255, 255, 0.22)' : DINE_THEME.tealLight, color: isTealPink ? '#FFFFFF' : DINE_THEME.tealDark }}>
+                    Open Now
+                  </span>
                 </div>
-              </>
-            )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: isTealPink ? 'rgba(255, 255, 255, 0.9)' : DINE_THEME.slate, marginTop: '2px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <i className="ri-map-pin-line" style={{ color: isTealPink ? '#FFFFFF' : DINE_THEME.teal }} /> {restaurant?.city || 'Bonifacio Global City'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Dining Mode & Table / Pickup Selector */}

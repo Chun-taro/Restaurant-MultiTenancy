@@ -78,6 +78,7 @@ function initDatabase() {
       orders_count INTEGER DEFAULT 0,
       total_volume REAL DEFAULT 0,
       suspended_reason TEXT,
+      theme_config TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );

@@ -823,6 +823,37 @@ router.put('/:restaurantId/settings', (req, res) => {
     );
 
     const updated = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurant.id);
+    
+    // Sync restaurant branding & theme to MongoDB Atlas
+    if (updated) {
+      MongoSync.syncRestaurant(updated);
+    }
+
+    // Also persist to tenant's isolated database table
+    try {
+      const { db: tenantDb } = tenantCtx;
+      if (tenantDb) {
+        if (themeConfigStr) {
+          tenantDb.prepare(`
+            INSERT INTO tenant_settings (key, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+          `).run('theme_config', themeConfigStr, now);
+        }
+        if (logo_url) {
+          tenantDb.prepare(`
+            INSERT INTO tenant_settings (key, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+          `).run('logo_url', logo_url, now);
+        }
+        if (banner_url) {
+          tenantDb.prepare(`
+            INSERT INTO tenant_settings (key, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+          `).run('banner_url', banner_url, now);
+        }
+      }
+    } catch (tErr) {}
+
     res.json({ success: true, data: updated, message: 'Restaurant settings updated!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -900,6 +931,36 @@ router.post('/:restaurantId/upload', async (req, res) => {
       }
     } catch (mongoErr) {
       console.warn('[Tenant Upload] Note: Atlas Media backup skipped:', mongoErr.message);
+    }
+
+    // 3. If uploading restaurant branding (logo or banner), immediately persist to restaurant record
+    const nowIso = new Date().toISOString();
+    if (targetSub === 'logo' || folder === 'logo') {
+      try {
+        db.prepare('UPDATE restaurants SET logo_url = ?, updated_at = ? WHERE id = ?').run(publicUrl, nowIso, restaurant.id);
+        const updatedResto = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurant.id);
+        if (updatedResto) MongoSync.syncRestaurant(updatedResto);
+        const { db: tenantDb } = tenantCtx;
+        tenantDb?.prepare(`
+          INSERT INTO tenant_settings (key, value, updated_at) VALUES (?, ?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        `).run('logo_url', publicUrl, nowIso);
+      } catch (saveErr) {
+        console.warn('Auto-save logo error:', saveErr.message);
+      }
+    } else if (targetSub === 'banner' || folder === 'banner') {
+      try {
+        db.prepare('UPDATE restaurants SET banner_url = ?, updated_at = ? WHERE id = ?').run(publicUrl, nowIso, restaurant.id);
+        const updatedResto = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(restaurant.id);
+        if (updatedResto) MongoSync.syncRestaurant(updatedResto);
+        const { db: tenantDb } = tenantCtx;
+        tenantDb?.prepare(`
+          INSERT INTO tenant_settings (key, value, updated_at) VALUES (?, ?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        `).run('banner_url', publicUrl, nowIso);
+      } catch (saveErr) {
+        console.warn('Auto-save banner error:', saveErr.message);
+      }
     }
 
     res.json({

@@ -112,6 +112,47 @@ async function hydrateMasterFromAtlas(masterDb) {
         const id = rIdx++;
         restoMongoToIdMap.set(String(r._id), id);
         const now = r.createdAt ? r.createdAt.toISOString() : new Date().toISOString();
+        let themeConfigVal = null;
+        if (r.themeConfig) {
+          themeConfigVal = typeof r.themeConfig === 'string' ? r.themeConfig : JSON.stringify(r.themeConfig);
+        } else {
+          try {
+            const tenantMongo = getTenantMongoDb(r.slug);
+            const savedSetting = await tenantMongo?.TenantSetting?.findOne({ key: 'theme_config' }).lean();
+            if (savedSetting?.value) {
+              themeConfigVal = savedSetting.value;
+            }
+          } catch (e) {}
+
+          if (!themeConfigVal) {
+            themeConfigVal = JSON.stringify({
+              preset: 'teal_pink_dine',
+              primary_color: r.primaryColor || '#00C4CC',
+              secondary_color: r.secondaryColor || '#1E293B',
+              accent_color: '#FF2A85',
+              bg_style: 'slate_clean',
+              font_family: 'Plus Jakarta Sans',
+              border_radius: 'smooth',
+              hero_style: 'cinematic',
+              card_density: 'grid_spacious'
+            });
+          }
+        }
+
+        let restoLogo = r.logoUrl || null;
+        let restoBanner = r.bannerUrl || null;
+        try {
+          const tenantMongo = getTenantMongoDb(r.slug);
+          if (!restoLogo) {
+            const savedLogo = await tenantMongo?.TenantSetting?.findOne({ key: 'logo_url' }).lean();
+            if (savedLogo?.value) restoLogo = savedLogo.value;
+          }
+          if (!restoBanner) {
+            const savedBanner = await tenantMongo?.TenantSetting?.findOne({ key: 'banner_url' }).lean();
+            if (savedBanner?.value) restoBanner = savedBanner.value;
+          }
+        } catch (e) {}
+
         insertResto.run(
           id,
           r.name,
@@ -119,8 +160,8 @@ async function hydrateMasterFromAtlas(masterDb) {
           r.subdomain || r.slug,
           r.customDomain || null,
           r.cuisineType || 'General Dining',
-          r.logoUrl || null,
-          r.bannerUrl || null,
+          restoLogo,
+          restoBanner,
           r.primaryColor || '#6366F1',
           r.secondaryColor || '#1E293B',
           r.status || 'active',
@@ -132,7 +173,7 @@ async function hydrateMasterFromAtlas(masterDb) {
           r.ordersCount || 0,
           r.totalVolume || 0,
           r.suspendedReason || null,
-          JSON.stringify({ primary_color: r.primaryColor }),
+          themeConfigVal,
           `restosaas_tenant_${r.slug}`,
           `Atlas Cloud: restosaas_tenant_${r.slug}`,
           now,

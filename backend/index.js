@@ -37,6 +37,42 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
+// Dynamic cloud media fallback: If tenant upload media is missing from local disk, serve directly from MongoDB Atlas Media collection and restore to disk
+app.get('/uploads/tenants/:slug/:folder/:filename', async (req, res, next) => {
+  try {
+    const { slug, folder, filename } = req.params;
+    const filePath = path.join(uploadsDir, 'tenants', slug, folder, filename);
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
+    const { getTenantMongoDb } = require('./tenantMongoManager');
+    const tenantMongo = getTenantMongoDb(slug);
+    if (tenantMongo?.Media) {
+      const media = await tenantMongo.Media.findOne({ fileName: filename }).lean();
+      if (media && media.dataUrl) {
+        const matches = media.dataUrl.match(/^data:([a-zA-Z0-9\/+-]+);base64,(.+)$/);
+        const contentType = matches ? matches[1] : (media.contentType || 'image/jpeg');
+        const buffer = matches ? Buffer.from(matches[2], 'base64') : Buffer.from(media.dataUrl, 'base64');
+
+        // Restore to disk cache for subsequent rapid requests
+        try {
+          const dir = path.dirname(filePath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(filePath, buffer);
+        } catch (e) {}
+
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(buffer);
+      }
+    }
+    next();
+  } catch (err) {
+    next();
+  }
+});
+
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));

@@ -61,6 +61,15 @@ const MongoSync = {
     if (!resto || !resto.slug) return;
     safeMongoSync(async () => {
       const tenantDb = getTenantMongoDb(resto.slug);
+      let parsedTheme = null;
+      if (resto.theme_config) {
+        try {
+          parsedTheme = typeof resto.theme_config === 'string' ? JSON.parse(resto.theme_config) : resto.theme_config;
+        } catch (e) {
+          parsedTheme = null;
+        }
+      }
+
       await Restaurant.findOneAndUpdate(
         { slug: resto.slug.toLowerCase() },
         {
@@ -82,10 +91,36 @@ const MongoSync = {
           ordersCount: resto.orders_count || 0,
           totalVolume: resto.total_volume || 0,
           suspendedReason: resto.suspended_reason || null,
+          themeConfig: parsedTheme,
           dbName: tenantDb.dbName
         },
         { upsert: true, new: true }
       );
+
+      // Also persist theme and branding in tenant's isolated database
+      if (tenantDb?.TenantSetting) {
+        if (parsedTheme) {
+          await tenantDb.TenantSetting.findOneAndUpdate(
+            { key: 'theme_config' },
+            { key: 'theme_config', value: JSON.stringify(parsedTheme) },
+            { upsert: true }
+          );
+        }
+        if (resto.logo_url) {
+          await tenantDb.TenantSetting.findOneAndUpdate(
+            { key: 'logo_url' },
+            { key: 'logo_url', value: resto.logo_url },
+            { upsert: true }
+          );
+        }
+        if (resto.banner_url) {
+          await tenantDb.TenantSetting.findOneAndUpdate(
+            { key: 'banner_url' },
+            { key: 'banner_url', value: resto.banner_url },
+            { upsert: true }
+          );
+        }
+      }
     });
   },
 

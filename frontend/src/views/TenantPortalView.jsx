@@ -278,40 +278,52 @@ export default function TenantPortalView({
     });
   };
 
-  const [settingsForm, setSettingsForm] = useState({
-    name: '',
-    cuisine_type: '',
-    primary_color: '#00C4CC',
-    secondary_color: '#1E293B',
-    logo_url: '',
-    banner_url: '',
-    phone: '',
-    address: '',
-    city: '',
-    email: '',
-    theme_config: {
-      preset: 'teal_pink_dine',
-      primary_color: '#00C4CC',
-      secondary_color: '#1E293B',
-      accent_color: '#FF2A85',
-      bg_style: 'slate_clean',
-      font_family: 'Plus Jakarta Sans',
-      border_radius: 'smooth',
-      hero_style: 'cinematic',
-      card_density: 'grid_spacious'
-    }
+  const [settingsForm, setSettingsForm] = useState(() => {
+    let saved = null;
+    try {
+      const stored = localStorage.getItem(`dine_tenant_theme_${tenantSlug}`);
+      if (stored) saved = JSON.parse(stored);
+    } catch (e) {}
+
+    return {
+      name: saved?.name || '',
+      cuisine_type: saved?.cuisine_type || '',
+      primary_color: saved?.primary_color || saved?.theme_config?.primary_color || '#00C4CC',
+      secondary_color: saved?.secondary_color || saved?.theme_config?.secondary_color || '#1E293B',
+      logo_url: saved?.logo_url || '',
+      banner_url: saved?.banner_url || '',
+      phone: saved?.phone || '',
+      address: saved?.address || '',
+      city: saved?.city || '',
+      email: saved?.email || '',
+      theme_config: {
+        preset: saved?.theme_config?.preset || 'teal_pink_dine',
+        primary_color: saved?.theme_config?.primary_color || saved?.primary_color || '#00C4CC',
+        secondary_color: saved?.theme_config?.secondary_color || saved?.secondary_color || '#1E293B',
+        accent_color: saved?.theme_config?.accent_color || '#FF2A85',
+        bg_style: saved?.theme_config?.bg_style || saved?.theme_config?.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon', 'cyber_teal_pink'].includes(saved?.theme_config?.preset) ? 'midnight_dark' : 'slate_clean'),
+        font_family: saved?.theme_config?.font_family || 'Plus Jakarta Sans',
+        border_radius: saved?.theme_config?.border_radius || 'smooth',
+        hero_style: saved?.theme_config?.hero_style || 'cinematic',
+        card_density: saved?.theme_config?.card_density || 'grid_spacious'
+      }
+    };
   });
 
   const updateThemeConfig = (updates) => {
     setSettingsForm(prev => {
       const currentTheme = prev.theme_config || {};
       const nextTheme = { ...currentTheme, ...updates };
-      return {
+      const updated = {
         ...prev,
         primary_color: updates.primary_color || nextTheme.primary_color || prev.primary_color,
         secondary_color: updates.secondary_color || nextTheme.secondary_color || prev.secondary_color,
         theme_config: nextTheme
       };
+      try {
+        localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
     });
   };
 
@@ -635,6 +647,7 @@ export default function TenantPortalView({
       localStorage.setItem(`dine_tenant_staff_${tenantSlug}`, JSON.stringify(user));
       localStorage.setItem(`dine_tenant_token_${tenantSlug}`, res.data.token);
       setStaffUser(user);
+      loadData();
       showToast?.(`Authenticated as ${user.name}!`, 'success');
     } catch (err) {
       setLoginError(err.message || 'Authentication failed');
@@ -776,55 +789,82 @@ export default function TenantPortalView({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [overRes, ordersRes, menuRes, tablesRes] = await Promise.all([
-        api.tenantPortal.overview(tenantId),
-        api.tenantPortal.orders(tenantId),
-        api.tenantPortal.menu(tenantId),
-        api.tenantPortal.tables(tenantId)
-      ]);
 
-      setOverview(overRes.data);
-      setOrders(ordersRes.data);
-      setMenuData(menuRes.data);
-      setAddons(menuRes.data?.addons || []);
-      setTables(tablesRes.data);
+      // 1. Fetch restaurant overview and branding
+      try {
+        const overRes = await api.tenantPortal.overview(tenantId);
+        if (overRes?.data) {
+          setOverview(overRes.data);
+          const r = overRes.data.restaurant;
+          if (r) {
+            let parsedTheme = {};
+            if (r.theme_config) {
+              try {
+                parsedTheme = typeof r.theme_config === 'string' ? JSON.parse(r.theme_config) : r.theme_config;
+              } catch (e) {
+                console.warn('Could not parse theme_config', e);
+              }
+            }
 
-      if (overRes.data?.restaurant) {
-        const r = overRes.data.restaurant;
-        let parsedTheme = {};
-        if (r.theme_config) {
-          try {
-            parsedTheme = typeof r.theme_config === 'string' ? JSON.parse(r.theme_config) : r.theme_config;
-          } catch (e) {
-            console.warn('Could not parse theme_config', e);
+            let localSaved = null;
+            try {
+              const localRaw = localStorage.getItem(`dine_tenant_theme_${tenantSlug}`);
+              if (localRaw) localSaved = JSON.parse(localRaw);
+            } catch (e) {}
+
+            const mergedForm = {
+              name: r.name || localSaved?.name || '',
+              cuisine_type: r.cuisine_type || localSaved?.cuisine_type || '',
+              primary_color: parsedTheme.primary_color || r.primary_color || localSaved?.primary_color || '#00C4CC',
+              secondary_color: parsedTheme.secondary_color || r.secondary_color || localSaved?.secondary_color || '#1E293B',
+              logo_url: r.logo_url || localSaved?.logo_url || '',
+              banner_url: r.banner_url || localSaved?.banner_url || '',
+              phone: r.phone || localSaved?.phone || '',
+              address: r.address || localSaved?.address || '',
+              city: r.city || localSaved?.city || '',
+              email: r.email || localSaved?.email || '',
+              theme_config: {
+                preset: parsedTheme.preset || localSaved?.theme_config?.preset || 'teal_pink_dine',
+                primary_color: parsedTheme.primary_color || r.primary_color || localSaved?.theme_config?.primary_color || '#00C4CC',
+                secondary_color: parsedTheme.secondary_color || r.secondary_color || localSaved?.theme_config?.secondary_color || '#1E293B',
+                accent_color: parsedTheme.accent_color || localSaved?.theme_config?.accent_color || '#FF2A85',
+                bg_style: parsedTheme.bg_style || parsedTheme.bgStyle || localSaved?.theme_config?.bg_style || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon', 'cyber_teal_pink'].includes(parsedTheme.preset || localSaved?.theme_config?.preset) ? 'midnight_dark' : 'slate_clean'),
+                font_family: parsedTheme.font_family || localSaved?.theme_config?.font_family || 'Plus Jakarta Sans',
+                border_radius: parsedTheme.border_radius || localSaved?.theme_config?.border_radius || 'smooth',
+                hero_style: parsedTheme.hero_style || localSaved?.theme_config?.hero_style || 'cinematic',
+                card_density: parsedTheme.card_density || localSaved?.theme_config?.card_density || 'grid_spacious'
+              }
+            };
+            setSettingsForm(mergedForm);
+            try {
+              localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(mergedForm));
+            } catch (e) {}
           }
         }
-        setSettingsForm({
-          name: r.name || '',
-          cuisine_type: r.cuisine_type || '',
-          primary_color: parsedTheme.primary_color || r.primary_color || '#00C4CC',
-          secondary_color: parsedTheme.secondary_color || r.secondary_color || '#1E293B',
-          logo_url: r.logo_url || '',
-          banner_url: r.banner_url || '',
-          phone: r.phone || '',
-          address: r.address || '',
-          city: r.city || '',
-          email: r.email || '',
-          theme_config: {
-            preset: parsedTheme.preset || 'teal_pink_dine',
-            primary_color: parsedTheme.primary_color || r.primary_color || '#00C4CC',
-            secondary_color: parsedTheme.secondary_color || r.secondary_color || '#1E293B',
-            accent_color: parsedTheme.accent_color || '#FF2A85',
-            bg_style: parsedTheme.bg_style || parsedTheme.bgStyle || (['tokyo_midnight', 'obsidian_luxury', 'cyber_neon'].includes(parsedTheme.preset) ? 'midnight_dark' : 'slate_clean'),
-            font_family: parsedTheme.font_family || 'Plus Jakarta Sans',
-            border_radius: parsedTheme.border_radius || 'smooth',
-            hero_style: parsedTheme.hero_style || 'cinematic',
-            card_density: parsedTheme.card_density || 'grid_spacious'
-          }
-        });
+      } catch (overErr) {
+        if (overErr.status === 404 || overErr.message?.toLowerCase().includes('not found')) {
+          setNotFound(true);
+        }
       }
 
-      // Also fetch staff, customers, reports, and subscription
+      // 2. Fetch operational data (orders, menu, tables)
+      try {
+        const [ordersRes, menuRes, tablesRes] = await Promise.all([
+          api.tenantPortal.orders(tenantId),
+          api.tenantPortal.menu(tenantId),
+          api.tenantPortal.tables(tenantId)
+        ]);
+        if (ordersRes?.data) setOrders(ordersRes.data);
+        if (menuRes?.data) {
+          setMenuData(menuRes.data);
+          setAddons(menuRes.data?.addons || []);
+        }
+        if (tablesRes?.data) setTables(tablesRes.data);
+      } catch (opErr) {
+        console.warn('Operational data load notice:', opErr.message);
+      }
+
+      // 3. Fetch secondary data (staff, customers, reports, subscription)
       try {
         const [custRes, repRes, staffRes, subRes] = await Promise.all([
           api.tenantPortal.customers(tenantId),
@@ -832,13 +872,11 @@ export default function TenantPortalView({
           api.tenantPortal.staff(tenantId),
           api.tenantPortal.subscription(tenantId)
         ]);
-        setCustomers(custRes.data || []);
-        setReports(repRes.data || null);
-        setStaffList(staffRes.data?.all || []);
-        setSubscriptionData(subRes.data || null);
-      } catch (e) {
-        // Fallback
-      }
+        if (custRes?.data) setCustomers(custRes.data || []);
+        if (repRes?.data) setReports(repRes.data || null);
+        if (staffRes?.data) setStaffList(staffRes.data?.all || []);
+        if (subRes?.data) setSubscriptionData(subRes.data || null);
+      } catch (e) {}
     } catch (err) {
       if (err.status === 404 || err.message?.toLowerCase().includes('not found')) {
         setNotFound(true);
@@ -1152,10 +1190,25 @@ export default function TenantPortalView({
         primary_color: settingsForm.theme_config?.primary_color || settingsForm.primary_color,
         secondary_color: settingsForm.theme_config?.secondary_color || settingsForm.secondary_color
       };
+
+      // Save to localStorage immediately
+      try {
+        localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(payload));
+      } catch (e) {}
+
+      // Optimistically update overview restaurant data
+      setOverview(prev => ({
+        ...prev,
+        restaurant: {
+          ...(prev?.restaurant || {}),
+          ...payload
+        }
+      }));
+
       await api.tenantPortal.updateSettings(tenantId, payload);
       showToast?.('Restaurant branding & theme customization saved!', 'success');
       const overRes = await api.tenantPortal.overview(tenantId);
-      setOverview(overRes.data);
+      if (overRes?.data) setOverview(overRes.data);
     } catch (err) {
       showToast?.(err.message, 'error');
     }
@@ -1184,12 +1237,39 @@ export default function TenantPortalView({
             fileName: file.name,
             folder
           });
+          const uploadedUrl = res.url || res.cloudUrl;
           if (targetField === 'logo') {
-            setSettingsForm(prev => ({ ...prev, logo_url: res.url }));
+            setSettingsForm(prev => {
+              const updated = { ...prev, logo_url: uploadedUrl };
+              try {
+                localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
+            setOverview(prev => ({
+              ...prev,
+              restaurant: {
+                ...(prev?.restaurant || {}),
+                logo_url: uploadedUrl
+              }
+            }));
           } else if (targetField === 'banner') {
-            setSettingsForm(prev => ({ ...prev, banner_url: res.url }));
+            setSettingsForm(prev => {
+              const updated = { ...prev, banner_url: uploadedUrl };
+              try {
+                localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
+            setOverview(prev => ({
+              ...prev,
+              restaurant: {
+                ...(prev?.restaurant || {}),
+                banner_url: uploadedUrl
+              }
+            }));
           } else if (targetField === 'menu_item') {
-            setItemForm(prev => ({ ...prev, image_url: res.url }));
+            setItemForm(prev => ({ ...prev, image_url: uploadedUrl }));
           }
           showToast?.(res.message || 'Image uploaded to restaurant directory!', 'success');
         } catch (err) {
@@ -1390,15 +1470,16 @@ export default function TenantPortalView({
         }}>
           {/* Header banner */}
           <div style={{
-            background: `linear-gradient(135deg, ${C.tealDark} 0%, ${C.teal} 100%)`,
+            background: isTealPink ? 'linear-gradient(135deg, #00C4CC 0%, #FF2A85 100%)' : `linear-gradient(135deg, ${C.tealDark} 0%, ${C.teal} 100%)`,
             padding: '30px 24px',
             color: '#FFF',
             textAlign: 'center',
             position: 'relative'
           }}>
             <img
-              src={restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
-              alt={restaurant?.name || 'Restaurant'}
+              src={settingsForm.logo_url || restaurant?.logo_url || '/dine/IMG_0162.jpeg'}
+              alt={restaurant?.name || settingsForm.name || 'Restaurant'}
+              onError={e => { e.currentTarget.src = '/dine/IMG_0162.jpeg'; }}
               style={{
                 width: '68px',
                 height: '68px',

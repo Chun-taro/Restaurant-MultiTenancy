@@ -23,6 +23,7 @@ const restaurantSchema = new mongoose.Schema({
   ordersCount: { type: Number, default: 0 },
   totalVolume: { type: Number, default: 0 },
   suspendedReason: { type: String, default: null },
+  themeConfig: { type: mongoose.Schema.Types.Mixed, default: null },
   ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, {
   timestamps: true

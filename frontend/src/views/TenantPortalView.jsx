@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 import DineBrandLogo from '../components/DineBrandLogo';
+import { compressAndConvertImage } from '../utils/imageCompressor';
 
 export const THEME_PRESETS = [
   {
@@ -327,8 +328,8 @@ export default function TenantPortalView({
     });
   };
 
-  const applyThemePreset = (preset) => {
-    updateThemeConfig({
+  const applyThemePreset = async (preset) => {
+    const nextTheme = {
       preset: preset.id,
       primary_color: preset.primary,
       secondary_color: preset.secondary,
@@ -337,7 +338,28 @@ export default function TenantPortalView({
       font_family: preset.font,
       border_radius: preset.radius,
       hero_style: preset.hero
-    });
+    };
+
+    updateThemeConfig(nextTheme);
+
+    // Auto-save preset directly to the backend database so other devices immediately see it
+    try {
+      const payload = {
+        ...settingsForm,
+        primary_color: preset.primary,
+        secondary_color: preset.secondary,
+        theme_config: {
+          ...(settingsForm.theme_config || {}),
+          ...nextTheme
+        }
+      };
+      await api.tenantPortal.updateSettings(tenantId, payload);
+      showToast?.(`Theme "${preset.name}" applied & saved across all devices!`, 'success');
+      const overRes = await api.tenantPortal.overview(tenantId);
+      if (overRes?.data) setOverview(overRes.data);
+    } catch (saveErr) {
+      console.warn('Auto-save theme preset error:', saveErr.message);
+    }
   };
 
   // Dynamic Theme Tokens that adapt to the restaurant's active color theme
@@ -1214,74 +1236,99 @@ export default function TenantPortalView({
     }
   };
 
-  // Upload Custom Media directly into Tenant's Dedicated Folder
+  // Upload Custom Media directly into Tenant's Dedicated Folder (with iPhone HEIC conversion & compression)
   const [uploadingField, setUploadingField] = useState(null);
   const handleFileUpload = async (file, targetField, folder = 'general') => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      showToast?.('Please upload a valid image file (PNG, JPG, WEBP, GIF, SVG)', 'error');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      showToast?.('Image file exceeds 10MB limit', 'error');
+
+    const isImage = file.type.startsWith('image/') || 
+      /\.(heic|heif|jpg|jpeg|png|webp|gif|svg)$/i.test(file.name);
+
+    if (!isImage) {
+      showToast?.('Please upload a valid image file (PNG, JPG, WEBP, GIF, SVG, HEIC)', 'error');
       return;
     }
 
     setUploadingField(targetField);
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
+      showToast?.('Optimizing image format & file size...', 'info');
+
+      const maxDim = targetField === 'banner' ? 1600 : (targetField === 'logo' ? 800 : 1200);
+      const compressed = await compressAndConvertImage(file, {
+        maxWidth: maxDim,
+        maxHeight: maxDim,
+        quality: 0.85
+      });
+
+      if (!compressed?.dataUrl) {
+        throw new Error('Could not process image file');
+      }
+
+      const res = await api.tenantPortal.uploadImage(tenantId, {
+        file: compressed.dataUrl,
+        fileName: compressed.fileName || file.name,
+        folder
+      });
+
+      const uploadedUrl = res.url || res.cloudUrl;
+
+      if (targetField === 'logo') {
+        const nextSettings = { ...settingsForm, logo_url: uploadedUrl };
+        setSettingsForm(nextSettings);
         try {
-          const res = await api.tenantPortal.uploadImage(tenantId, {
-            file: reader.result,
-            fileName: file.name,
-            folder
-          });
-          const uploadedUrl = res.url || res.cloudUrl;
-          if (targetField === 'logo') {
-            setSettingsForm(prev => {
-              const updated = { ...prev, logo_url: uploadedUrl };
-              try {
-                localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(updated));
-              } catch (e) {}
-              return updated;
-            });
-            setOverview(prev => ({
-              ...prev,
-              restaurant: {
-                ...(prev?.restaurant || {}),
-                logo_url: uploadedUrl
-              }
-            }));
-          } else if (targetField === 'banner') {
-            setSettingsForm(prev => {
-              const updated = { ...prev, banner_url: uploadedUrl };
-              try {
-                localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(updated));
-              } catch (e) {}
-              return updated;
-            });
-            setOverview(prev => ({
-              ...prev,
-              restaurant: {
-                ...(prev?.restaurant || {}),
-                banner_url: uploadedUrl
-              }
-            }));
-          } else if (targetField === 'menu_item') {
-            setItemForm(prev => ({ ...prev, image_url: uploadedUrl }));
+          localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(nextSettings));
+        } catch (e) {}
+
+        setOverview(prev => ({
+          ...prev,
+          restaurant: {
+            ...(prev?.restaurant || {}),
+            logo_url: uploadedUrl
           }
-          showToast?.(res.message || 'Image uploaded to restaurant directory!', 'success');
-        } catch (err) {
-          showToast?.(err.message || 'Failed to upload image', 'error');
-        } finally {
-          setUploadingField(null);
+        }));
+
+        // Auto-save logo directly to server database
+        try {
+          await api.tenantPortal.updateSettings(tenantId, {
+            ...nextSettings,
+            logo_url: uploadedUrl
+          });
+        } catch (saveErr) {
+          console.warn('Auto-save logo error:', saveErr.message);
         }
-      };
-      reader.readAsDataURL(file);
+      } else if (targetField === 'banner') {
+        const nextSettings = { ...settingsForm, banner_url: uploadedUrl };
+        setSettingsForm(nextSettings);
+        try {
+          localStorage.setItem(`dine_tenant_theme_${tenantSlug}`, JSON.stringify(nextSettings));
+        } catch (e) {}
+
+        setOverview(prev => ({
+          ...prev,
+          restaurant: {
+            ...(prev?.restaurant || {}),
+            banner_url: uploadedUrl
+          }
+        }));
+
+        // Auto-save banner directly to server database
+        try {
+          await api.tenantPortal.updateSettings(tenantId, {
+            ...nextSettings,
+            banner_url: uploadedUrl
+          });
+        } catch (saveErr) {
+          console.warn('Auto-save banner error:', saveErr.message);
+        }
+      } else if (targetField === 'menu_item') {
+        setItemForm(prev => ({ ...prev, image_url: uploadedUrl }));
+      }
+
+      showToast?.(res.message || 'Image uploaded & saved successfully!', 'success');
     } catch (err) {
+      showToast?.(err.message || 'Failed to upload image', 'error');
+    } finally {
       setUploadingField(null);
-      showToast?.('Failed to process image file', 'error');
     }
   };
 

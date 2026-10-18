@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
 import DineBrandLogo from '../components/DineBrandLogo';
 import { playRestaurantBeeper, stopRestaurantBeeper } from '../utils/audio';
+import { compressAndConvertImage } from '../utils/imageCompressor';
 
 const SUGAR_LEVELS = ['0%', '25%', '50%', '75%', '100%'];
 
@@ -212,20 +213,34 @@ export default function CustomerStorefrontView({
   const [viewProofModalUrl, setViewProofModalUrl] = useState(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  const handleScreenshotFileChange = (e) => {
+  const handleScreenshotFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      showToast?.('Screenshot is too large. Please select an image under 15MB.', 'error');
-      return;
+
+    const label = paymentMethod === 'Maya' ? 'Maya' : 'GCash';
+    try {
+      showToast?.(`Optimizing ${label} receipt screenshot...`, 'info');
+      const compressed = await compressAndConvertImage(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.82
+      });
+
+      if (compressed?.dataUrl) {
+        setGcashScreenshot(compressed.dataUrl);
+        showToast?.(`${label} payment screenshot attached & ready!`, 'success');
+      } else {
+        throw new Error('Could not convert image');
+      }
+    } catch (err) {
+      console.warn('Screenshot compression error, falling back to raw reader:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setGcashScreenshot(reader.result);
+        showToast?.(`${label} payment screenshot attached!`, 'success');
+      };
+      reader.readAsDataURL(file);
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setGcashScreenshot(reader.result);
-      const label = paymentMethod === 'Maya' ? 'Maya' : 'GCash';
-      showToast?.(`${label} payment screenshot attached!`, 'success');
-    };
-    reader.readAsDataURL(file);
   };
 
   // Unified Single Sign-In & Registration State

@@ -107,35 +107,7 @@ graph TD
    ```
 
 2. **Configure Environment Variables**:
-   Create a `.env` file in the project root (or inside `backend/`):
-   ```env
-   PORT=3000
-   NODE_ENV=development
-
-   # MongoDB Atlas Connection String
-   MONGODB_URI=mongodb+srv://<username>:<password>@restosaas.6ucox8v.mongodb.net/restosaas?retryWrites=true&w=majority
-
-   # Secrets
-   SESSION_SECRET=your-secure-session-secret-here
-   JWT_SECRET=your-secure-jwt-secret-here
-
-   # Universal Developer Accounts (Auto-seeded on boot)
-   DEV_SUPERADMIN_NAME="RestoSaaS Dev Admin"
-   DEV_SUPERADMIN_EMAIL="RestoSaasDev@gmail.com"
-   DEV_SUPERADMIN_PASSWORD="restosaasdev@123"
-
-   DEV_OWNER_NAME="Restaurant Dev admin"
-   DEV_OWNER_EMAIL="DevOwner@gmail.com"
-   DEV_OWNER_PASSWORD="devowner@123"
-
-   DEV_STAFF_NAME="Restaurant Dev Staff"
-   DEV_STAFF_EMAIL="DevStaff@gmail.com"
-   DEV_STAFF_PASSWORD="devstaff@123"
-
-   DEV_CUSTOMER_NAME="Dev Customer"
-   DEV_CUSTOMER_EMAIL="DevCustomer@gmail.com"
-   DEV_CUSTOMER_PASSWORD="devcustomer@123"
-   ```
+   Create a `.env` file in the project root or inside `backend/` and set your environment variables (e.g., `PORT`, `NODE_ENV`, `MONGODB_URI`, `SESSION_SECRET`, `JWT_SECRET`). Keep your `.env` configuration private and do not commit it to version control.
 
 3. **Install Dependencies**:
    ```bash
@@ -171,20 +143,6 @@ npm start
 ```
 The root `index.js` delegates to Express, which serves the backend REST APIs and delivers the pre-built React application from `frontend/dist`.
 
----
-
-## 🔑 Default Developer Test Credentials
-
-The system automatically initializes universal developer credentials across all tenants on boot:
-
-| Role | Email / Identifier | Password | Access / Scope |
-| :--- | :--- | :--- | :--- |
-| **Super Admin** | `RestoSaasDev@gmail.com` *(or `admin@restosaas.com`)* | `restosaasdev@123` *(or `admin123`)* | Global Super Admin Console (`/admin`) |
-| **Restaurant Owner** | `DevOwner@gmail.com` | `devowner@123` | Tenant Management & Kitchen Portal (`/portal/:slug`) |
-| **Restaurant Staff** | `DevStaff@gmail.com` | `devstaff@123` *(PIN: `1234`)* | Kitchen Queue, Order Status, Tables (`/portal/:slug`) |
-| **Customer** | `DevCustomer@gmail.com` | `devcustomer@123` | Mobile Digital Storefront (`/store/:slug`) |
-
----
 
 ## 📡 REST API Structure
 

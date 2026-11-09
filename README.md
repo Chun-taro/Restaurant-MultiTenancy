@@ -181,6 +181,11 @@ If deploying the frontend independently on Vercel:
 
 ---
 
+## 📊 Financial Plan & Fundraising Model
+For the detailed operational budget breakdown, infrastructure hosting estimates, investor fund liquidation plan, and SaaS subscription unit economics, see [`FINANCIAL_BREAKDOWN.md`](./FINANCIAL_BREAKDOWN.md).
+
+---
+
 ## 📄 License
 This project is licensed under the ISC License. Built according to the **Restaurant SaaS Architecture Proposal**.
 
